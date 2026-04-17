@@ -1,0 +1,49 @@
+export interface ForumCountry {
+  id: string;
+  name: string;
+  code: string;
+}
+
+export interface ForumCategory {
+  id: string;
+  countryId: string;
+  name: string;
+  parentId?: string;
+}
+
+export interface ForumTopic {
+  id: string;
+  categoryId: string;
+  title: string;
+  authorId: string;
+  isPinned: boolean;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+}
+
+export interface ForumComment {
+  id: string;
+  topicId: string;
+  authorId: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface IForumRepository {
+  // Countries
+  getCountries(): Promise<ForumCountry[]>;
+  createCountry(data: Omit<ForumCountry, "id">): Promise<ForumCountry>;
+
+  // Categories
+  getCategories(countryId: string): Promise<ForumCategory[]>;
+  createCategory(data: Omit<ForumCategory, "id">): Promise<ForumCategory>;
+
+  // Topics
+  getTopics(categoryId: string): Promise<ForumTopic[]>;
+  createTopic(data: Omit<ForumTopic, "id" | "createdAt">): Promise<ForumTopic>;
+  updateTopicStatus(id: string, status: ForumTopic["status"]): Promise<void>;
+
+  // Comments
+  getComments(topicId: string): Promise<ForumComment[]>;
+  createComment(data: Omit<ForumComment, "id" | "createdAt">): Promise<ForumComment>;
+}
