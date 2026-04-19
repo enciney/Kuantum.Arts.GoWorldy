@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { getDb } from "./db";
-import { IGuideRepository, GuideStep, UserGuideProgress } from "../interfaces";
+import { IGuideRepository, GuideStep, UserGuideProgress, GuideStats } from "../interfaces";
 
 export class SqliteGuideRepository implements IGuideRepository {
   async getSteps(countryId: string): Promise<GuideStep[]> {
@@ -21,5 +21,15 @@ export class SqliteGuideRepository implements IGuideRepository {
     const id = crypto.randomUUID();
     getDb().prepare("INSERT INTO user_guide_progress (id, userId, stepId, answer) VALUES (?, ?, ?, ?)").run(id, data.userId, data.stepId, data.answer);
     return getDb().prepare("SELECT * FROM user_guide_progress WHERE id = ?").get(id) as UserGuideProgress;
+  }
+
+  async getStats(): Promise<GuideStats> {
+    const totalSteps = getDb().prepare("SELECT COUNT(*) as count FROM guide_steps").get() as { count: number };
+    const totalUsersWithProgress = getDb().prepare("SELECT COUNT(DISTINCT userId) as count FROM user_guide_progress").get() as { count: number };
+    return {
+      totalSteps: totalSteps.count,
+      totalUsersWithProgress: totalUsersWithProgress.count,
+      averageCompletion: 0,
+    };
   }
 }

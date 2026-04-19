@@ -9,7 +9,7 @@ export interface AuthRequest extends Request {
 
 export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
   const token = req.headers.authorization?.replace("Bearer ", "");
-  if (!token) return res.status(401).json({ error: "Token gerekli" });
+  if (!token) return res.status(401).json({ error: "Token required" });
 
   try {
     const decoded = jwt.verify(token, config.jwtSecret) as { id: string; role: string };
@@ -17,14 +17,14 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
     req.userRole = decoded.role;
     next();
   } catch {
-    res.status(401).json({ error: "Geçersiz token" });
+    res.status(401).json({ error: "Invalid token" });
   }
 }
 
 export function requireRole(...roles: string[]) {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.userRole || !roles.includes(req.userRole)) {
-      return res.status(403).json({ error: "Yetkisiz erişim" });
+      return res.status(403).json({ error: "Access denied" });
     }
     next();
   };

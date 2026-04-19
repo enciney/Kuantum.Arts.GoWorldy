@@ -11,11 +11,11 @@ export function authRoutes(repos: Repositories): Router {
     try {
       const { email, password, displayName, userType } = req.body;
       const existing = await repos.users.findByEmail(email);
-      if (existing) return res.status(400).json({ error: "Bu email zaten kayıtlı" });
+      if (existing) return res.status(400).json({ error: "Email already registered" });
 
       const passwordHash = await bcrypt.hash(password, 10);
-      const user = await repos.users.create({ email, passwordHash, displayName, role: "user", userType: userType || "emigrant" });
-      const token = jwt.sign({ id: user.id, role: user.role }, config.jwtSecret, { expiresIn: "7d" });
+      const user = await repos.users.create({ email, passwordHash, displayName, role: config.roles.user, userType: userType || config.userTypes.emigrant });
+      const token = jwt.sign({ id: user.id, role: user.role }, config.jwtSecret, { expiresIn: config.jwtExpiry });
       res.json({ user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role }, token });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -26,12 +26,12 @@ export function authRoutes(repos: Repositories): Router {
     try {
       const { email, password } = req.body;
       const user = await repos.users.findByEmail(email);
-      if (!user) return res.status(401).json({ error: "Geçersiz email veya şifre" });
+      if (!user) return res.status(401).json({ error: "Invalid email or password" });
 
       const valid = await bcrypt.compare(password, user.passwordHash);
-      if (!valid) return res.status(401).json({ error: "Geçersiz email veya şifre" });
+      if (!valid) return res.status(401).json({ error: "Invalid email or password" });
 
-      const token = jwt.sign({ id: user.id, role: user.role }, config.jwtSecret, { expiresIn: "7d" });
+      const token = jwt.sign({ id: user.id, role: user.role }, config.jwtSecret, { expiresIn: config.jwtExpiry });
       res.json({ user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role }, token });
     } catch (e: any) {
       res.status(500).json({ error: e.message });

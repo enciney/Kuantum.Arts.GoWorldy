@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { getDb } from "./db";
-import { IForumRepository, ForumCountry, ForumCategory, ForumTopic, ForumComment } from "../interfaces";
+import { IForumRepository, ForumCountry, ForumCategory, ForumTopic, ForumComment, ForumStats } from "../interfaces";
 
 export class SqliteForumRepository implements IForumRepository {
   async getCountries(): Promise<ForumCountry[]> {
@@ -11,6 +11,11 @@ export class SqliteForumRepository implements IForumRepository {
     const id = crypto.randomUUID();
     getDb().prepare("INSERT INTO forum_countries (id, name, code) VALUES (?, ?, ?)").run(id, data.name, data.code);
     return { id, ...data };
+  }
+
+  async countCountries(): Promise<number> {
+    const result = getDb().prepare("SELECT COUNT(*) as count FROM forum_countries").get() as { count: number };
+    return result.count;
   }
 
   async getCategories(countryId: string): Promise<ForumCategory[]> {
@@ -37,6 +42,11 @@ export class SqliteForumRepository implements IForumRepository {
     getDb().prepare("UPDATE forum_topics SET status = ? WHERE id = ?").run(status, id);
   }
 
+  async countTopics(): Promise<number> {
+    const result = getDb().prepare("SELECT COUNT(*) as count FROM forum_topics").get() as { count: number };
+    return result.count;
+  }
+
   async getComments(topicId: string): Promise<ForumComment[]> {
     return getDb().prepare("SELECT * FROM forum_comments WHERE topicId = ? ORDER BY createdAt ASC").all(topicId) as ForumComment[];
   }
@@ -45,5 +55,23 @@ export class SqliteForumRepository implements IForumRepository {
     const id = crypto.randomUUID();
     getDb().prepare("INSERT INTO forum_comments (id, topicId, authorId, content) VALUES (?, ?, ?, ?)").run(id, data.topicId, data.authorId, data.content);
     return getDb().prepare("SELECT * FROM forum_comments WHERE id = ?").get(id) as ForumComment;
+  }
+
+  async countComments(): Promise<number> {
+    const result = getDb().prepare("SELECT COUNT(*) as count FROM forum_comments").get() as { count: number };
+    return result.count;
+  }
+
+  async getStats(countryId?: string): Promise<ForumStats> {
+    const totalTopics = await this.countTopics();
+    const totalComments = await this.countComments();
+    const activeTopics = getDb().prepare("SELECT COUNT(*) as count FROM forum_topics WHERE status = 'approved'").get() as { count: number };
+    const pendingTopics = getDb().prepare("SELECT COUNT(*) as count FROM forum_topics WHERE status = 'pending'").get() as { count: number };
+    return {
+      totalTopics,
+      totalComments,
+      activeTopics: activeTopics.count,
+      pendingTopics: pendingTopics.count,
+    };
   }
 }

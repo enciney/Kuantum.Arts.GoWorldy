@@ -29,10 +29,18 @@ export interface ForumComment {
   createdAt: string;
 }
 
+export interface ForumStats {
+  totalTopics: number;
+  totalComments: number;
+  activeTopics: number;
+  pendingTopics: number;
+}
+
 export interface IForumRepository {
   // Countries
   getCountries(): Promise<ForumCountry[]>;
   createCountry(data: Omit<ForumCountry, "id">): Promise<ForumCountry>;
+  countCountries(): Promise<number>;
 
   // Categories
   getCategories(countryId: string): Promise<ForumCategory[]>;
@@ -42,8 +50,13 @@ export interface IForumRepository {
   getTopics(categoryId: string): Promise<ForumTopic[]>;
   createTopic(data: Omit<ForumTopic, "id" | "createdAt">): Promise<ForumTopic>;
   updateTopicStatus(id: string, status: ForumTopic["status"]): Promise<void>;
+  countTopics(): Promise<number>;
 
   // Comments
   getComments(topicId: string): Promise<ForumComment[]>;
   createComment(data: Omit<ForumComment, "id" | "createdAt">): Promise<ForumComment>;
+  countComments(): Promise<number>;
+
+  // Stats
+  getStats(countryId?: string): Promise<ForumStats>;
 }

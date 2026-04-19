@@ -5,8 +5,21 @@ export interface User {
   displayName: string;
   bio?: string;
   role: "admin" | "moderator" | "user";
-  userType: "emigrant" | "consultant" | "expat";
+  userType: "emigrant" | "consultant" | "diaspora";
   createdAt: string;
+}
+
+export interface UserSearchParams {
+  search?: string;
+  role?: string;
+  userType?: string;
+  limit: number;
+  offset: number;
+}
+
+export interface UserTypeStats {
+  userType: string;
+  count: number;
 }
 
 export interface IUserRepository {
@@ -15,4 +28,8 @@ export interface IUserRepository {
   findByEmail(email: string): Promise<User | null>;
   updateRole(id: string, role: User["role"]): Promise<void>;
   update(id: string, data: Partial<User>): Promise<void>;
+  count(): Promise<number>;
+  getUserTypeStats(): Promise<UserTypeStats[]>;
+  getRecent(limit: number): Promise<User[]>;
+  search(params: UserSearchParams): Promise<User[]>;
 }
