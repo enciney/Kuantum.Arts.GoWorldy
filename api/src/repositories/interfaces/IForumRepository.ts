@@ -59,4 +59,8 @@ export interface IForumRepository {
 
   // Stats
   getStats(countryId?: string): Promise<ForumStats>;
+
+  // User-scoped counts
+  countTopicsByAuthor(userId: string): Promise<number>;
+  countCommentsByAuthor(userId: string): Promise<number>;
 }

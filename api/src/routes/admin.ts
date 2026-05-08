@@ -49,7 +49,7 @@ export function adminRoutes(repos: Repositories): Router {
 
   router.get("/users/:id", authMiddleware, requireRole("admin", "moderator"), async (req, res) => {
     try {
-      const user = await repos.users.findById(req.params.id);
+      const user = await repos.users.findById(req.params.id as string);
       if (!user) return res.status(404).json({ error: "User not found" });
       res.json(user);
     } catch (e: any) {
@@ -63,7 +63,7 @@ export function adminRoutes(repos: Repositories): Router {
       if (![config.roles.admin, config.roles.moderator, config.roles.user].includes(role)) {
         return res.status(400).json({ error: "Invalid role" });
       }
-      await repos.users.updateRole(req.params.id, role);
+      await repos.users.updateRole(req.params.id as string, role as "admin" | "moderator" | "user");
       res.json({ ok: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message });

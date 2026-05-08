@@ -1,4 +1,4 @@
-export { IUserRepository, User } from "./IUserRepository";
-export { IForumRepository, ForumCountry, ForumCategory, ForumTopic, ForumComment } from "./IForumRepository";
-export { IGuideRepository, GuideStep, UserGuideProgress } from "./IGuideRepository";
+export { IUserRepository, User, UserSearchParams, UserTypeStats } from "./IUserRepository";
+export { IForumRepository, ForumCountry, ForumCategory, ForumTopic, ForumComment, ForumStats } from "./IForumRepository";
+export { IGuideRepository, GuideStep, UserGuideProgress, GuideStats } from "./IGuideRepository";
 export { IPaymentProvider } from "./IPaymentProvider";

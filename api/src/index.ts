@@ -7,6 +7,7 @@ import { forumRoutes } from "./routes/forum";
 import { guideRoutes } from "./routes/guide";
 import { paymentRoutes } from "./routes/payment";
 import { adminRoutes } from "./routes/admin";
+import { userRoutes } from "./routes/users";
 import { seedDatabase } from "./seed";
 
 const app = express();
@@ -22,6 +23,7 @@ app.use("/api/forum", forumRoutes(repos));
 app.use("/api/guide", guideRoutes(repos));
 app.use("/api/payment", paymentRoutes(repos));
 app.use("/api/admin", adminRoutes(repos));
+app.use("/api/users", userRoutes(repos));
 
 app.get("/", (_req, res) => res.json({ name: config.app.name, version: config.app.version }));
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));

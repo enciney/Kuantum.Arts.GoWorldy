@@ -27,6 +27,14 @@ export const config = {
     apiKey: process.env.FIREBASE_API_KEY || "",
     authDomain: process.env.FIREBASE_AUTH_DOMAIN || "",
     projectId: process.env.FIREBASE_PROJECT_ID || "",
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL || "",
+    privateKey: (process.env.FIREBASE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+  },
+
+  google: {
+    webClientId: process.env.GOOGLE_WEB_CLIENT_ID || "",
+    iosClientId: process.env.GOOGLE_IOS_CLIENT_ID || "",
+    androidClientId: process.env.GOOGLE_ANDROID_CLIENT_ID || "",
   },
 
   stripe: {
@@ -41,15 +49,15 @@ export const config = {
   },
 
   roles: {
-    admin: "admin",
-    moderator: "moderator",
-    user: "user",
+    admin: "admin" as const,
+    moderator: "moderator" as const,
+    user: "user" as const,
   },
 
   userTypes: {
-    emigrant: "emigrant",
-    consultant: "consultant",
-    diaspora: "diaspora",
+    emigrant: "emigrant" as const,
+    consultant: "consultant" as const,
+    diaspora: "diaspora" as const,
   },
 
   forum: {

@@ -26,7 +26,30 @@ export function forumRoutes(repos: Repositories): Router {
   });
 
   router.post("/topics", authMiddleware, async (req: AuthRequest, res) => {
-    res.json(await repos.forum.createTopic({ ...req.body, authorId: req.userId!, status: "pending", isPinned: false }));
+    const { categoryId, title } = req.body;
+    if (!categoryId || !title) {
+      return res.status(400).json({ error: "categoryId ve title zorunlu" });
+    }
+
+    const isStaff = req.userRole === "admin" || req.userRole === "moderator";
+
+    // TODO: gerçek kredi/premium sistemi eklendiğinde user için kredi düşür / premium kontrol et.
+    // Şimdilik MVP: sadece admin/moderator yeni konu açabilir.
+    if (!isStaff) {
+      return res.status(402).json({
+        error: "Yeni konu açmak için premium üyelik veya yeterli kredi gerekli.",
+        code: "PAYMENT_REQUIRED",
+      });
+    }
+
+    const topic = await repos.forum.createTopic({
+      categoryId,
+      title,
+      authorId: req.userId!,
+      status: isStaff ? "approved" : "pending",
+      isPinned: false,
+    });
+    res.json(topic);
   });
 
   router.patch("/topics/:id/status", authMiddleware, requireRole("admin", "moderator"), async (req, res) => {

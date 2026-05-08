@@ -62,6 +62,20 @@ export class SqliteForumRepository implements IForumRepository {
     return result.count;
   }
 
+  async countTopicsByAuthor(userId: string): Promise<number> {
+    const r = getDb()
+      .prepare("SELECT COUNT(*) as count FROM forum_topics WHERE authorId = ?")
+      .get(userId) as { count: number };
+    return r.count;
+  }
+
+  async countCommentsByAuthor(userId: string): Promise<number> {
+    const r = getDb()
+      .prepare("SELECT COUNT(*) as count FROM forum_comments WHERE authorId = ?")
+      .get(userId) as { count: number };
+    return r.count;
+  }
+
   async getStats(countryId?: string): Promise<ForumStats> {
     const totalTopics = await this.countTopics();
     const totalComments = await this.countComments();
