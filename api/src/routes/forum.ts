@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { Repositories } from "../repositories";
 import { authMiddleware, requireRole, AuthRequest } from "../middleware/auth";
+import { config } from "../config";
 
 export function forumRoutes(repos: Repositories): Router {
   const router = Router();
@@ -33,13 +34,24 @@ export function forumRoutes(repos: Repositories): Router {
 
     const isStaff = req.userRole === "admin" || req.userRole === "moderator";
 
-    // TODO: gerçek kredi/premium sistemi eklendiğinde user için kredi düşür / premium kontrol et.
-    // Şimdilik MVP: sadece admin/moderator yeni konu açabilir.
     if (!isStaff) {
-      return res.status(402).json({
-        error: "Yeni konu açmak için premium üyelik veya yeterli kredi gerekli.",
-        code: "PAYMENT_REQUIRED",
-      });
+      const user = await repos.users.findById(req.userId!);
+      if (!user) return res.status(401).json({ error: "Kullanıcı bulunamadı." });
+
+      const TOPIC_COST = config.forum.createTopicCost;
+      const hasPremium = user.isPremium && (!user.premiumUntil || new Date(user.premiumUntil) > new Date());
+
+      if (!hasPremium) {
+        const deducted = await repos.users.deductCredits(req.userId!, TOPIC_COST);
+        if (!deducted) {
+          return res.status(402).json({
+            error: `Yeni konu açmak için ${TOPIC_COST} kredi veya premium üyelik gerekli.`,
+            code: "INSUFFICIENT_CREDITS",
+            required: TOPIC_COST,
+            balance: user.credits,
+          });
+        }
+      }
     }
 
     const topic = await repos.forum.createTopic({

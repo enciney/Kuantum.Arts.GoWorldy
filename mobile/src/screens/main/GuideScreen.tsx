@@ -15,12 +15,14 @@ import {
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
+import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 
 interface Step {
   id: string;
   order: number;
   question: string;
   description?: string;
+  blockingAnswer?: string;
 }
 
 interface Progress {
@@ -36,6 +38,8 @@ interface Country {
   code: string;
 }
 
+type StepState = "completed" | "active" | "locked" | "disqualified";
+
 const FLAG_MAP: Record<string, string> = {
   US: "🇺🇸", DE: "🇩🇪", GB: "🇬🇧", CA: "🇨🇦",
   AU: "🇦🇺", NL: "🇳🇱", FR: "🇫🇷", TR: "🇹🇷",
@@ -45,6 +49,35 @@ const COUNTRY_NAME_MAP: Record<string, string> = {
   US: "ABD", DE: "Almanya", GB: "İngiltere", CA: "Kanada",
   AU: "Avustralya", NL: "Hollanda", FR: "Fransa", TR: "Türkiye",
 };
+
+function computeStepStates(steps: Step[], completedMap: Map<string, Progress>): StepState[] {
+  let foundFirstIncomplete = false;
+  let disqualified = false;
+
+  return steps.map((step) => {
+    if (disqualified) return "disqualified";
+
+    const prog = completedMap.get(step.id);
+    const done = !!prog;
+
+    if (done) {
+      if (
+        step.blockingAnswer &&
+        prog.answer.trim().toLowerCase() === step.blockingAnswer.trim().toLowerCase()
+      ) {
+        disqualified = true;
+      }
+      return "completed";
+    }
+
+    if (!foundFirstIncomplete) {
+      foundFirstIncomplete = true;
+      return "active";
+    }
+
+    return "locked";
+  });
+}
 
 export function GuideScreen() {
   const { token } = useAuth();
@@ -96,12 +129,24 @@ export function GuideScreen() {
   }, [token, selectedCountryId]);
 
   const completedMap = new Map(progress.map((p) => [p.stepId, p]));
+  const stepStates = computeStepStates(steps, completedMap);
   const completionPct =
     steps.length > 0
       ? Math.round((completedMap.size / steps.length) * 100)
       : 0;
 
-  const openStep = (step: Step) => {
+  const openStep = (step: Step, state: StepState) => {
+    if (state === "locked") {
+      Alert.alert(
+        "Adım Kilitli",
+        "Bu adıma geçebilmek için önceki adımı tamamlaman gerekiyor.",
+        [{ text: "Anladım" }]
+      );
+      return;
+    }
+    if (state === "disqualified") {
+      return;
+    }
     setActiveStep(step);
     setAnswer(completedMap.get(step.id)?.answer || "");
   };
@@ -172,7 +217,7 @@ export function GuideScreen() {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator color="#2563EB" />
+          <ActivityIndicator color={Colors.primary} />
         </View>
       ) : error ? (
         <View style={styles.center}>
@@ -189,48 +234,16 @@ export function GuideScreen() {
             </View>
           }
           renderItem={({ item, index }) => {
+            const state = stepStates[index] ?? "locked";
             const completedProgress = completedMap.get(item.id);
-            const done = !!completedProgress;
             return (
-              <TouchableOpacity
-                style={[styles.stepRow, done && styles.stepRowDone]}
-                onPress={() => openStep(item)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.stepDot, done && styles.stepDotDone]}>
-                  {done ? (
-                    <Ionicons name="checkmark" size={18} color="#fff" />
-                  ) : (
-                    <Text style={styles.stepNum}>{String(index + 1)}</Text>
-                  )}
-                </View>
-                <View style={styles.stepContent}>
-                  <Text style={[styles.stepQuestion, done && styles.stepQuestionDone]}>
-                    {item.question}
-                  </Text>
-                  {item.description && (
-                    <Text style={styles.stepDesc}>{item.description}</Text>
-                  )}
-                  {completedProgress && (
-                    <View style={styles.answerBox}>
-                      <MaterialCommunityIcons
-                        name="comment-check-outline"
-                        size={14}
-                        color="#10B981"
-                      />
-                      <Text style={styles.answerText} numberOfLines={2}>
-                        {completedProgress.answer}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-                <Ionicons
-                  name={done ? "pencil-outline" : "chevron-forward"}
-                  size={18}
-                  color="#9CA3AF"
-                  style={styles.stepArrow}
-                />
-              </TouchableOpacity>
+              <StepRow
+                step={item}
+                index={index}
+                state={state}
+                completedProgress={completedProgress}
+                onPress={() => openStep(item, state)}
+              />
             );
           }}
         />
@@ -251,7 +264,7 @@ export function GuideScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalLabel}>Adım</Text>
               <TouchableOpacity onPress={closeModal} style={styles.modalClose}>
-                <Ionicons name="close" size={24} color="#6B7280" />
+                <Ionicons name="close" size={24} color={Colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <Text style={styles.modalQuestion}>{activeStep?.question}</Text>
@@ -263,7 +276,7 @@ export function GuideScreen() {
             <TextInput
               style={styles.modalInput}
               placeholder="Cevabını veya notunu yaz..."
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={Colors.textMuted}
               value={answer}
               onChangeText={setAnswer}
               multiline
@@ -301,97 +314,316 @@ export function GuideScreen() {
   );
 }
 
+// ─── StepRow ─────────────────────────────────────────────────────────────────
+
+function StepRow({
+  step,
+  index,
+  state,
+  completedProgress,
+  onPress,
+}: {
+  step: Step;
+  index: number;
+  state: StepState;
+  completedProgress?: Progress;
+  onPress: () => void;
+}) {
+  const isInteractive = state === "completed" || state === "active";
+
+  return (
+    <TouchableOpacity
+      style={[styles.stepRow, stepRowVariant[state]]}
+      onPress={onPress}
+      activeOpacity={isInteractive ? 0.7 : 1}
+    >
+      {/* Step dot / icon */}
+      <StepDot state={state} index={index} />
+
+      {/* Content */}
+      <View style={styles.stepContent}>
+        <Text style={[styles.stepQuestion, stepQuestionVariant[state]]}>
+          {step.question}
+        </Text>
+
+        {step.description && state !== "disqualified" && (
+          <Text style={styles.stepDesc}>{step.description}</Text>
+        )}
+
+        {/* Completed: show saved answer */}
+        {state === "completed" && completedProgress && (
+          <View style={styles.answerBox}>
+            <MaterialCommunityIcons
+              name="comment-check-outline"
+              size={14}
+              color={Colors.secondary}
+            />
+            <Text style={styles.answerText} numberOfLines={2}>
+              {completedProgress.answer}
+            </Text>
+          </View>
+        )}
+
+        {/* Disqualified: blocking warning */}
+        {state === "disqualified" && (
+          <View style={styles.disqualifiedBox}>
+            <Ionicons name="alert-circle" size={14} color={Colors.warning} />
+            <Text style={styles.disqualifiedText}>
+              Bu kriteri sağlamadan devam edemezsin.
+            </Text>
+          </View>
+        )}
+
+        {/* Locked: hint */}
+        {state === "locked" && (
+          <Text style={styles.lockedHint}>Önceki adımı tamamla</Text>
+        )}
+      </View>
+
+      {/* Right icon */}
+      {state === "completed" && (
+        <Ionicons name="pencil-outline" size={18} color={Colors.secondary} style={styles.stepArrow} />
+      )}
+      {state === "active" && (
+        <Ionicons name="chevron-forward" size={18} color={Colors.primary} style={styles.stepArrow} />
+      )}
+      {state === "locked" && (
+        <Ionicons name="lock-closed-outline" size={16} color={Colors.textMuted} style={styles.stepArrow} />
+      )}
+      {state === "disqualified" && (
+        <Ionicons name="ban-outline" size={16} color={Colors.warning} style={styles.stepArrow} />
+      )}
+    </TouchableOpacity>
+  );
+}
+
+function StepDot({ state, index }: { state: StepState; index: number }) {
+  const dotStyle = [styles.stepDot, stepDotVariant[state]];
+
+  if (state === "completed") {
+    return (
+      <View style={dotStyle}>
+        <Ionicons name="checkmark" size={16} color="#fff" />
+      </View>
+    );
+  }
+  if (state === "active") {
+    return (
+      <View style={dotStyle}>
+        <Text style={styles.stepNum}>{String(index + 1)}</Text>
+      </View>
+    );
+  }
+  if (state === "locked") {
+    return (
+      <View style={dotStyle}>
+        <Ionicons name="lock-closed" size={13} color={Colors.textMuted} />
+      </View>
+    );
+  }
+  // disqualified
+  return (
+    <View style={dotStyle}>
+      <Ionicons name="alert" size={13} color={Colors.warning} />
+    </View>
+  );
+}
+
+// ─── State-dependent style maps ───────────────────────────────────────────────
+
+const stepRowVariant: Record<StepState, object> = {
+  completed:    { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" },
+  active:       { backgroundColor: Colors.surface, borderColor: Colors.primary, borderWidth: 1.5 },
+  locked:       { backgroundColor: "#FAFAFA", borderColor: Colors.border, opacity: 0.7 },
+  disqualified: { backgroundColor: Colors.warningLight, borderColor: "#FDE68A" },
+};
+
+const stepDotVariant: Record<StepState, object> = {
+  completed:    { backgroundColor: Colors.secondary, borderColor: Colors.secondary },
+  active:       { borderColor: Colors.primary, borderWidth: 2 },
+  locked:       { borderColor: Colors.textMuted, borderWidth: 1.5, backgroundColor: "#F3F4F6" },
+  disqualified: { borderColor: Colors.warning, borderWidth: 1.5, backgroundColor: Colors.warningLight },
+};
+
+const stepQuestionVariant: Record<StepState, object> = {
+  completed:    { color: "#065F46" },
+  active:       { color: Colors.textPrimary },
+  locked:       { color: Colors.textMuted },
+  disqualified: { color: Colors.warning },
+};
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F9FAFB" },
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#111827",
-    paddingHorizontal: 16,
+    ...Typography.h1,
+    color: Colors.textPrimary,
+    paddingHorizontal: Spacing.md,
     paddingTop: 56,
     paddingBottom: 12,
   },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
-  countryList: { paddingHorizontal: 16, paddingBottom: 12, gap: 8 },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.lg,
+  },
+  countryList: {
+    paddingHorizontal: Spacing.md,
+    paddingBottom: 12,
+    gap: Spacing.sm,
+  },
   countryChip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 9999,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.full,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: Spacing.sm,
     gap: 6,
+    minHeight: MinTapTarget,
   },
-  countryChipSelected: { backgroundColor: "#EFF6FF", borderColor: "#2563EB" },
-  countryFlag: { fontSize: 18 },
-  countryChipText: { fontSize: 14, color: "#6B7280", fontWeight: "500" },
-  countryChipTextSelected: { color: "#2563EB" },
-  progressContainer: { paddingHorizontal: 16, marginBottom: 16 },
-  progressLabel: { fontSize: 13, color: "#6B7280", marginBottom: 6 },
+  countryChipSelected: {
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primary,
+  },
+  countryFlag: {
+    fontSize: 18,
+  },
+  countryChipText: {
+    ...Typography.label,
+    color: Colors.textSecondary,
+  },
+  countryChipTextSelected: {
+    color: Colors.primary,
+  },
+  progressContainer: {
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  progressLabel: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    marginBottom: 6,
+  },
   progressTrack: {
     height: 8,
-    backgroundColor: "#E5E7EB",
-    borderRadius: 9999,
+    backgroundColor: Colors.border,
+    borderRadius: Radius.full,
     overflow: "hidden",
   },
-  progressFill: { height: 8, backgroundColor: "#10B981", borderRadius: 9999 },
-  stepList: { paddingHorizontal: 16, paddingBottom: 24 },
+  progressFill: {
+    height: 8,
+    backgroundColor: Colors.secondary,
+    borderRadius: Radius.full,
+  },
+  stepList: {
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.lg,
+    gap: Spacing.sm,
+  },
   stepRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 10,
-    backgroundColor: "#fff",
-    borderRadius: 12,
+    borderRadius: Radius.md,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: Colors.border,
     gap: 10,
   },
-  stepRowDone: { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" },
-  stepArrow: { alignSelf: "center" },
+  stepArrow: {
+    alignSelf: "center",
+  },
   stepDot: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#D1D5DB",
+    borderRadius: Radius.full,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surface,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    flexShrink: 0,
   },
-  stepDotDone: { backgroundColor: "#10B981", borderColor: "#10B981" },
-  stepNum: { fontSize: 13, fontWeight: "600", color: "#6B7280" },
-  stepContent: { flex: 1, paddingTop: 4 },
-  stepQuestion: { fontSize: 15, fontWeight: "600", color: "#111827", marginBottom: 4 },
-  stepQuestionDone: { color: "#065F46" },
-  stepDesc: { fontSize: 13, color: "#6B7280", lineHeight: 18 },
+  stepNum: {
+    ...Typography.caption,
+    fontWeight: "600",
+    color: Colors.primary,
+  },
+  stepContent: {
+    flex: 1,
+    paddingTop: 4,
+  },
+  stepQuestion: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  stepDesc: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
   answerBox: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
-    paddingHorizontal: 8,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: Spacing.sm,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: Radius.sm,
     marginTop: 6,
     gap: 6,
     borderWidth: 1,
     borderColor: "#D1FAE5",
   },
-  answerText: { fontSize: 12, color: "#065F46", flex: 1 },
-  errorText: { color: "#EF4444", fontSize: 15 },
-  emptyText: { color: "#6B7280", fontSize: 15 },
+  answerText: {
+    ...Typography.small,
+    color: "#065F46",
+    flex: 1,
+  },
+  disqualifiedBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+  },
+  disqualifiedText: {
+    ...Typography.caption,
+    color: Colors.warning,
+    flex: 1,
+    lineHeight: 18,
+  },
+  lockedHint: {
+    ...Typography.small,
+    color: Colors.textMuted,
+    marginTop: 4,
+  },
+  errorText: {
+    color: Colors.danger,
+    fontSize: 15,
+  },
+  emptyText: {
+    color: Colors.textSecondary,
+    fontSize: 15,
+  },
 
+  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
   },
   modalCard: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: Radius.lg,
+    borderTopRightRadius: Radius.lg,
     padding: 20,
     paddingBottom: 32,
   },
@@ -399,49 +631,84 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
   modalLabel: {
-    fontSize: 12,
+    ...Typography.small,
     fontWeight: "600",
-    color: "#2563EB",
+    color: Colors.primary,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  modalClose: { padding: 4 },
-  modalQuestion: { fontSize: 18, fontWeight: "600", color: "#111827", marginBottom: 6 },
-  modalDesc: { fontSize: 13, color: "#6B7280", lineHeight: 18, marginBottom: 16 },
-  modalInputLabel: { fontSize: 13, fontWeight: "500", color: "#374151", marginBottom: 6 },
+  modalClose: {
+    padding: 4,
+    minWidth: MinTapTarget,
+    minHeight: MinTapTarget,
+    justifyContent: "center",
+    alignItems: "flex-end",
+  },
+  modalQuestion: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginBottom: 6,
+  },
+  modalDesc: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: Spacing.md,
+  },
+  modalInputLabel: {
+    ...Typography.caption,
+    fontWeight: "500",
+    color: "#374151",
+    marginBottom: 6,
+  },
   modalInput: {
-    backgroundColor: "#F9FAFB",
+    backgroundColor: Colors.background,
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 12,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.md,
     padding: 12,
     fontSize: 15,
-    color: "#111827",
+    color: Colors.textPrimary,
     minHeight: 100,
     textAlignVertical: "top",
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
-  modalActions: { flexDirection: "row", gap: 8 },
+  modalActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
   modalCancel: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: Radius.md,
     alignItems: "center",
     backgroundColor: "#F3F4F6",
+    minHeight: MinTapTarget,
+    justifyContent: "center",
   },
-  modalCancelText: { color: "#6B7280", fontWeight: "600", fontSize: 15 },
+  modalCancelText: {
+    color: Colors.textSecondary,
+    fontWeight: "600",
+    fontSize: 15,
+  },
   modalSave: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: Radius.md,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#2563EB",
+    backgroundColor: Colors.primary,
     gap: 6,
+    minHeight: MinTapTarget,
   },
-  modalSaveText: { color: "#fff", fontWeight: "600", fontSize: 15 },
+  modalSaveText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 15,
+  },
 });

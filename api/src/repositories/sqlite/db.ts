@@ -1,19 +1,26 @@
-import Database from "better-sqlite3";
+import { DatabaseSync } from "node:sqlite";
 import path from "path";
 
-let db: Database.Database;
+let db: DatabaseSync;
 
-export function getDb(): Database.Database {
+export function getDb(): DatabaseSync {
   if (!db) {
-    db = new Database(path.resolve(__dirname, "../../../data/goworldy.sqlite"));
-    db.pragma("journal_mode = WAL");
-    db.pragma("foreign_keys = ON");
+    db = new DatabaseSync(path.resolve(__dirname, "../../../data/goworldy.sqlite"));
+    db.exec("PRAGMA journal_mode = WAL");
+    db.exec("PRAGMA foreign_keys = ON");
     initTables(db);
   }
   return db;
 }
 
-function initTables(db: Database.Database) {
+function addColumnIfNotExists(db: DatabaseSync, table: string, column: string, definition: string) {
+  const info = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (!info.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
+function initTables(db: DatabaseSync) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -23,6 +30,9 @@ function initTables(db: Database.Database) {
       bio TEXT,
       role TEXT DEFAULT 'user',
       userType TEXT DEFAULT 'emigrant',
+      credits INTEGER DEFAULT 0,
+      isPremium INTEGER DEFAULT 0,
+      premiumUntil TEXT,
       createdAt TEXT DEFAULT (datetime('now'))
     );
 
@@ -62,7 +72,8 @@ function initTables(db: Database.Database) {
       countryId TEXT NOT NULL REFERENCES forum_countries(id),
       "order" INTEGER NOT NULL,
       question TEXT NOT NULL,
-      description TEXT
+      description TEXT,
+      blockingAnswer TEXT
     );
 
     CREATE TABLE IF NOT EXISTS user_guide_progress (
@@ -73,4 +84,12 @@ function initTables(db: Database.Database) {
       completedAt TEXT DEFAULT (datetime('now'))
     );
   `);
+
+  // Mevcut DB'ye yeni kolonlar (idempotent migrasyon)
+  addColumnIfNotExists(db, "users", "credits", "INTEGER DEFAULT 0");
+  addColumnIfNotExists(db, "users", "isPremium", "INTEGER DEFAULT 0");
+  addColumnIfNotExists(db, "users", "premiumUntil", "TEXT");
+  addColumnIfNotExists(db, "users", "phoneNumber", "TEXT");
+  addColumnIfNotExists(db, "users", "sharePhoneNumber", "INTEGER DEFAULT 1");
+  addColumnIfNotExists(db, "guide_steps", "blockingAnswer", "TEXT");
 }

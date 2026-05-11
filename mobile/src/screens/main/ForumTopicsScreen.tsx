@@ -11,6 +11,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
+import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 
 interface Topic {
   id: string;
@@ -19,6 +20,7 @@ interface Topic {
   isPinned: boolean;
   status: string;
   createdAt: string;
+  commentCount: number;
 }
 
 interface TopicWithIsMine extends Topic {
@@ -80,17 +82,15 @@ export function ForumTopicsScreen({
     .map((t) => ({ ...t, isMine: !!user && t.authorId === user.id }))
     .sort((a, b) => {
       if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-      if (filter === "new") {
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      }
-      return 0;
+      if (filter === "popular") return b.commentCount - a.commentCount;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={26} color="#2563EB" />
+          <Ionicons name="chevron-back" size={26} color={Colors.primary} />
         </TouchableOpacity>
         <Text style={styles.title} numberOfLines={1}>
           {categoryName}
@@ -113,11 +113,11 @@ export function ForumTopicsScreen({
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator color="#2563EB" />
+          <ActivityIndicator color={Colors.primary} />
         </View>
       ) : error ? (
         <View style={styles.center}>
-          <Ionicons name="alert-circle" size={32} color="#EF4444" />
+          <Ionicons name="alert-circle" size={32} color={Colors.danger} />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       ) : (
@@ -126,16 +126,22 @@ export function ForumTopicsScreen({
           keyExtractor={(t) => t.id}
           contentContainerStyle={styles.list}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563EB" />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Colors.primary}
+            />
           }
           ListEmptyComponent={
             <View style={styles.emptyBox}>
-              <Ionicons name="chatbubble-ellipses-outline" size={48} color="#9CA3AF" />
+              <Ionicons name="chatbubble-ellipses-outline" size={48} color={Colors.textMuted} />
               <Text style={styles.emptyTitle}>Henüz konu yok</Text>
               <Text style={styles.emptyText}>İlk konuyu sen aç!</Text>
             </View>
           }
-          renderItem={({ item }) => <TopicRow topic={item} onPress={() => onTopicPress(item.id, item.title)} />}
+          renderItem={({ item }) => (
+            <TopicRow topic={item} onPress={() => onTopicPress(item.id, item.title)} />
+          )}
         />
       )}
 
@@ -165,7 +171,7 @@ function TopicRow({
     <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
       {topic.isPinned && (
         <View style={styles.pinBox}>
-          <MaterialCommunityIcons name="pin" size={14} color="#F59E0B" />
+          <MaterialCommunityIcons name="pin" size={14} color={Colors.warning} />
         </View>
       )}
       <View style={{ flex: 1 }}>
@@ -174,8 +180,12 @@ function TopicRow({
         </Text>
         <View style={styles.rowMetaRow}>
           <View style={styles.rowMeta}>
-            <Ionicons name="time-outline" size={12} color="#9CA3AF" />
+            <Ionicons name="time-outline" size={12} color={Colors.textMuted} />
             <Text style={styles.rowMetaText}>{dateLabel}</Text>
+          </View>
+          <View style={styles.rowMeta}>
+            <Ionicons name="chatbubble-outline" size={12} color={Colors.textMuted} />
+            <Text style={styles.rowMetaText}>{topic.commentCount}</Text>
           </View>
           {showStatusBadge && (
             <View
@@ -188,8 +198,8 @@ function TopicRow({
               <Text
                 style={[
                   styles.statusText,
-                  topic.status === "pending" && { color: "#92400E" },
-                  topic.status === "rejected" && { color: "#991B1B" },
+                  topic.status === "pending" && styles.statusTextPending,
+                  topic.status === "rejected" && styles.statusTextRejected,
                 ]}
               >
                 {topic.status === "pending" ? "Onay bekliyor" : "Reddedildi"}
@@ -198,83 +208,153 @@ function TopicRow({
           )}
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+      <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F9FAFB" },
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 8,
+    paddingHorizontal: Spacing.sm,
     paddingTop: 56,
     paddingBottom: 12,
   },
-  backBtn: { padding: 6 },
-  title: { fontSize: 20, fontWeight: "bold", color: "#111827", flex: 1 },
+  backBtn: {
+    padding: 6,
+    minWidth: MinTapTarget,
+    minHeight: MinTapTarget,
+    justifyContent: "center",
+  },
+  title: {
+    ...Typography.h2,
+    color: Colors.textPrimary,
+    flex: 1,
+  },
   filters: {
     flexDirection: "row",
-    paddingHorizontal: 16,
-    gap: 8,
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.sm,
     marginBottom: 12,
   },
   filterChip: {
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 9999,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.full,
     paddingHorizontal: 14,
     paddingVertical: 6,
   },
-  filterChipActive: { backgroundColor: "#EFF6FF", borderColor: "#2563EB" },
-  filterText: { fontSize: 13, color: "#6B7280", fontWeight: "500" },
-  filterTextActive: { color: "#2563EB" },
-  list: { paddingHorizontal: 16, paddingBottom: 100 },
+  filterChipActive: {
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primary,
+  },
+  filterText: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    fontWeight: "500",
+  },
+  filterTextActive: {
+    color: Colors.primary,
+  },
+  list: {
+    paddingHorizontal: Spacing.md,
+    paddingBottom: 100,
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
     padding: 14,
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: Colors.border,
     gap: 10,
   },
   pinBox: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#FEF3C7",
+    backgroundColor: Colors.warningLight,
     justifyContent: "center",
     alignItems: "center",
   },
-  rowTitle: { fontSize: 15, fontWeight: "600", color: "#111827" },
+  rowTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
   rowMetaRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: Spacing.sm,
     marginTop: 4,
     flexWrap: "wrap",
   },
-  rowMeta: { flexDirection: "row", alignItems: "center", gap: 4 },
-  rowMetaText: { fontSize: 11, color: "#9CA3AF" },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 9999,
-    backgroundColor: "#E5E7EB",
+  rowMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
-  statusPending: { backgroundColor: "#FEF3C7" },
-  statusRejected: { backgroundColor: "#FEE2E2" },
-  statusText: { fontSize: 10, fontWeight: "600", color: "#374151" },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 40 },
-  emptyBox: { alignItems: "center", padding: 60 },
-  emptyTitle: { fontSize: 16, fontWeight: "600", color: "#111827", marginTop: 12 },
-  emptyText: { fontSize: 13, color: "#6B7280", marginTop: 4 },
-  errorText: { color: "#EF4444", fontSize: 14, marginTop: 8 },
+  rowMetaText: {
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
+  statusBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.border,
+  },
+  statusPending: {
+    backgroundColor: Colors.warningLight,
+  },
+  statusRejected: {
+    backgroundColor: Colors.dangerLight,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+  },
+  statusTextPending: {
+    color: "#92400E",
+  },
+  statusTextRejected: {
+    color: "#991B1B",
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 40,
+  },
+  emptyBox: {
+    alignItems: "center",
+    padding: 60,
+  },
+  emptyTitle: {
+    ...Typography.body,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginTop: 12,
+  },
+  emptyText: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    marginTop: 4,
+  },
+  errorText: {
+    color: Colors.danger,
+    fontSize: 14,
+    marginTop: Spacing.sm,
+  },
   fab: {
     position: "absolute",
     bottom: 24,
@@ -282,7 +362,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#2563EB",
+    backgroundColor: Colors.primary,
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",

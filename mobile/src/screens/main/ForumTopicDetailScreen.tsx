@@ -14,10 +14,12 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
+import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 
 interface Comment {
   id: string;
   authorId: string;
+  authorDisplayName: string;
   content: string;
   createdAt: string;
 }
@@ -75,7 +77,7 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, onBack }: Props) {
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={26} color="#2563EB" />
+          <Ionicons name="chevron-back" size={26} color={Colors.primary} />
         </TouchableOpacity>
         <Text style={styles.title} numberOfLines={2}>
           {topicTitle}
@@ -84,11 +86,11 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, onBack }: Props) {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator color="#2563EB" />
+          <ActivityIndicator color={Colors.primary} />
         </View>
       ) : error ? (
         <View style={styles.center}>
-          <Ionicons name="alert-circle" size={32} color="#EF4444" />
+          <Ionicons name="alert-circle" size={32} color={Colors.danger} />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       ) : (
@@ -98,7 +100,7 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, onBack }: Props) {
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             <View style={styles.emptyBox}>
-              <Ionicons name="chatbubble-ellipses-outline" size={42} color="#9CA3AF" />
+              <Ionicons name="chatbubble-ellipses-outline" size={42} color={Colors.textMuted} />
               <Text style={styles.emptyTitle}>Henüz yorum yok</Text>
               <Text style={styles.emptyText}>İlk yorumu yapan sen ol!</Text>
             </View>
@@ -113,14 +115,17 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, onBack }: Props) {
         <TextInput
           style={styles.replyInput}
           placeholder="Yorum yaz..."
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={Colors.textMuted}
           value={reply}
           onChangeText={setReply}
           multiline
           maxLength={1000}
         />
         <TouchableOpacity
-          style={[styles.sendBtn, (!reply.trim() || posting) && styles.sendBtnDisabled]}
+          style={[
+            styles.sendBtn,
+            (!reply.trim() || posting) && styles.sendBtnDisabled,
+          ]}
           onPress={handlePost}
           disabled={!reply.trim() || posting}
         >
@@ -143,7 +148,8 @@ function CommentRow({ comment, isMine }: { comment: Comment; isMine: boolean }) 
     hour: "2-digit",
     minute: "2-digit",
   });
-  const initial = comment.authorId.slice(0, 2).toUpperCase();
+  const name = isMine ? "Sen" : comment.authorDisplayName;
+  const initial = name.slice(0, 2).toUpperCase();
 
   return (
     <View style={[styles.comment, isMine && styles.commentMine]}>
@@ -152,7 +158,7 @@ function CommentRow({ comment, isMine }: { comment: Comment; isMine: boolean }) 
       </View>
       <View style={{ flex: 1 }}>
         <View style={styles.commentHeader}>
-          <Text style={styles.authorLabel}>{isMine ? "Sen" : "Kullanıcı"}</Text>
+          <Text style={styles.authorLabel}>{name}</Text>
           <Text style={styles.commentDate}>{dateLabel}</Text>
         </View>
         <Text style={styles.commentText}>{comment.content}</Text>
@@ -162,65 +168,123 @@ function CommentRow({ comment, isMine }: { comment: Comment; isMine: boolean }) 
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F9FAFB" },
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   header: {
     flexDirection: "row",
     alignItems: "flex-start",
-    paddingHorizontal: 8,
+    paddingHorizontal: Spacing.sm,
     paddingTop: 56,
     paddingBottom: 12,
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    borderBottomColor: Colors.border,
   },
-  backBtn: { padding: 6 },
-  title: { fontSize: 17, fontWeight: "600", color: "#111827", flex: 1, paddingTop: 6 },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 40 },
-  list: { padding: 16, gap: 8 },
+  backBtn: {
+    padding: 6,
+    minWidth: MinTapTarget,
+    minHeight: MinTapTarget,
+    justifyContent: "center",
+  },
+  title: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    flex: 1,
+    paddingTop: 6,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 40,
+  },
+  list: {
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
   comment: {
     flexDirection: "row",
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surface,
     borderRadius: 14,
     padding: 12,
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
     gap: 10,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: Colors.border,
   },
-  commentMine: { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" },
+  commentMine: {
+    backgroundColor: Colors.primaryLight,
+    borderColor: "#BFDBFE",
+  },
   avatar: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: "#9CA3AF",
+    borderRadius: Radius.full,
+    backgroundColor: Colors.textMuted,
     justifyContent: "center",
     alignItems: "center",
   },
-  avatarMine: { backgroundColor: "#2563EB" },
-  avatarText: { color: "#fff", fontWeight: "bold", fontSize: 13 },
+  avatarMine: {
+    backgroundColor: Colors.primary,
+  },
+  avatarText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 13,
+  },
   commentHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 4,
   },
-  authorLabel: { fontSize: 13, fontWeight: "600", color: "#111827" },
-  commentDate: { fontSize: 11, color: "#9CA3AF" },
-  commentText: { fontSize: 14, color: "#111827", lineHeight: 20 },
-  emptyBox: { alignItems: "center", padding: 50 },
-  emptyTitle: { fontSize: 15, fontWeight: "600", color: "#111827", marginTop: 10 },
-  emptyText: { fontSize: 13, color: "#6B7280", marginTop: 4 },
-  errorText: { color: "#EF4444", fontSize: 14, marginTop: 8 },
+  authorLabel: {
+    ...Typography.caption,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  commentDate: {
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
+  commentText: {
+    ...Typography.label,
+    color: Colors.textPrimary,
+    lineHeight: 20,
+  },
+  emptyBox: {
+    alignItems: "center",
+    padding: 50,
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginTop: 10,
+  },
+  emptyText: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    marginTop: 4,
+  },
+  errorText: {
+    color: Colors.danger,
+    fontSize: 14,
+    marginTop: Spacing.sm,
+  },
   replyBar: {
     flexDirection: "row",
     alignItems: "flex-end",
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surface,
     paddingHorizontal: 12,
     paddingVertical: 10,
     paddingBottom: 16,
     borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-    gap: 8,
+    borderTopColor: Colors.border,
+    gap: Spacing.sm,
   },
   replyInput: {
     flex: 1,
@@ -230,16 +294,18 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 10,
     fontSize: 15,
-    color: "#111827",
+    color: Colors.textPrimary,
     maxHeight: 100,
   },
   sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#2563EB",
+    width: MinTapTarget,
+    height: MinTapTarget,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primary,
     justifyContent: "center",
     alignItems: "center",
   },
-  sendBtnDisabled: { opacity: 0.5 },
+  sendBtnDisabled: {
+    opacity: 0.5,
+  },
 });

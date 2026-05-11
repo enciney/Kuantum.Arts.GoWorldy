@@ -18,6 +18,7 @@ export class StripePaymentProvider implements IPaymentProvider {
   async createCheckoutSession(params: {
     userId: string;
     priceId: string;
+    productType: string;
     successUrl: string;
     cancelUrl: string;
   }) {
@@ -26,7 +27,7 @@ export class StripePaymentProvider implements IPaymentProvider {
       line_items: [{ price: params.priceId, quantity: 1 }],
       success_url: params.successUrl,
       cancel_url: params.cancelUrl,
-      metadata: { userId: params.userId },
+      metadata: { userId: params.userId, productType: params.productType },
     });
     return { url: session.url! };
   }
@@ -35,7 +36,11 @@ export class StripePaymentProvider implements IPaymentProvider {
     const event = this.stripe.webhooks.constructEvent(payload, signature, config.stripe.webhookSecret);
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      return { event: event.type, userId: session.metadata?.userId };
+      return {
+        event: event.type,
+        userId: session.metadata?.userId,
+        productType: session.metadata?.productType,
+      };
     }
     return { event: event.type };
   }

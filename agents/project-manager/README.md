@@ -9,51 +9,58 @@ GoWorldy is a Turkish-language emigration guide platform with three product surf
 2. **Admin Dashboard** (React) — content moderation and analytics
 3. **API** (Node.js + Express + TypeScript) — backend for both
 
-## Current Status (as of project init)
+## Current Status (as of 2026-05-10)
 
 | Surface | Status | Notes |
 |---------|--------|-------|
-| API | ✅ Scaffolded | Auth, Forum, Guide, Payment, Admin routes complete |
-| Mobile | 🔴 Not started | Expo project not created yet |
-| Admin | 🔴 Not started | React project not created yet |
+| API | ✅ Tamamlandı | Auth, Forum, Guide, Payment, Admin, Users routes; Google Sign-In; tsc temiz |
+| Mobile | 🟡 Büyük ölçüde tamamlandı | Auth+nav+forum+guide+profile+premium UI hazır; kredi/ödeme backend'i eksik |
+| Admin | 🔴 Başlamadı | React projesi henüz oluşturulmadı |
 
 ## Feature Roadmap
 
-### Phase 1 — Core Auth & Navigation (Mobile)
-- [ ] Login / Register / Forgot Password screens
-- [ ] Google Sign-In integration
-- [ ] Bottom tab navigation shell
-- [ ] API health check + JWT storage
+### Phase 1 — Core Auth & Navigation (Mobile) ✅
+- [x] Login / Register / Forgot Password / Reset Password screens
+- [x] Google Sign-In entegrasyonu (backend + mobile flow tamamlandı; Google creds env'de gerekli)
+- [x] Bottom tab navigation shell (Home / Guide / Forum / Profile)
+- [x] API health check + JWT storage
 
-### Phase 2 — Rehberim (Guide)
-- [ ] Country selector
-- [ ] Step-by-step checklist UI
-- [ ] Progress persistence (API integration)
+### Phase 2 — Rehberim (Guide) ✅
+- [x] Country selector (API'dan dinamik liste)
+- [x] Step-by-step checklist UI (modal slide-up, cevap kaydetme)
+- [x] Progress persistence (API entegrasyonu, tamamlanan adım yeşil)
 
-### Phase 3 — Forum
-- [ ] Country list screen
-- [ ] Category & subcategory navigation
-- [ ] Topic list (pinned first, pending hidden)
-- [ ] Comment thread view
-- [ ] Create topic flow (with payment gate)
+### Phase 3 — Forum ✅
+- [x] Country list screen
+- [x] Category & subcategory navigation
+- [x] Topic list (pin'li önde, kendi pending'leri author'a badge ile görünür)
+- [x] Comment thread view (reply box, kendi yorum highlight)
+- [x] Create topic flow (admin/mod → anında yayın; user → 50 TL confirm + 402 backend)
 
-### Phase 4 — Profile & Notifications
-- [ ] Profile screen (bio, user type badge, progress bar)
-- [ ] Notification preferences (follow groups/topics)
-- [ ] Activity history feed
+### Phase 4 — Profile & Notifications 🟡
+- [x] Profile screen (bio inline edit, role badge, stats grid)
+- [x] Notification preferences UI (Akış / Takip sekmeleri, switch'ler)
+- [ ] Notification API endpoint'leri (frontend-only şu an)
+- [ ] Activity history feed (HomeScreen'de placeholder)
+- [ ] ProfileScreen settings menu tıklanabilir değil (Bildirim Ayarları, Gizlilik, Yardım)
 
-### Phase 5 — Premium & Payments
-- [ ] Credit balance display
-- [ ] Stripe Checkout web view integration
-- [ ] Premium subscription screen
+### Phase 5 — Premium & Payments 🟡
+- [x] Credit balance display (UI)
+- [x] Premium subscription screen (UI)
+- [ ] **Kredi sistemi backend**: `users.credits` column, topic oluştururken kredi düş, yetersizse 402
+- [ ] **Premium üyelik backend**: `users.isPremium` + `premiumUntil`, premium'da topic açma serbest
+- [ ] Stripe Checkout web view entegrasyonu (UI stub var, gerçek akış yok)
+- [ ] Reset token e-posta servisi (şu an console.log)
 
-### Phase 6 — Admin Dashboard
+### Phase 6 — Admin Dashboard 🔴
+- [ ] Proje scaffold (React + TypeScript)
+- [ ] Giriş + JWT ile oturum
 - [ ] Overview stats
-- [ ] User management + role assignment
-- [ ] Topic approval queue
+- [ ] User management + rol atama
+- [ ] Topic approval queue (en kritik — içerik moderasyonu)
 - [ ] Forum analytics
 - [ ] Guide analytics
-- [ ] Config panel (pricing, toggles)
+- [ ] Config panel (fiyatlandırma, toggle'lar)
 
 ## Working Instructions
 

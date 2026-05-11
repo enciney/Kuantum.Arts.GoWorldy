@@ -4,6 +4,7 @@ export interface GuideStep {
   order: number;
   question: string;
   description?: string;
+  blockingAnswer?: string;
 }
 
 export interface UserGuideProgress {

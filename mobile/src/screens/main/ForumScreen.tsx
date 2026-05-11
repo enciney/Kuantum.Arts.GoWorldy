@@ -9,6 +9,7 @@ import {
   TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
 import { ForumCategoriesScreen } from "./ForumCategoriesScreen";
@@ -48,6 +49,11 @@ type ScreenView =
 
 export function ForumScreen() {
   const { token } = useAuth();
+  const navigation = useNavigation<any>();
+
+  const navigateToPremium = () => {
+    navigation.navigate("Home", { screen: "Premium" });
+  };
   const [countries, setCountries] = useState<Country[]>([]);
   const [filtered, setFiltered] = useState<Country[]>([]);
   const [search, setSearch] = useState("");
@@ -97,6 +103,7 @@ export function ForumScreen() {
             categoryName: view.categoryName,
           })
         }
+        onNavigatePremium={navigateToPremium}
       />
     );
   }

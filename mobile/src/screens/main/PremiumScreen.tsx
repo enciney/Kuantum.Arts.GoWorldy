@@ -1,9 +1,22 @@
-import React from "react";
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  Linking,
+} from "react-native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
+import { useAuth } from "../../context/AuthContext";
+import { api } from "../../services/api";
+import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 
-const ACTIONS = [
+const CREDIT_ITEMS = [
   {
+    productType: "credits_50",
     icon: "create" as const,
     title: "Konu Aç",
     description: "Forum'da yeni konu açma hakkı",
@@ -11,6 +24,7 @@ const ACTIONS = [
     family: "ionicons" as const,
   },
   {
+    productType: "credits_50",
     icon: "comment-multiple" as const,
     title: "Yorum Erişimi",
     description: "1 hafta sınırsız yorum okuma",
@@ -18,6 +32,7 @@ const ACTIONS = [
     family: "mc" as const,
   },
   {
+    productType: "credits_50",
     icon: "bullhorn" as const,
     title: "Reklam Yayınla",
     description: "Forum'da reklam yayınlama",
@@ -27,11 +42,47 @@ const ACTIONS = [
 ];
 
 export function PremiumScreen() {
-  const handlePurchase = (item: string) => {
+  const { token } = useAuth();
+  const [credits, setCredits] = useState<number | null>(null);
+  const [purchasing, setPurchasing] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    api.users.me(token).then((u) => setCredits(u.credits)).catch(() => {});
+  }, [token]);
+
+  const handlePurchase = async (productType: string, label: string) => {
+    if (!token) return;
     Alert.alert(
       "Satın Al",
-      `${item} satın alma akışı yakında — Stripe Checkout entegrasyonu hazırlanıyor.`,
-      [{ text: "Tamam" }]
+      `${label} için ödeme sayfasına yönlendirileceksiniz.`,
+      [
+        { text: "İptal", style: "cancel" },
+        {
+          text: "Devam",
+          onPress: async () => {
+            setPurchasing(productType);
+            try {
+              const { url } = await api.payment.checkout(
+                {
+                  productType,
+                  successUrl: "goworldy://payment/success",
+                  cancelUrl: "goworldy://payment/cancel",
+                },
+                token
+              );
+              await Linking.openURL(url);
+            } catch (e: unknown) {
+              Alert.alert(
+                "Ödeme Başlatılamadı",
+                e instanceof Error ? e.message : "Stripe yapılandırması eksik olabilir."
+              );
+            } finally {
+              setPurchasing(null);
+            }
+          },
+        },
+      ]
     );
   };
 
@@ -44,12 +95,17 @@ export function PremiumScreen() {
       {/* Balance Card */}
       <View style={styles.balanceCard}>
         <View style={styles.balanceRow}>
-          <FontAwesome5 name="coins" size={24} color="#F59E0B" />
-          <View style={{ flex: 1, marginLeft: 12 }}>
+          <FontAwesome5 name="coins" size={24} color={Colors.warning} />
+          <View style={{ flex: 1, marginLeft: Spacing.md - 4 }}>
             <Text style={styles.balanceLabel}>Mevcut Bakiyem</Text>
-            <Text style={styles.balanceValue}>0 Kredi</Text>
+            <Text style={styles.balanceValue}>
+              {credits === null ? "—" : `${credits} Kredi`}
+            </Text>
           </View>
-          <TouchableOpacity style={styles.balanceBtn}>
+          <TouchableOpacity
+            style={styles.balanceBtn}
+            onPress={() => handlePurchase("credits_100", "100 Kredi")}
+          >
             <Text style={styles.balanceBtnText}>Yükle</Text>
           </TouchableOpacity>
         </View>
@@ -58,14 +114,15 @@ export function PremiumScreen() {
       {/* Premium Card (Best Value) */}
       <TouchableOpacity
         style={styles.premiumCard}
-        onPress={() => handlePurchase("Aylık Premium")}
+        onPress={() => handlePurchase("premium_monthly", "Aylık Premium")}
+        disabled={purchasing === "premium_monthly"}
       >
         <View style={styles.premiumBadge}>
           <Text style={styles.premiumBadgeText}>EN AVANTAJLI</Text>
         </View>
         <View style={styles.premiumHeader}>
           <MaterialCommunityIcons name="crown" size={32} color="#fff" />
-          <View style={{ marginLeft: 12 }}>
+          <View style={{ marginLeft: Spacing.md - 4 }}>
             <Text style={styles.premiumTitle}>Aylık Premium</Text>
             <Text style={styles.premiumPrice}>250 TL / ay</Text>
           </View>
@@ -77,38 +134,53 @@ export function PremiumScreen() {
           <Feature text="Öncelikli destek" />
         </View>
         <View style={styles.premiumCta}>
-          <Text style={styles.premiumCtaText}>Şimdi Premium Ol</Text>
-          <Ionicons name="arrow-forward" size={18} color="#8B5CF6" />
+          {purchasing === "premium_monthly" ? (
+            <ActivityIndicator color={Colors.premium} />
+          ) : (
+            <>
+              <Text style={styles.premiumCtaText}>Şimdi Premium Ol</Text>
+              <Ionicons name="arrow-forward" size={18} color={Colors.premium} />
+            </>
+          )}
         </View>
       </TouchableOpacity>
 
       <Text style={styles.sectionTitle}>Tek Kullanımlık Krediler</Text>
 
-      {ACTIONS.map((a) => (
+      {CREDIT_ITEMS.map((a) => (
         <TouchableOpacity
           key={a.title}
           style={styles.actionCard}
-          onPress={() => handlePurchase(a.title)}
+          onPress={() => handlePurchase(a.productType, a.title)}
+          disabled={purchasing === a.productType}
         >
           <View style={styles.actionIcon}>
-            {a.family === "ionicons" && <Ionicons name={a.icon} size={24} color="#2563EB" />}
-            {a.family === "mc" && (
-              <MaterialCommunityIcons name={a.icon} size={24} color="#2563EB" />
+            {a.family === "ionicons" && (
+              <Ionicons name={a.icon} size={24} color={Colors.primary} />
             )}
-            {a.family === "fa5" && <FontAwesome5 name={a.icon} size={20} color="#2563EB" />}
+            {a.family === "mc" && (
+              <MaterialCommunityIcons name={a.icon} size={24} color={Colors.primary} />
+            )}
+            {a.family === "fa5" && (
+              <FontAwesome5 name={a.icon} size={20} color={Colors.primary} />
+            )}
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.actionTitle}>{a.title}</Text>
             <Text style={styles.actionDesc}>{a.description}</Text>
           </View>
           <View style={styles.actionPriceBox}>
-            <Text style={styles.actionPrice}>{a.price}</Text>
+            {purchasing === a.productType ? (
+              <ActivityIndicator size="small" color={Colors.primary} />
+            ) : (
+              <Text style={styles.actionPrice}>{a.price}</Text>
+            )}
           </View>
         </TouchableOpacity>
       ))}
 
       <View style={styles.footer}>
-        <Ionicons name="shield-checkmark" size={16} color="#10B981" />
+        <Ionicons name="shield-checkmark" size={16} color={Colors.secondary} />
         <Text style={styles.footerText}>Güvenli ödeme — Stripe ile</Text>
       </View>
     </ScrollView>
@@ -125,96 +197,178 @@ function Feature({ text }: { text: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F9FAFB" },
-  scroll: { padding: 16, paddingTop: 56, paddingBottom: 40 },
-  header: { marginBottom: 16 },
-  title: { fontSize: 24, fontWeight: "bold", color: "#111827" },
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scroll: {
+    padding: Spacing.md,
+    paddingTop: 56,
+    paddingBottom: 40,
+  },
+  header: {
+    marginBottom: Spacing.md,
+  },
+  title: {
+    ...Typography.h1,
+    color: Colors.textPrimary,
+  },
   balanceCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: Colors.border,
   },
-  balanceRow: { flexDirection: "row", alignItems: "center" },
-  balanceLabel: { fontSize: 13, color: "#6B7280" },
-  balanceValue: { fontSize: 22, fontWeight: "bold", color: "#111827", marginTop: 2 },
+  balanceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  balanceLabel: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+  },
+  balanceValue: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: Colors.textPrimary,
+    marginTop: 2,
+  },
   balanceBtn: {
-    backgroundColor: "#2563EB",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.sm,
+    minHeight: MinTapTarget - 8,
+    justifyContent: "center",
   },
-  balanceBtnText: { color: "#fff", fontWeight: "600", fontSize: 13 },
+  balanceBtnText: {
+    ...Typography.caption,
+    color: "#fff",
+    fontWeight: "600",
+  },
   premiumCard: {
-    backgroundColor: "#8B5CF6",
-    borderRadius: 16,
+    backgroundColor: Colors.premium,
+    borderRadius: Radius.lg,
     padding: 20,
-    marginBottom: 24,
+    marginBottom: Spacing.lg,
     position: "relative",
   },
   premiumBadge: {
     position: "absolute",
-    top: 16,
-    right: 16,
-    backgroundColor: "#F59E0B",
-    paddingHorizontal: 8,
+    top: Spacing.md,
+    right: Spacing.md,
+    backgroundColor: Colors.warning,
+    paddingHorizontal: Spacing.sm,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: Radius.sm,
   },
-  premiumBadgeText: { color: "#fff", fontSize: 10, fontWeight: "bold", letterSpacing: 0.5 },
-  premiumHeader: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
-  premiumTitle: { fontSize: 20, fontWeight: "bold", color: "#fff" },
-  premiumPrice: { fontSize: 14, color: "#EDE9FE", marginTop: 2 },
-  premiumFeatures: { gap: 8, marginBottom: 16 },
-  featureRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  featureText: { color: "#fff", fontSize: 14 },
+  premiumBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+  },
+  premiumHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  premiumTitle: {
+    ...Typography.h2,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  premiumPrice: {
+    ...Typography.label,
+    color: Colors.premiumLight,
+    marginTop: 2,
+  },
+  premiumFeatures: {
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  featureText: {
+    color: "#fff",
+    ...Typography.label,
+  },
   premiumCta: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surface,
     paddingVertical: 12,
     borderRadius: 10,
     gap: 6,
   },
-  premiumCtaText: { color: "#8B5CF6", fontSize: 15, fontWeight: "bold" },
-  sectionTitle: { fontSize: 17, fontWeight: "600", color: "#111827", marginBottom: 12 },
+  premiumCtaText: {
+    color: Colors.premium,
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginBottom: 12,
+  },
   actionCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surface,
     borderRadius: 14,
     padding: 14,
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: Colors.border,
   },
   actionIcon: {
-    width: 44,
-    height: 44,
+    width: MinTapTarget,
+    height: MinTapTarget,
     borderRadius: 22,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: Colors.primaryLight,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
   },
-  actionTitle: { fontSize: 15, fontWeight: "600", color: "#111827" },
-  actionDesc: { fontSize: 12, color: "#6B7280", marginTop: 2 },
+  actionTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  actionDesc: {
+    ...Typography.small,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
   actionPriceBox: {
     backgroundColor: "#F3F4F6",
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: Radius.sm,
+    minWidth: 60,
+    alignItems: "center",
   },
-  actionPrice: { fontSize: 13, fontWeight: "bold", color: "#111827" },
+  actionPrice: {
+    ...Typography.caption,
+    fontWeight: "bold",
+    color: Colors.textPrimary,
+  },
   footer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 16,
+    marginTop: Spacing.md,
     gap: 6,
   },
-  footerText: { fontSize: 12, color: "#6B7280" },
+  footerText: {
+    ...Typography.small,
+    color: Colors.textSecondary,
+  },
 });

@@ -19,12 +19,14 @@ export interface ForumTopic {
   isPinned: boolean;
   status: "pending" | "approved" | "rejected";
   createdAt: string;
+  commentCount: number;
 }
 
 export interface ForumComment {
   id: string;
   topicId: string;
   authorId: string;
+  authorDisplayName: string;
   content: string;
   createdAt: string;
 }
@@ -48,13 +50,15 @@ export interface IForumRepository {
 
   // Topics
   getTopics(categoryId: string): Promise<ForumTopic[]>;
-  createTopic(data: Omit<ForumTopic, "id" | "createdAt">): Promise<ForumTopic>;
+  getPendingTopics(limit: number, offset: number): Promise<ForumTopic[]>;
+  createTopic(data: Omit<ForumTopic, "id" | "createdAt" | "commentCount">): Promise<ForumTopic>;
   updateTopicStatus(id: string, status: ForumTopic["status"]): Promise<void>;
+  pinTopic(id: string, isPinned: boolean): Promise<void>;
   countTopics(): Promise<number>;
 
   // Comments
   getComments(topicId: string): Promise<ForumComment[]>;
-  createComment(data: Omit<ForumComment, "id" | "createdAt">): Promise<ForumComment>;
+  createComment(data: Omit<ForumComment, "id" | "createdAt" | "authorDisplayName">): Promise<ForumComment>;
   countComments(): Promise<number>;
 
   // Stats

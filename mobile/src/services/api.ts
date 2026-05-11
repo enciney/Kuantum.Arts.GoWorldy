@@ -22,6 +22,7 @@ export interface AuthUser {
   email: string;
   displayName: string;
   role: "admin" | "moderator" | "user";
+  userType?: "emigrant" | "consultant" | "diaspora";
 }
 
 export interface AuthResponse {
@@ -69,11 +70,28 @@ export const api = {
 
   users: {
     me: (token: string) =>
-      request<{ id: string; email: string; displayName: string; bio?: string; role: string }>(
-        "/users/me",
-        { token }
-      ),
-    updateMe: (data: { displayName?: string; bio?: string }, token: string) =>
+      request<{
+        id: string;
+        email: string;
+        displayName: string;
+        bio?: string;
+        role: string;
+        credits: number;
+        isPremium: boolean;
+        premiumUntil?: string;
+        userType?: "emigrant" | "consultant" | "diaspora";
+        phoneNumber?: string;
+        sharePhoneNumber?: boolean;
+      }>("/users/me", { token }),
+    updateMe: (
+      data: {
+        displayName?: string;
+        bio?: string;
+        phoneNumber?: string;
+        sharePhoneNumber?: number;
+      },
+      token: string
+    ) =>
       request<{ id: string; email: string; displayName: string; bio?: string }>("/users/me", {
         method: "PATCH",
         body: JSON.stringify(data),
@@ -97,12 +115,12 @@ export const api = {
         { token }
       ),
     getTopics: (categoryId: string, token: string) =>
-      request<{ id: string; title: string; authorId: string; isPinned: boolean; status: string; createdAt: string }[]>(
+      request<{ id: string; title: string; authorId: string; isPinned: boolean; status: string; createdAt: string; commentCount: number }[]>(
         `/forum/categories/${categoryId}/topics`,
         { token }
       ),
     getComments: (topicId: string, token: string) =>
-      request<{ id: string; authorId: string; content: string; createdAt: string }[]>(
+      request<{ id: string; authorId: string; authorDisplayName: string; content: string; createdAt: string }[]>(
         `/forum/topics/${topicId}/comments`,
         { token }
       ),
@@ -120,12 +138,30 @@ export const api = {
       }),
   },
 
+  payment: {
+    getPackages: () =>
+      request<{
+        credits: { id: string; name: string; credits: number; priceTL: number }[];
+        premium: { id: string; name: string; days: number; priceTL: number }[];
+      }>("/payment/packages"),
+
+    checkout: (params: { productType: string; priceId?: string; successUrl: string; cancelUrl: string }, token: string) =>
+      request<{ url: string }>("/payment/checkout", {
+        method: "POST",
+        body: JSON.stringify(params),
+        token,
+      }),
+  },
+
   guide: {
     getSteps: (countryId: string, token: string) =>
-      request<{ id: string; order: number; question: string; description?: string }[]>(
-        `/guide/steps/${countryId}`,
-        { token }
-      ),
+      request<{
+        id: string;
+        order: number;
+        question: string;
+        description?: string;
+        blockingAnswer?: string;
+      }[]>(`/guide/steps/${countryId}`, { token }),
     getProgress: (token: string) =>
       request<{ id: string; stepId: string; answer: string; completedAt: string }[]>(
         "/guide/progress",

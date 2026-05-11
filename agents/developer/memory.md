@@ -88,15 +88,47 @@ Client ID'ler [Google Cloud Console](https://console.cloud.google.com/apis/crede
 - **[UX Loop 3]** Backend `POST /api/forum/topics`: admin/moderator → status='approved' (auto-yayın), user → 402 PAYMENT_REQUIRED (henüz kredi sistemi yok). Validation eklendi (categoryId + title zorunlu).
 - **[UX Loop 3]** CreateTopicScreen role-aware: admin/mod için yeşil "yetki" info kutusu, paywall confirm dialog atlanır, doğrudan oluşturur, "yayınlandı" feedback. User için sarı "ücretli" info kutusu, 50 TL confirm, 402 hatası "Premium gerekli" alert'ine çevriliyor.
 
+## Resolved (Final Loop — Tur 2/2)
+- **[Final Loop]** `ForumTopic` interface'e `commentCount: number` eklendi.
+- **[Final Loop]** `SqliteForumRepository.getTopics` + `getPendingTopics`: LEFT JOIN ile comment count hesaplıyor; `createTopic` yeni kayıt döndürürken `commentCount: 0` ekliyor.
+- **[Final Loop]** `IForumRepository.createTopic` imzası: `Omit<..., "commentCount">` olarak güncellendi.
+- **[Final Loop]** Mobile `api.ts` `getTopics` dönüş tipine `commentCount: number` eklendi.
+- **[Final Loop]** `ForumTopicsScreen`: Topic tipine `commentCount`, row'da saat ikonunun yanına yorum balonu ikonu + sayı. "Popüler" filtresi artık `commentCount` azalana göre sıralıyor (önceki `return 0` idi). "Yeni" ve default sıralama createdAt DESC.
+- **[Final Loop]** `IForumRepository.pinTopic(id, isPinned)` interface + SQLite implementasyonu eklendi.
+- **[Final Loop]** `PATCH /api/admin/topics/:id/pin` endpoint eklendi (admin/moderator — `{ isPinned: boolean }` body).
+- tsc: temiz (warn yalnızca `.npmrc` ile ilgili npm config uyarısı, TS hatası yok).
+
+## Resolved (Status Loop)
+- **[Status Loop]** `ForumComment` interface'e `authorDisplayName: string` eklendi.
+- **[Status Loop]** `SqliteForumRepository.getComments`: `forum_comments JOIN users` ile `authorDisplayName` döndürüyor.
+- **[Status Loop]** `SqliteForumRepository.createComment` imzası: `Omit<..., "authorDisplayName">` olarak güncellendi; insert sonrası JOIN query ile tam kayıt döndürüyor.
+- **[Status Loop]** `IForumRepository.createComment` interface imzası da güncellendi.
+- **[Status Loop]** Mobile `api.ts`: `forum.getComments` dönüş tipine `authorDisplayName: string` eklendi; `users.me` dönüş tipine `credits`, `isPremium`, `premiumUntil` eklendi; `api.payment` namespace eklendi (`getPackages`, `checkout`).
+- **[Status Loop]** `ForumTopicDetailScreen`: `Comment` interface'e `authorDisplayName` eklendi; `CommentRow` artık displayName gösteriyor, avatar baş harfleri displayName'den geliyor.
+- **[Status Loop]** `PremiumScreen`: `useEffect` ile `/users/me` çağırıp gerçek kredi bakiyesini gösteriyor; satın alma butonları `api.payment.checkout` çağırıp `Linking.openURL(url)` ile Stripe Checkout açıyor; loading spinner eklendi.
+- tsc: temiz.
+
+## Resolved (Sprint — Kredi / Rehber / Profil)
+- **[Sprint]** `db.ts` idempotent migrasyon: `guide_steps.blockingAnswer TEXT`, `users.phoneNumber TEXT`, `users.sharePhoneNumber INTEGER DEFAULT 1` eklendi.
+- **[Sprint]** `IGuideRepository.GuideStep` ve `SqliteGuideRepository.createStep` — `blockingAnswer` alanı eklendi.
+- **[Sprint]** `IUserRepository.User` — `phoneNumber?: string`, `sharePhoneNumber?: boolean` eklendi.
+- **[Sprint]** `SqliteUserRepository.toUser` — `sharePhoneNumber` INTEGER→boolean dönüşümü eklendi.
+- **[Sprint]** `routes/users.ts` PATCH `/users/me` — `phoneNumber` ve `sharePhoneNumber` güncelleme desteği.
+- **[Sprint]** `routes/forum.ts` — hardcoded `50` yerine `config.forum.createTopicCost` kullanıyor.
+- **[Sprint]** `CreateTopicScreen` — Alert dialog kaldırıldı, `CreditGateModal` entegre edildi. Bakiye `/users/me`'den çekiliyor. `onNavigatePremium` prop'u eklendi; "Satın al" → PremiumScreen.
+- **[Sprint]** `ForumScreen` — `useNavigation` + `navigateToPremium` → `CreateTopicScreen.onNavigatePremium`.
+- **[Sprint]** `ProfileScreen` — "Bildirim Ayarları" artık `navigation.navigate('Home', { screen: 'Notifications' })` ile NotificationsScreen'e gidiyor.
+- **[Sprint]** `PremiumScreen` — `balanceBtnText` spread sırası düzeltildi (tsc uyarısı giderildi).
+- GuideScreen koşullu adım akışı önceki sprintlerde tamamlanmıştı (computeStepStates, locked/disqualified).
+- tsc: temiz (API + Mobile).
+
 ## Open TODOs (next session)
 - Forum approval queue admin UI (admin dashboard yapılınca).
-- Topic "yorum sayısı" göstergesi → `IForumRepository.getTopicsWithCommentCount` join sorgusu gerekir.
 - Push notifications (Expo Notifications + topic abone olunca tetikleme).
 - Image storage (avatar upload).
-- Admin dashboard (React) — henüz başlamadı.
+- **Admin dashboard (React) — henüz başlamadı. En büyük eksik.**
 - Reset token e-posta servisi (SendGrid/SES) — şu an console.log.
-- **Kredi sistemi**: users tablosuna `credits` column'u, `POST /api/forum/topics` içinde admin/mod değilse kredi düş, yetersizse 402 (şu an her user için 402).
-- **Premium üyelik**: users tablosuna `isPremium` + `premiumUntil`, premium varken konu açma serbest.
-- ProfileScreen settings/menu rowları henüz tıklanabilir değil (Bildirim Ayarları, Gizlilik, Yardım, Hakkında).
 - NotificationsScreen "takip ettiklerim" toggle'ları frontend-only (API endpoint yok).
-- LoginScreen hata mesajı `error` state'i error box'ta gösteriliyor ama yeni Google flow path'inde Alert ile gösteriliyor — UI tutarsızlığı.
+- LoginScreen hata mesajı: Google flow path'inde Alert ile gösteriliyor, diğer path'lerde error box — UI tutarsızlığı.
+- followingCount `/users/me/stats` içinde hardcoded 0 — follow sistemi backend'de yok.
+- Stripe: Gerçek `priceId` (Stripe Price ID) yapılandırması yapılmadan checkout çalışmaz. `.env.development`'a `STRIPE_SECRET_KEY` + her paket için Stripe Price ID eklenmeli.

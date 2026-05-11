@@ -70,6 +70,29 @@ export function adminRoutes(repos: Repositories): Router {
     }
   });
 
+  router.patch("/topics/:id/pin", authMiddleware, requireRole("admin", "moderator"), async (req, res) => {
+    try {
+      const { isPinned } = req.body;
+      if (typeof isPinned !== "boolean") {
+        return res.status(400).json({ error: "isPinned (boolean) zorunlu" });
+      }
+      await repos.forum.pinTopic(req.params.id as string, isPinned);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.get("/forum/pending", authMiddleware, requireRole("admin", "moderator"), async (req, res) => {
+    try {
+      const { limit = 50, offset = 0 } = req.query;
+      const topics = await repos.forum.getPendingTopics(Number(limit), Number(offset));
+      res.json(topics);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   router.get("/forum/stats", authMiddleware, requireRole("admin", "moderator"), async (req, res) => {
     try {
       const { countryId } = req.query;

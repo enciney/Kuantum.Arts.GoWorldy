@@ -18,13 +18,19 @@ export function userRoutes(repos: Repositories): Router {
 
   router.patch("/me", authMiddleware, async (req: AuthRequest, res) => {
     try {
-      const { displayName, bio } = req.body;
-      const allowed: Partial<{ displayName: string; bio: string }> = {};
+      const { displayName, bio, phoneNumber, sharePhoneNumber } = req.body;
+      const allowed: Partial<{ displayName: string; bio: string; phoneNumber: string; sharePhoneNumber: boolean }> = {};
       if (typeof displayName === "string" && displayName.trim()) {
         allowed.displayName = displayName.trim();
       }
       if (typeof bio === "string") {
         allowed.bio = bio;
+      }
+      if (typeof phoneNumber === "string") {
+        allowed.phoneNumber = phoneNumber;
+      }
+      if (typeof sharePhoneNumber === "number" || typeof sharePhoneNumber === "boolean") {
+        allowed.sharePhoneNumber = Boolean(sharePhoneNumber);
       }
       if (Object.keys(allowed).length === 0) {
         return res.status(400).json({ error: "Güncellenecek alan yok" });

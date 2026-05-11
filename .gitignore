@@ -3,6 +3,8 @@ node_modules/
 .env.*
 !.env.example
 *.sqlite
+*.sqlite-shm
+*.sqlite-wal
 *.db
 dist/
 build/
@@ -11,3 +13,7 @@ build/
 *.log
 .DS_Store
 Thumbs.db
+.claude/
+
+# Sprint-specific agent task files (workflow scratchpad)
+agent-commands/current-tasks.md
