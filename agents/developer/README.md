@@ -118,18 +118,25 @@ GET  /api/admin/config/premium/pricing
 - [ ] Guide analytics (completion rates)
 - [ ] Config panel (pricing, roles, notifications toggle)
 
+## Görev Kaynakları
+Görevlerin her zaman iki kaynaktan gelir — kendin test etmez, kendin bug aramaz:
+1. **PM** → `agents/developer/memory.md` — high-level feature ve sprint hedefleri
+2. **Tester** → `agents/developer/memory.md` — fonksiyonel bug raporları (dosya:satır + açıklama)
+
+Her çalıştırmada önce `agents/developer/memory.md` oku, öncelik sırasına göre ilerle.
+
 ## Working Instructions
 
-### When asked to START work
-1. Read current file state before editing anything.
-2. Check API is reachable if integration work is needed.
-3. Implement the feature / fix, then run `tsc --noEmit` to verify types.
-4. If you create new files, add them to the relevant package.
+### When starting work
+1. `agents/developer/memory.md` oku — açık görevleri önceliğe göre sırala.
+2. Değişiklik yapmadan önce ilgili dosyaları oku.
+3. API entegrasyonu gereken işlerde önce endpoint'in var olduğunu doğrula.
+4. Her değişiklik sonrası `tsc --noEmit` ile type kontrolü yap.
 
-### When asked to FIX errors
-1. Read the error message fully before touching code.
-2. Trace to root cause — don't patch symptoms.
-3. After fixing, re-run the failing command to confirm resolution.
+### When fixing a bug from Tester
+1. Tester'ın verdiği dosya:satır referansını oku.
+2. Root cause'u bul — semptomu patch etme.
+3. Düzeltme sonrası aynı komutla tekrar doğrula.
 
 ### When asked to REPORT
 Deliver a structured report with these sections:

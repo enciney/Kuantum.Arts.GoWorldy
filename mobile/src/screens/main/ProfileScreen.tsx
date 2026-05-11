@@ -9,8 +9,11 @@ import {
   Alert,
   Modal,
   Linking,
+  Image,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
@@ -30,8 +33,14 @@ export function ProfileScreen() {
   const navigation = useNavigation<any>();
   const [editing, setEditing] = useState(false);
   const [bio, setBio] = useState("");
+  const [savedBio, setSavedBio] = useState("");
   const [saving, setSaving] = useState(false);
   const [userType, setUserType] = useState<string>("");
+  const [avatarUrl, setAvatarUrl] = useState<string>("");
+  const [avatarModalVisible, setAvatarModalVisible] = useState(false);
+  const [avatarModalView, setAvatarModalView] = useState<"options" | "url">("options");
+  const [avatarInput, setAvatarInput] = useState("");
+  const [avatarPickerLoading, setAvatarPickerLoading] = useState(false);
   const [privacyVisible, setPrivacyVisible] = useState(false);
   const [stats, setStats] = useState({
     topicCount: 0,
@@ -45,17 +54,76 @@ export function ProfileScreen() {
     Promise.all([
       api.users.me(token).then((u) => {
         setBio(u.bio || "");
+        setSavedBio(u.bio || "");
         setUserType(u.userType || "");
+        setAvatarUrl(u.avatarUrl || "");
       }).catch(() => {}),
       api.users.myStats(token).then(setStats).catch(() => {}),
     ]);
   }, [token]);
+
+  const closeAvatarModal = () => {
+    setAvatarModalVisible(false);
+    setAvatarModalView("options");
+    setAvatarInput("");
+  };
+
+  const handlePickFromGallery = async () => {
+    if (!token) return;
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("İzin Gerekli", "Galeriye erişim için izin vermeniz gerekiyor.");
+      return;
+    }
+    setAvatarPickerLoading(true);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images",
+        base64: true,
+        quality: 0.7,
+        allowsEditing: true,
+        aspect: [1, 1],
+      });
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        const dataUrl = asset.base64
+          ? `data:image/jpeg;base64,${asset.base64}`
+          : asset.uri;
+        await api.users.updateMe({ avatarUrl: dataUrl }, token);
+        setAvatarUrl(dataUrl);
+        closeAvatarModal();
+      }
+    } catch (e: unknown) {
+      Alert.alert("Hata", e instanceof Error ? e.message : "Fotoğraf seçilemedi.");
+    } finally {
+      setAvatarPickerLoading(false);
+    }
+  };
+
+  const handleSaveAvatar = async () => {
+    if (!token) return;
+    const url = avatarInput.trim();
+    if (!url) {
+      setAvatarUrl("");
+      closeAvatarModal();
+      await api.users.updateMe({ avatarUrl: "" }, token).catch(() => {});
+      return;
+    }
+    try {
+      await api.users.updateMe({ avatarUrl: url }, token);
+      setAvatarUrl(url);
+      closeAvatarModal();
+    } catch (e: unknown) {
+      Alert.alert("Hata", e instanceof Error ? e.message : "Kaydedilemedi.");
+    }
+  };
 
   const handleSaveBio = async () => {
     if (!token) return;
     setSaving(true);
     try {
       await api.users.updateMe({ bio }, token);
+      setSavedBio(bio);
       setEditing(false);
     } catch (e: unknown) {
       Alert.alert("Hata", e instanceof Error ? e.message : "Kaydedilemedi.");
@@ -103,14 +171,25 @@ export function ProfileScreen() {
 
         {/* Avatar + Info */}
         <View style={styles.profileCard}>
-          <View style={styles.avatarBox}>
+          <TouchableOpacity
+            style={styles.avatarBox}
+            activeOpacity={0.8}
+            onPress={() => {
+              setAvatarInput(avatarUrl);
+              setAvatarModalVisible(true);
+            }}
+          >
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{initials || "?"}</Text>
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarText}>{initials || "?"}</Text>
+              )}
             </View>
-            <TouchableOpacity style={styles.avatarEdit}>
-              <Ionicons name="camera" size={16} color="#fff" />
-            </TouchableOpacity>
-          </View>
+            <View style={styles.avatarOverlay}>
+              <Ionicons name="camera" size={18} color={Colors.surface} />
+            </View>
+          </TouchableOpacity>
           <Text style={styles.displayName}>{user?.displayName}</Text>
           <View style={styles.badgeRow}>
             <View style={styles.badge}>
@@ -152,7 +231,7 @@ export function ProfileScreen() {
                   style={styles.cancelBtn}
                   onPress={() => {
                     setEditing(false);
-                    setBio("");
+                    setBio(savedBio);
                   }}
                 >
                   <Text style={styles.cancelBtnText}>İptal</Text>
@@ -229,6 +308,81 @@ export function ProfileScreen() {
           <Text style={styles.logoutText}>Çıkış Yap</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Avatar Modal */}
+      <Modal
+        visible={avatarModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeAvatarModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Profil Fotoğrafı</Text>
+
+            {avatarModalView === "options" ? (
+              <>
+                <Text style={styles.modalSubtitle}>
+                  Fotoğrafınızı nasıl güncellemek istersiniz?
+                </Text>
+
+                <TouchableOpacity
+                  style={styles.avatarOptionBtn}
+                  onPress={handlePickFromGallery}
+                  activeOpacity={0.8}
+                  disabled={avatarPickerLoading}
+                >
+                  {avatarPickerLoading ? (
+                    <ActivityIndicator size="small" color={Colors.surface} />
+                  ) : (
+                    <Ionicons name="images-outline" size={20} color={Colors.surface} />
+                  )}
+                  <Text style={styles.avatarOptionBtnText}>Galeriden Seç</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.avatarOptionSecondaryBtn}
+                  onPress={() => setAvatarModalView("url")}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="link-outline" size={20} color={Colors.primary} />
+                  <Text style={styles.avatarOptionSecondaryBtnText}>URL Gir</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.modalCancel} onPress={closeAvatarModal}>
+                  <Text style={styles.modalCancelText}>İptal</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.modalSubtitle}>
+                  Fotoğrafınızın doğrudan bağlantısını girin (https://...)
+                </Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="https://..."
+                  placeholderTextColor={Colors.textMuted}
+                  value={avatarInput}
+                  onChangeText={setAvatarInput}
+                  autoCapitalize="none"
+                  keyboardType="url"
+                />
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={styles.modalCancel}
+                    onPress={() => setAvatarModalView("options")}
+                  >
+                    <Text style={styles.modalCancelText}>Geri</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.modalSave} onPress={handleSaveAvatar}>
+                    <Text style={styles.modalSaveText}>Kaydet</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* Privacy Modal — full-screen slide-up */}
       <Modal
@@ -315,6 +469,8 @@ const styles = StyleSheet.create({
   avatarBox: {
     position: "relative",
     marginBottom: 12,
+    width: 88,
+    height: 88,
   },
   avatar: {
     width: 88,
@@ -323,24 +479,30 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     justifyContent: "center",
     alignItems: "center",
+    overflow: "hidden",
   },
   avatarText: {
-    color: "#fff",
+    color: Colors.surface,
     fontSize: 32,
     fontWeight: "bold",
   },
-  avatarEdit: {
+  avatarImage: {
+    width: 88,
+    height: 88,
+    borderRadius: Radius.full,
+  },
+  avatarOverlay: {
     position: "absolute",
     bottom: 0,
+    left: 0,
     right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.primary,
+    height: 30,
+    borderBottomLeftRadius: Radius.full,
+    borderBottomRightRadius: Radius.full,
+    backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: Colors.surface,
+    overflow: "hidden",
   },
   displayName: {
     ...Typography.h2,
@@ -436,7 +598,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   saveBtnText: {
-    color: "#fff",
+    color: Colors.surface,
     fontWeight: "600",
   },
   statsGrid: {
@@ -473,7 +635,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    borderBottomColor: Colors.border,
     gap: 12,
     minHeight: MinTapTarget,
   },
@@ -500,6 +662,96 @@ const styles = StyleSheet.create({
   logoutText: {
     color: Colors.danger,
     fontSize: 15,
+    fontWeight: "600",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.lg,
+  },
+  modalCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: "600" as const,
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    ...Typography.small,
+    color: Colors.textSecondary,
+    marginBottom: 16,
+  },
+  modalInput: {
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.md,
+    padding: 12,
+    fontSize: 14,
+    color: Colors.textPrimary,
+    marginBottom: 16,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    justifyContent: "flex-end",
+  },
+  modalCancel: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    minHeight: MinTapTarget,
+    justifyContent: "center",
+  },
+  modalCancelText: {
+    color: Colors.textSecondary,
+    fontWeight: "500",
+  },
+  modalSave: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 18,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.sm,
+    minHeight: MinTapTarget,
+    justifyContent: "center",
+  },
+  avatarOptionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.md,
+    paddingVertical: 14,
+    gap: 8,
+    marginBottom: Spacing.sm,
+  },
+  avatarOptionBtnText: {
+    color: Colors.surface,
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  avatarOptionSecondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    borderRadius: Radius.md,
+    paddingVertical: 14,
+    gap: 8,
+    marginBottom: Spacing.md,
+  },
+  avatarOptionSecondaryBtnText: {
+    color: Colors.primary,
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  modalSaveText: {
+    color: Colors.surface,
     fontWeight: "600",
   },
 });

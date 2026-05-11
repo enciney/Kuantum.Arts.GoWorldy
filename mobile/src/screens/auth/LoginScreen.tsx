@@ -8,11 +8,11 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import { useGoogleAuth, isGoogleSignInConfigured } from "../../services/google-signin";
+import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 
 type Props = {
   onNavigateRegister: () => void;
@@ -36,14 +36,11 @@ export function LoginScreen({ onNavigateRegister, onNavigateForgot }: Props) {
       setGoogleLoading(true);
       loginWithGoogle(idToken)
         .catch((e: unknown) =>
-          Alert.alert(
-            "Google ile giriş başarısız",
-            e instanceof Error ? e.message : "Bilinmeyen hata"
-          )
+          setError(e instanceof Error ? e.message : "Google girişi başarısız.")
         )
         .finally(() => setGoogleLoading(false));
     } else if (response?.type === "error") {
-      Alert.alert("Google girişi iptal edildi", response.error?.message || "");
+      setError(response.error?.message || "Google girişi iptal edildi.");
     }
   }, [response, loginWithGoogle]);
 
@@ -65,10 +62,7 @@ export function LoginScreen({ onNavigateRegister, onNavigateForgot }: Props) {
 
   const handleGoogleLogin = () => {
     if (!isGoogleSignInConfigured()) {
-      Alert.alert(
-        "Google Sign-In yapılandırılmamış",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID environment değişkeni mobile/.env dosyasına eklenmeli."
-      );
+      setError("EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID environment değişkeni mobile/.env dosyasına eklenmeli.");
       return;
     }
     promptAsync();
@@ -81,24 +75,24 @@ export function LoginScreen({ onNavigateRegister, onNavigateForgot }: Props) {
     >
       <View style={styles.inner}>
         <View style={styles.logoBox}>
-          <MaterialCommunityIcons name="earth" size={56} color="#2563EB" />
+          <MaterialCommunityIcons name="earth" size={56} color={Colors.primary} />
           <Text style={styles.logo}>GoWorldy</Text>
         </View>
         <Text style={styles.subtitle}>Göç rehberinize giriş yapın</Text>
 
         {error && (
           <View style={styles.errorBox}>
-            <Ionicons name="alert-circle" size={18} color="#EF4444" />
+            <Ionicons name="alert-circle" size={18} color={Colors.danger} />
             <Text style={styles.error}>{error}</Text>
           </View>
         )}
 
         <View style={styles.inputRow}>
-          <Ionicons name="mail-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+          <Ionicons name="mail-outline" size={20} color={Colors.neutral} style={styles.inputIcon} />
           <TextInput
             style={styles.input}
             placeholder="E-posta"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={Colors.textMuted}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -108,11 +102,11 @@ export function LoginScreen({ onNavigateRegister, onNavigateForgot }: Props) {
         </View>
 
         <View style={styles.inputRow}>
-          <Ionicons name="lock-closed-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+          <Ionicons name="lock-closed-outline" size={20} color={Colors.neutral} style={styles.inputIcon} />
           <TextInput
             style={[styles.input, styles.passwordInput]}
             placeholder="Şifre"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={Colors.textMuted}
             value={password}
             onChangeText={setPassword}
             secureTextEntry={!showPassword}
@@ -124,7 +118,7 @@ export function LoginScreen({ onNavigateRegister, onNavigateForgot }: Props) {
             <Ionicons
               name={showPassword ? "eye-off-outline" : "eye-outline"}
               size={22}
-              color="#6B7280"
+              color={Colors.neutral}
             />
           </TouchableOpacity>
         </View>
@@ -175,60 +169,63 @@ export function LoginScreen({ onNavigateRegister, onNavigateForgot }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F9FAFB" },
-  inner: { flex: 1, paddingHorizontal: 24, paddingTop: 60, alignItems: "stretch" },
-  logoBox: { alignItems: "center", marginBottom: 8 },
-  logo: { fontSize: 28, fontWeight: "bold", color: "#2563EB", marginTop: 4 },
-  subtitle: { fontSize: 15, color: "#6B7280", textAlign: "center", marginBottom: 28 },
+  container: { flex: 1, backgroundColor: Colors.background },
+  inner: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: 60, alignItems: "stretch" },
+  logoBox: { alignItems: "center", marginBottom: Spacing.sm },
+  logo: { fontSize: 28, fontWeight: "bold", color: Colors.primary, marginTop: 4 },
+  subtitle: { fontSize: 15, color: Colors.textSecondary, textAlign: "center", marginBottom: 28 },
   errorBox: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FEE2E2",
-    borderRadius: 10,
+    backgroundColor: Colors.dangerLight,
+    borderRadius: Radius.sm,
     padding: 10,
     marginBottom: 12,
-    gap: 8,
+    gap: Spacing.sm,
   },
-  error: { color: "#EF4444", fontSize: 13, flex: 1 },
+  error: { color: Colors.danger, ...Typography.caption, flex: 1 },
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 12,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.md,
     marginBottom: 12,
     paddingHorizontal: 12,
+    minHeight: MinTapTarget,
   },
-  inputIcon: { marginRight: 8 },
-  input: { flex: 1, paddingVertical: 14, fontSize: 16, color: "#111827" },
+  inputIcon: { marginRight: Spacing.sm },
+  input: { flex: 1, paddingVertical: 14, fontSize: 16, color: Colors.textPrimary },
   passwordInput: { paddingRight: 40 },
-  showBtn: { padding: 6 },
+  showBtn: { padding: 6, minWidth: MinTapTarget, minHeight: MinTapTarget, justifyContent: "center", alignItems: "center" },
   btn: {
-    backgroundColor: "#2563EB",
-    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.md,
     paddingVertical: 16,
     alignItems: "center",
     marginTop: 4,
+    minHeight: MinTapTarget,
   },
   btnDisabled: { opacity: 0.6 },
-  btnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  btnText: { color: Colors.surface, fontSize: 16, fontWeight: "600" },
   divider: { flexDirection: "row", alignItems: "center", marginVertical: 20 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: "#E5E7EB" },
-  dividerText: { marginHorizontal: 12, color: "#9CA3AF", fontSize: 13 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
+  dividerText: { marginHorizontal: 12, color: Colors.textMuted, ...Typography.caption },
   googleBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 12,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.md,
     paddingVertical: 14,
     gap: 10,
+    minHeight: MinTapTarget,
   },
-  googleBtnText: { fontSize: 15, color: "#111827", fontWeight: "500" },
+  googleBtnText: { fontSize: 15, color: Colors.textPrimary, fontWeight: "500" },
   link: { alignItems: "center", paddingVertical: 10, marginTop: 4 },
-  linkText: { color: "#6B7280", fontSize: 14 },
-  linkBold: { color: "#2563EB", fontWeight: "600" },
+  linkText: { color: Colors.textSecondary, fontSize: 14 },
+  linkBold: { color: Colors.primary, fontWeight: "600" },
 });

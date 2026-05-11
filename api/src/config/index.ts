@@ -41,6 +41,21 @@ export const config = {
     secretKey: process.env.STRIPE_SECRET_KEY || "",
     publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || "",
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
+    prices: {
+      credits_50: process.env.STRIPE_PRICE_CREDITS_50 || "",
+      credits_100: process.env.STRIPE_PRICE_CREDITS_100 || "",
+      credits_250: process.env.STRIPE_PRICE_CREDITS_250 || "",
+      premium_weekly: process.env.STRIPE_PRICE_PREMIUM_WEEKLY || "",
+      premium_monthly: process.env.STRIPE_PRICE_PREMIUM_MONTHLY || "",
+      credits_topic: process.env.STRIPE_PRICE_CREDITS_TOPIC || process.env.STRIPE_PRICE_CREDITS_50 || "",
+      credits_comment: process.env.STRIPE_PRICE_CREDITS_COMMENT || process.env.STRIPE_PRICE_CREDITS_50 || "",
+      credits_ad: process.env.STRIPE_PRICE_CREDITS_AD || process.env.STRIPE_PRICE_CREDITS_50 || "",
+    },
+  },
+
+  sendgrid: {
+    apiKey: process.env.SENDGRID_API_KEY || "",
+    fromEmail: process.env.SENDGRID_FROM_EMAIL || "noreply@goworldy.com",
   },
 
   admin: {

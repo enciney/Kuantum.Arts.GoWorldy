@@ -10,7 +10,9 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
+import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 
 type UserType = "emigrant" | "consultant" | "diaspora";
 
@@ -59,15 +61,24 @@ export function RegisterScreen({ onNavigateLogin }: Props) {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
+        <View style={styles.logoBox}>
+          <MaterialCommunityIcons name="earth" size={56} color={Colors.primary} />
+          <Text style={styles.logo}>GoWorldy</Text>
+        </View>
         <Text style={styles.title}>Hesap Oluştur</Text>
 
-        {error && <Text style={styles.error}>{error}</Text>}
+        {error && (
+          <View style={styles.errorBox}>
+            <Ionicons name="alert-circle" size={18} color={Colors.danger} />
+            <Text style={styles.error}>{error}</Text>
+          </View>
+        )}
 
         <Text style={styles.label}>Ad Soyad</Text>
         <TextInput
           style={styles.input}
           placeholder="Adınız Soyadınız"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={Colors.textMuted}
           value={displayName}
           onChangeText={setDisplayName}
           autoCorrect={false}
@@ -77,7 +88,7 @@ export function RegisterScreen({ onNavigateLogin }: Props) {
         <TextInput
           style={styles.input}
           placeholder="ornek@email.com"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={Colors.textMuted}
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
@@ -89,7 +100,7 @@ export function RegisterScreen({ onNavigateLogin }: Props) {
         <TextInput
           style={styles.input}
           placeholder="En az 6 karakter"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={Colors.textMuted}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -136,50 +147,62 @@ export function RegisterScreen({ onNavigateLogin }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F9FAFB" },
-  inner: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 40 },
+  container: { flex: 1, backgroundColor: Colors.background },
+  inner: { paddingHorizontal: Spacing.lg, paddingTop: 20, paddingBottom: 40 },
+  logoBox: { alignItems: "center", marginBottom: Spacing.sm },
+  logo: { fontSize: 28, fontWeight: "bold", color: Colors.primary, marginTop: 4 },
   title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#111827",
-    marginBottom: 24,
+    ...Typography.h1,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.lg,
     textAlign: "center",
   },
-  error: { color: "#EF4444", fontSize: 14, marginBottom: 12, textAlign: "center" },
-  label: { fontSize: 14, fontWeight: "500", color: "#374151", marginBottom: 6 },
+  errorBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.dangerLight,
+    borderRadius: Radius.sm,
+    padding: 10,
+    marginBottom: 12,
+    gap: Spacing.sm,
+  },
+  error: { color: Colors.danger, ...Typography.caption, flex: 1 },
+  label: { ...Typography.label, color: Colors.textPrimary, marginBottom: 6 },
   input: {
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
     paddingVertical: 14,
     fontSize: 16,
-    color: "#111827",
-    marginBottom: 16,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.md,
+    minHeight: MinTapTarget,
   },
-  typeRow: { gap: 8, marginBottom: 24 },
+  typeRow: { gap: Spacing.sm, marginBottom: Spacing.lg },
   typeCard: {
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 12,
-    padding: 16,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
   },
-  typeCardSelected: { borderColor: "#2563EB", backgroundColor: "#EFF6FF" },
-  typeLabel: { fontSize: 15, fontWeight: "600", color: "#111827", marginBottom: 4 },
-  typeLabelSelected: { color: "#2563EB" },
-  typeDesc: { fontSize: 13, color: "#6B7280" },
+  typeCardSelected: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
+  typeLabel: { fontSize: 15, fontWeight: "600", color: Colors.textPrimary, marginBottom: 4 },
+  typeLabelSelected: { color: Colors.primary },
+  typeDesc: { ...Typography.caption, color: Colors.textSecondary },
   btn: {
-    backgroundColor: "#2563EB",
-    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.md,
     paddingVertical: 16,
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: Spacing.md,
+    minHeight: MinTapTarget,
   },
   btnDisabled: { opacity: 0.6 },
-  btnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  link: { alignItems: "center", paddingVertical: 8 },
-  linkText: { color: "#6B7280", fontSize: 14 },
-  linkBold: { color: "#2563EB", fontWeight: "600" },
+  btnText: { color: Colors.surface, fontSize: 16, fontWeight: "600" },
+  link: { alignItems: "center", paddingVertical: Spacing.sm },
+  linkText: { color: Colors.textSecondary, fontSize: 14 },
+  linkBold: { color: Colors.primary, fontWeight: "600" },
 });

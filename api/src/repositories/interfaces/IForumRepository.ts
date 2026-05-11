@@ -52,7 +52,7 @@ export interface IForumRepository {
   getTopics(categoryId: string): Promise<ForumTopic[]>;
   getPendingTopics(limit: number, offset: number): Promise<ForumTopic[]>;
   createTopic(data: Omit<ForumTopic, "id" | "createdAt" | "commentCount">): Promise<ForumTopic>;
-  updateTopicStatus(id: string, status: ForumTopic["status"]): Promise<void>;
+  updateTopicStatus(id: string, status: ForumTopic["status"], reason?: string): Promise<void>;
   pinTopic(id: string, isPinned: boolean): Promise<void>;
   countTopics(): Promise<number>;
 
@@ -67,4 +67,13 @@ export interface IForumRepository {
   // User-scoped counts
   countTopicsByAuthor(userId: string): Promise<number>;
   countCommentsByAuthor(userId: string): Promise<number>;
+
+  // Activity feed
+  getRecentCommentsByAuthor(userId: string, limit: number): Promise<{
+    id: string;
+    content: string;
+    topicId: string;
+    topicTitle: string;
+    createdAt: string;
+  }[]>;
 }

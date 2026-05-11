@@ -27,4 +27,10 @@ export interface IGuideRepository {
   getUserProgress(userId: string): Promise<UserGuideProgress[]>;
   saveProgress(data: Omit<UserGuideProgress, "id" | "completedAt">): Promise<UserGuideProgress>;
   getStats(): Promise<GuideStats>;
+  getRecentProgress(userId: string, limit: number): Promise<{
+    stepId: string;
+    question: string;
+    answer: string;
+    completedAt: string;
+  }[]>;
 }

@@ -83,6 +83,29 @@ function initTables(db: DatabaseSync) {
       answer TEXT NOT NULL,
       completedAt TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL REFERENCES users(id),
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      targetType TEXT,
+      targetId TEXT,
+      read INTEGER DEFAULT 0,
+      createdAt TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS user_country_subscriptions (
+      userId TEXT NOT NULL REFERENCES users(id),
+      countryId TEXT NOT NULL REFERENCES forum_countries(id),
+      PRIMARY KEY (userId, countryId)
+    );
+  `);
+
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_guide_progress_user_step
+    ON user_guide_progress(userId, stepId)
   `);
 
   // Mevcut DB'ye yeni kolonlar (idempotent migrasyon)
@@ -91,5 +114,7 @@ function initTables(db: DatabaseSync) {
   addColumnIfNotExists(db, "users", "premiumUntil", "TEXT");
   addColumnIfNotExists(db, "users", "phoneNumber", "TEXT");
   addColumnIfNotExists(db, "users", "sharePhoneNumber", "INTEGER DEFAULT 1");
+  addColumnIfNotExists(db, "users", "avatarUrl", "TEXT");
   addColumnIfNotExists(db, "guide_steps", "blockingAnswer", "TEXT");
+  addColumnIfNotExists(db, "forum_topics", "rejectionReason", "TEXT");
 }

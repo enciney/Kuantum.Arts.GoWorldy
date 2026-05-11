@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:3000/api";
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000/api";
 
 async function request<T>(
   path: string,
@@ -75,6 +75,7 @@ export const api = {
         email: string;
         displayName: string;
         bio?: string;
+        avatarUrl?: string;
         role: string;
         credits: number;
         isPremium: boolean;
@@ -87,12 +88,13 @@ export const api = {
       data: {
         displayName?: string;
         bio?: string;
+        avatarUrl?: string;
         phoneNumber?: string;
         sharePhoneNumber?: number;
       },
       token: string
     ) =>
-      request<{ id: string; email: string; displayName: string; bio?: string }>("/users/me", {
+      request<{ id: string; email: string; displayName: string; bio?: string; avatarUrl?: string }>("/users/me", {
         method: "PATCH",
         body: JSON.stringify(data),
         token,
@@ -104,6 +106,16 @@ export const api = {
         followingCount: number;
         completedSteps: number;
       }>("/users/me/stats", { token }),
+
+    myActivity: (token: string) =>
+      request<{
+        type: "comment" | "guide";
+        id: string;
+        title: string;
+        preview: string;
+        targetId: string | null;
+        createdAt: string;
+      }[]>("/users/me/activity", { token }),
   },
 
   forum: {
@@ -149,6 +161,47 @@ export const api = {
       request<{ url: string }>("/payment/checkout", {
         method: "POST",
         body: JSON.stringify(params),
+        token,
+      }),
+  },
+
+  notifications: {
+    getAll: (token: string) =>
+      request<{
+        id: string;
+        type: "topic_approved" | "topic_rejected" | "comment_reply" | "system";
+        title: string;
+        message: string;
+        targetType?: "forum_topic" | null;
+        targetId?: string | null;
+        read: boolean;
+        createdAt: string;
+      }[]>("/notifications", { token }),
+
+    markRead: (id: string, token: string) =>
+      request<{ ok: boolean }>(`/notifications/${id}/read`, {
+        method: "PATCH",
+        token,
+      }),
+
+    markAllRead: (token: string) =>
+      request<{ ok: boolean }>("/notifications/read-all", {
+        method: "PATCH",
+        token,
+      }),
+
+    getSubscriptions: (token: string) =>
+      request<{
+        countryId: string;
+        countryName: string;
+        countryCode: string;
+        subscribed: boolean;
+      }[]>("/notifications/subscriptions", { token }),
+
+    setSubscription: (countryId: string, subscribed: boolean, token: string) =>
+      request<{ ok: boolean }>(`/notifications/subscriptions/${countryId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ subscribed }),
         token,
       }),
   },

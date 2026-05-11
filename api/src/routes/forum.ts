@@ -65,7 +65,8 @@ export function forumRoutes(repos: Repositories): Router {
   });
 
   router.patch("/topics/:id/status", authMiddleware, requireRole("admin", "moderator"), async (req, res) => {
-    await repos.forum.updateTopicStatus(req.params.id as string, req.body.status);
+    const { status, reason } = req.body;
+    await repos.forum.updateTopicStatus(req.params.id as string, status, reason);
     res.json({ ok: true });
   });
 

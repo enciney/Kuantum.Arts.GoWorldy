@@ -166,5 +166,35 @@ export async function seedDatabase() {
   }
   console.log("Guide steps seeded (US, DE, UK, CA)");
 
+  // ---------- Sample notifications ----------
+  const notifCount = db.prepare("SELECT COUNT(*) as cnt FROM notifications WHERE userId = ?").get(adminId) as { cnt: number };
+  if (notifCount.cnt === 0) {
+    const insertNotif = db.prepare(
+      "INSERT OR IGNORE INTO notifications (id, userId, type, title, message, targetType, targetId) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    );
+    const sampleTopic = db.prepare("SELECT id FROM forum_topics LIMIT 1").get() as { id: string } | undefined;
+    if (sampleTopic) {
+      insertNotif.run(
+        crypto.randomUUID(), adminId, "topic_approved",
+        "Konunuz onaylandı",
+        "F-1 öğrenci vizesi sorunuz forum'da yayınlandı.",
+        "forum_topic", sampleTopic.id
+      );
+    }
+    insertNotif.run(
+      crypto.randomUUID(), adminId, "comment_reply",
+      "Yorumunuza yanıt geldi",
+      "Bir kullanıcı konunuza yorum yaptı.",
+      "forum_topic", sampleTopic?.id ?? null
+    );
+    insertNotif.run(
+      crypto.randomUUID(), adminId, "system",
+      "GoWorldy'ye Hoş Geldiniz",
+      "Hesabınız başarıyla oluşturuldu. Rehberim sekmesinden göç planınıza başlayabilirsiniz.",
+      null, null
+    );
+    console.log("Sample notifications seeded");
+  }
+
   console.log("Database seeding completed");
 }

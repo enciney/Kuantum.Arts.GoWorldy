@@ -13,30 +13,49 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
 import { HomeStackParamList } from "../../navigation/AppNavigator";
+import { Colors, Typography, Spacing, Radius } from "../../theme";
 
 type HomeNav = NativeStackNavigationProp<HomeStackParamList, "HomeMain">;
 
+interface Activity {
+  type: "comment" | "guide";
+  id: string;
+  title: string;
+  preview: string;
+  targetId: string | null;
+  createdAt: string;
+}
+
 export function HomeScreen() {
-  const { user, token, logout } = useAuth();
+  const { user, token } = useAuth();
   const navigation = useNavigation<HomeNav>();
   const [stats, setStats] = useState({ countries: 0, completedSteps: 0, totalSteps: 0 });
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!token) return;
-    Promise.all([
-      api.forum.getCountries(token).catch(() => []),
-      api.guide.getProgress(token).catch(() => []),
-      api.guide.getSteps("1", token).catch(() => []),
-    ])
-      .then(([countries, progress, steps]) => {
+    (async () => {
+      try {
+        const [countries, progress, acts] = await Promise.all([
+          api.forum.getCountries(token).catch(() => [] as { id: string }[]),
+          api.guide.getProgress(token).catch(() => [] as { id: string }[]),
+          api.users.myActivity(token).catch(() => [] as Activity[]),
+        ]);
+        const firstId = (countries as { id: string }[])[0]?.id ?? "";
+        const steps = firstId
+          ? await api.guide.getSteps(firstId, token).catch(() => [] as { id: string }[])
+          : [];
         setStats({
-          countries: countries.length,
-          completedSteps: progress.length,
-          totalSteps: steps.length,
+          countries: (countries as { id: string }[]).length,
+          completedSteps: (progress as { id: string }[]).length,
+          totalSteps: (steps as { id: string }[]).length,
         });
-      })
-      .finally(() => setLoading(false));
+        setActivities(acts as Activity[]);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [token]);
 
   const completionPct =
@@ -55,29 +74,26 @@ export function HomeScreen() {
           style={styles.iconBtn}
           activeOpacity={0.6}
         >
-          <Ionicons name="notifications-outline" size={24} color="#6B7280" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={logout} style={styles.iconBtn}>
-          <Ionicons name="log-out-outline" size={24} color="#6B7280" />
+          <Ionicons name="notifications-outline" size={24} color={Colors.neutral} />
         </TouchableOpacity>
       </View>
 
       {/* Stats Row */}
       <View style={styles.statsRow}>
         <StatCard
-          icon={<MaterialCommunityIcons name="progress-check" size={24} color="#10B981" />}
+          icon={<MaterialCommunityIcons name="progress-check" size={24} color={Colors.secondary} />}
           value={`%${completionPct}`}
           label="İlerleme"
           onPress={() => navigation.getParent()?.navigate("Guide")}
         />
         <StatCard
-          icon={<FontAwesome5 name="globe-americas" size={20} color="#2563EB" />}
+          icon={<FontAwesome5 name="globe-americas" size={20} color={Colors.primary} />}
           value={stats.countries.toString()}
           label="Ülke"
           onPress={() => navigation.getParent()?.navigate("Forum")}
         />
         <StatCard
-          icon={<Ionicons name="checkmark-done" size={24} color="#F59E0B" />}
+          icon={<Ionicons name="checkmark-done" size={24} color={Colors.warning} />}
           value={stats.completedSteps.toString()}
           label="Tamamlanan"
           onPress={() => navigation.getParent()?.navigate("Guide")}
@@ -91,7 +107,7 @@ export function HomeScreen() {
         onPress={() => navigation.getParent()?.navigate("Guide")}
       >
         <View style={styles.guideCardHeader}>
-          <MaterialCommunityIcons name="map-marker-path" size={28} color="#fff" />
+          <MaterialCommunityIcons name="map-marker-path" size={28} color={Colors.surface} />
           <Text style={styles.guideCardTitle}>Rehberime Devam Et</Text>
         </View>
         <Text style={styles.guideCardText}>
@@ -106,27 +122,27 @@ export function HomeScreen() {
       <Text style={styles.sectionTitle}>Hızlı Erişim</Text>
       <View style={styles.actionRow}>
         <ActionCard
-          icon={<Ionicons name="chatbubbles" size={28} color="#2563EB" />}
+          icon={<Ionicons name="chatbubbles" size={28} color={Colors.primary} />}
           label="Forum"
-          color="#EFF6FF"
+          color={Colors.primaryLight}
           onPress={() => navigation.getParent()?.navigate("Forum")}
         />
         <ActionCard
-          icon={<MaterialCommunityIcons name="bookmark-multiple" size={28} color="#10B981" />}
+          icon={<MaterialCommunityIcons name="bookmark-multiple" size={28} color={Colors.secondary} />}
           label="Rehberim"
-          color="#ECFDF5"
+          color={Colors.secondaryLight}
           onPress={() => navigation.getParent()?.navigate("Guide")}
         />
         <ActionCard
-          icon={<Ionicons name="notifications" size={28} color="#F59E0B" />}
+          icon={<Ionicons name="notifications" size={28} color={Colors.warning} />}
           label="Bildirimler"
-          color="#FFFBEB"
+          color={Colors.warningLight}
           onPress={() => navigation.navigate("Notifications")}
         />
         <ActionCard
-          icon={<MaterialCommunityIcons name="crown" size={28} color="#8B5CF6" />}
+          icon={<MaterialCommunityIcons name="crown" size={28} color={Colors.premium} />}
           label="Premium"
-          color="#F5F3FF"
+          color={Colors.premiumLight}
           onPress={() => navigation.navigate("Premium")}
         />
       </View>
@@ -134,19 +150,63 @@ export function HomeScreen() {
       {/* Activity Feed */}
       <Text style={styles.sectionTitle}>Son Aktiviteler</Text>
       {loading ? (
-        <ActivityIndicator color="#2563EB" style={{ marginVertical: 20 }} />
-      ) : (
+        <ActivityIndicator color={Colors.primary} style={{ marginVertical: 20 }} />
+      ) : activities.length === 0 ? (
         <TouchableOpacity
           style={styles.activityCard}
           onPress={() => navigation.getParent()?.navigate("Forum")}
           activeOpacity={0.7}
         >
-          <Ionicons name="information-circle-outline" size={32} color="#9CA3AF" />
+          <Ionicons name="information-circle-outline" size={32} color={Colors.textMuted} />
           <Text style={styles.activityEmptyTitle}>Henüz aktivite yok</Text>
           <Text style={styles.activityEmptyText}>
             Forum'da bir konuya yorum yap veya bir rehber adımını tamamla.
           </Text>
         </TouchableOpacity>
+      ) : (
+        <View style={styles.activityList}>
+          {activities.slice(0, 5).map((act) => (
+            <TouchableOpacity
+              key={act.id + act.createdAt}
+              style={styles.activityRow}
+              activeOpacity={0.75}
+              onPress={() => {
+                if (act.type === "comment" && act.targetId) {
+                  navigation.getParent()?.navigate("Forum", {
+                    openTopicId: act.targetId,
+                    openTopicTitle: act.title,
+                  });
+                } else {
+                  navigation.getParent()?.navigate("Guide");
+                }
+              }}
+            >
+              <View style={[styles.activityIconBadge, { backgroundColor: act.type === "comment" ? Colors.primaryLight : Colors.secondaryLight }]}>
+                <Ionicons
+                  name={act.type === "comment" ? "chatbubble" : "checkmark-circle"}
+                  size={16}
+                  color={act.type === "comment" ? Colors.primary : Colors.secondary}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.activityRowTitle} numberOfLines={1}>{act.title}</Text>
+                <Text style={styles.activityRowPreview} numberOfLines={1}>
+                  {act.preview.length > 60 ? act.preview.slice(0, 60) + "…" : act.preview}
+                </Text>
+              </View>
+              <Text style={styles.activityRowDate}>{formatRelativeTime(act.createdAt)}</Text>
+            </TouchableOpacity>
+          ))}
+          {activities.length > 5 && (
+            <TouchableOpacity
+              style={styles.activitySeeAll}
+              onPress={() => navigation.getParent()?.navigate("Forum")}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.activitySeeAllText}>Tümünü Gör →</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       )}
 
       {/* Premium Banner */}
@@ -155,17 +215,26 @@ export function HomeScreen() {
         onPress={() => navigation.navigate("Premium")}
         activeOpacity={0.85}
       >
-        <MaterialCommunityIcons name="crown" size={32} color="#fff" />
+        <MaterialCommunityIcons name="crown" size={32} color={Colors.surface} />
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={styles.premiumTitle}>Premium'a Geç</Text>
           <Text style={styles.premiumText}>
             Sınırsız konu, reklamsız deneyim — aylık 250 TL
           </Text>
         </View>
-        <Ionicons name="chevron-forward" size={24} color="#fff" />
+        <Ionicons name="chevron-forward" size={24} color={Colors.surface} />
       </TouchableOpacity>
     </ScrollView>
   );
+}
+
+function formatRelativeTime(dateStr: string): string {
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (diff < 60) return "Az önce";
+  if (diff < 3600) return `${Math.floor(diff / 60)} dk`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} sa`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)} gün`;
+  return new Date(dateStr).toLocaleDateString("tr-TR", { day: "numeric", month: "short" });
 }
 
 function StatCard({
@@ -212,80 +281,130 @@ function ActionCard({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F9FAFB" },
-  scrollContent: { padding: 16, paddingTop: 56, paddingBottom: 40 },
-  header: { flexDirection: "row", alignItems: "center", marginBottom: 24 },
-  greeting: { fontSize: 22, fontWeight: "bold", color: "#111827" },
-  subtitle: { fontSize: 14, color: "#6B7280", marginTop: 2 },
-  iconBtn: { padding: 8 },
-  statsRow: { flexDirection: "row", gap: 8, marginBottom: 20 },
+  container: { flex: 1, backgroundColor: Colors.background },
+  scrollContent: { padding: Spacing.md, paddingTop: 56, paddingBottom: 40 },
+  header: { flexDirection: "row", alignItems: "center", marginBottom: Spacing.lg },
+  greeting: { fontSize: 22, fontWeight: "bold", color: Colors.textPrimary },
+  subtitle: { ...Typography.label, color: Colors.textSecondary, marginTop: 2 },
+  iconBtn: { padding: Spacing.sm },
+  statsRow: { flexDirection: "row", gap: Spacing.sm, marginBottom: 20 },
   statCard: {
     flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
     padding: 14,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: Colors.border,
   },
-  statValue: { fontSize: 18, fontWeight: "bold", color: "#111827", marginTop: 6 },
-  statLabel: { fontSize: 12, color: "#6B7280", marginTop: 2 },
+  statValue: { fontSize: 18, fontWeight: "bold", color: Colors.textPrimary, marginTop: 6 },
+  statLabel: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
   guideCard: {
-    backgroundColor: "#2563EB",
-    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.lg,
     padding: 20,
-    marginBottom: 24,
+    marginBottom: Spacing.lg,
   },
   guideCardHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 },
-  guideCardTitle: { fontSize: 18, fontWeight: "bold", color: "#fff" },
+  guideCardTitle: { fontSize: 18, fontWeight: "bold", color: Colors.surface },
   guideCardText: { fontSize: 13, color: "#DBEAFE", marginBottom: 12 },
   progressTrack: {
     height: 8,
     backgroundColor: "rgba(255,255,255,0.3)",
-    borderRadius: 9999,
+    borderRadius: Radius.full,
     overflow: "hidden",
   },
-  progressFill: { height: 8, backgroundColor: "#fff", borderRadius: 9999 },
+  progressFill: { height: 8, backgroundColor: Colors.surface, borderRadius: Radius.full },
   sectionTitle: {
     fontSize: 17,
     fontWeight: "600",
-    color: "#111827",
+    color: Colors.textPrimary,
     marginBottom: 12,
     marginTop: 4,
   },
-  actionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 24 },
+  actionRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm, marginBottom: Spacing.lg },
   actionCard: {
     width: "48%",
-    borderRadius: 16,
+    borderRadius: Radius.lg,
     padding: 18,
     alignItems: "center",
-    gap: 8,
+    gap: Spacing.sm,
   },
-  actionLabel: { fontSize: 14, fontWeight: "600", color: "#111827" },
+  actionLabel: { ...Typography.label, fontWeight: "600", color: Colors.textPrimary },
   activityCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
     padding: 24,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginBottom: 24,
+    borderColor: Colors.border,
+    marginBottom: Spacing.lg,
   },
-  activityEmptyTitle: { fontSize: 15, fontWeight: "600", color: "#111827", marginTop: 8 },
+  activityEmptyTitle: { fontSize: 15, fontWeight: "600", color: Colors.textPrimary, marginTop: 8 },
   activityEmptyText: {
-    fontSize: 13,
-    color: "#6B7280",
+    ...Typography.caption,
+    color: Colors.textSecondary,
     textAlign: "center",
     marginTop: 4,
     lineHeight: 18,
   },
+  activityList: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: Spacing.lg,
+    overflow: "hidden",
+  },
+  activityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  activityIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    flexShrink: 0,
+  },
+  activityRowTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginBottom: 2,
+  },
+  activityRowPreview: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  activityRowDate: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    flexShrink: 0,
+  },
+  activitySeeAll: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  activitySeeAllText: {
+    fontSize: 13,
+    color: Colors.primary,
+    fontWeight: "500",
+  },
   premiumBanner: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#8B5CF6",
-    borderRadius: 16,
+    backgroundColor: Colors.premium,
+    borderRadius: Radius.lg,
     padding: 18,
   },
-  premiumTitle: { fontSize: 16, fontWeight: "bold", color: "#fff" },
+  premiumTitle: { fontSize: 16, fontWeight: "bold", color: Colors.surface },
   premiumText: { fontSize: 13, color: "#EDE9FE", marginTop: 2 },
 });

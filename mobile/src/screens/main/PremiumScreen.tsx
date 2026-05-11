@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -10,13 +10,14 @@ import {
   Linking,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 
 const CREDIT_ITEMS = [
   {
-    productType: "credits_50",
+    productType: "credits_topic",
     icon: "create" as const,
     title: "Konu Aç",
     description: "Forum'da yeni konu açma hakkı",
@@ -24,7 +25,7 @@ const CREDIT_ITEMS = [
     family: "ionicons" as const,
   },
   {
-    productType: "credits_50",
+    productType: "credits_comment",
     icon: "comment-multiple" as const,
     title: "Yorum Erişimi",
     description: "1 hafta sınırsız yorum okuma",
@@ -32,7 +33,7 @@ const CREDIT_ITEMS = [
     family: "mc" as const,
   },
   {
-    productType: "credits_50",
+    productType: "credits_ad",
     icon: "bullhorn" as const,
     title: "Reklam Yayınla",
     description: "Forum'da reklam yayınlama",
@@ -43,13 +44,31 @@ const CREDIT_ITEMS = [
 
 export function PremiumScreen() {
   const { token } = useAuth();
+  const navigation = useNavigation<any>();
   const [credits, setCredits] = useState<number | null>(null);
   const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
+  const linkListenerRef = useRef<ReturnType<typeof Linking.addEventListener> | null>(null);
 
-  useEffect(() => {
+  const refreshCredits = useCallback(() => {
     if (!token) return;
     api.users.me(token).then((u) => setCredits(u.credits)).catch(() => {});
   }, [token]);
+
+  useEffect(() => {
+    refreshCredits();
+  }, [refreshCredits]);
+
+  useEffect(() => {
+    linkListenerRef.current = Linking.addEventListener("url", ({ url }) => {
+      if (url.startsWith("goworldy://payment/success")) {
+        refreshCredits();
+      }
+    });
+    return () => {
+      linkListenerRef.current?.remove();
+    };
+  }, [refreshCredits]);
 
   const handlePurchase = async (productType: string, label: string) => {
     if (!token) return;
@@ -62,6 +81,7 @@ export function PremiumScreen() {
           text: "Devam",
           onPress: async () => {
             setPurchasing(productType);
+            setPurchaseError(null);
             try {
               const { url } = await api.payment.checkout(
                 {
@@ -72,10 +92,9 @@ export function PremiumScreen() {
                 token
               );
               await Linking.openURL(url);
-            } catch (e: unknown) {
-              Alert.alert(
-                "Ödeme Başlatılamadı",
-                e instanceof Error ? e.message : "Stripe yapılandırması eksik olabilir."
+            } catch {
+              setPurchaseError(
+                "Ödeme tamamlanamadı. Lütfen tekrar deneyin veya destek@goworldy.com ile iletişime geçin."
               );
             } finally {
               setPurchasing(null);
@@ -90,7 +109,17 @@ export function PremiumScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.scroll}>
       <View style={styles.header}>
         <Text style={styles.title}>Premium</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="close" size={24} color={Colors.textSecondary} />
+        </TouchableOpacity>
       </View>
+
+      {purchaseError && (
+        <View style={styles.errorBanner}>
+          <Ionicons name="alert-circle" size={18} color={Colors.danger} />
+          <Text style={styles.errorBannerText}>{purchaseError}</Text>
+        </View>
+      )}
 
       {/* Balance Card */}
       <View style={styles.balanceCard}>
@@ -105,8 +134,13 @@ export function PremiumScreen() {
           <TouchableOpacity
             style={styles.balanceBtn}
             onPress={() => handlePurchase("credits_100", "100 Kredi")}
+            disabled={purchasing === "credits_100"}
           >
-            <Text style={styles.balanceBtnText}>Yükle</Text>
+            {purchasing === "credits_100" ? (
+              <ActivityIndicator size="small" color={Colors.surface} />
+            ) : (
+              <Text style={styles.balanceBtnText}>Yükle</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -121,7 +155,7 @@ export function PremiumScreen() {
           <Text style={styles.premiumBadgeText}>EN AVANTAJLI</Text>
         </View>
         <View style={styles.premiumHeader}>
-          <MaterialCommunityIcons name="crown" size={32} color="#fff" />
+          <MaterialCommunityIcons name="crown" size={32} color={Colors.surface} />
           <View style={{ marginLeft: Spacing.md - 4 }}>
             <Text style={styles.premiumTitle}>Aylık Premium</Text>
             <Text style={styles.premiumPrice}>250 TL / ay</Text>
@@ -190,7 +224,7 @@ export function PremiumScreen() {
 function Feature({ text }: { text: string }) {
   return (
     <View style={styles.featureRow}>
-      <Ionicons name="checkmark-circle" size={18} color="#fff" />
+      <Ionicons name="checkmark-circle" size={18} color={Colors.surface} />
       <Text style={styles.featureText}>{text}</Text>
     </View>
   );
@@ -207,11 +241,32 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: Spacing.md,
   },
   title: {
     ...Typography.h1,
     color: Colors.textPrimary,
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.dangerLight,
+    borderRadius: Radius.md,
+    padding: 12,
+    marginBottom: Spacing.md,
+    gap: 8,
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.danger,
+    lineHeight: 18,
   },
   balanceCard: {
     backgroundColor: Colors.surface,
@@ -245,7 +300,7 @@ const styles = StyleSheet.create({
   },
   balanceBtnText: {
     ...Typography.caption,
-    color: "#fff",
+    color: Colors.surface,
     fontWeight: "600",
   },
   premiumCard: {
@@ -265,7 +320,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.sm,
   },
   premiumBadgeText: {
-    color: "#fff",
+    color: Colors.surface,
     fontSize: 10,
     fontWeight: "bold",
     letterSpacing: 0.5,
@@ -278,7 +333,7 @@ const styles = StyleSheet.create({
   premiumTitle: {
     ...Typography.h2,
     fontWeight: "bold",
-    color: "#fff",
+    color: Colors.surface,
   },
   premiumPrice: {
     ...Typography.label,
@@ -295,7 +350,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   featureText: {
-    color: "#fff",
+    color: Colors.surface,
     ...Typography.label,
   },
   premiumCta: {
@@ -304,7 +359,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: Colors.surface,
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: Radius.md,
     gap: 6,
   },
   premiumCtaText: {
@@ -322,7 +377,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Radius.md,
     padding: 14,
     marginBottom: Spacing.sm,
     borderWidth: 1,
@@ -348,7 +403,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   actionPriceBox: {
-    backgroundColor: "#F3F4F6",
+    backgroundColor: Colors.background,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: Radius.sm,

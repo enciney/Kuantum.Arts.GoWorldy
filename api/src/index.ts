@@ -8,10 +8,14 @@ import { guideRoutes } from "./routes/guide";
 import { paymentRoutes } from "./routes/payment";
 import { adminRoutes } from "./routes/admin";
 import { userRoutes } from "./routes/users";
+import { notificationRoutes } from "./routes/notifications";
 import { seedDatabase } from "./seed";
 
 const app = express();
-app.use(cors());
+const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
+  ? process.env.CORS_ALLOWED_ORIGINS.split(",")
+  : ["http://localhost:3000", "http://localhost:5173", "http://localhost:19006"];
+app.use(cors({ origin: allowedOrigins }));
 
 const repos = createRepositories();
 
@@ -20,6 +24,9 @@ const CREDITS_GRANT: Record<string, number> = {
   credits_50: 50,
   credits_100: 100,
   credits_250: 250,
+  credits_topic: 50,
+  credits_comment: 50,
+  credits_ad: 50,
 };
 const PREMIUM_DAYS: Record<string, number> = {
   premium_weekly: 7,
@@ -58,6 +65,7 @@ app.use("/api/guide", guideRoutes(repos));
 app.use("/api/payment", paymentRoutes(repos));
 app.use("/api/admin", adminRoutes(repos));
 app.use("/api/users", userRoutes(repos));
+app.use("/api/notifications", notificationRoutes(repos));
 
 app.get("/", (_req, res) => res.json({ name: config.app.name, version: config.app.version }));
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));

@@ -9,13 +9,14 @@ import {
   TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
 import { ForumCategoriesScreen } from "./ForumCategoriesScreen";
 import { ForumTopicsScreen } from "./ForumTopicsScreen";
 import { ForumTopicDetailScreen } from "./ForumTopicDetailScreen";
 import { CreateTopicScreen } from "./CreateTopicScreen";
+import { Colors, Typography, Spacing, Radius } from "../../theme";
 
 interface Country {
   id: string;
@@ -50,6 +51,7 @@ type ScreenView =
 export function ForumScreen() {
   const { token } = useAuth();
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
 
   const navigateToPremium = () => {
     navigation.navigate("Home", { screen: "Premium" });
@@ -60,6 +62,20 @@ export function ForumScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<ScreenView>({ kind: "countries" });
+
+  useEffect(() => {
+    const params = route.params as { openTopicId?: string; openTopicTitle?: string } | undefined;
+    if (params?.openTopicId) {
+      setView({
+        kind: "topic-detail",
+        country: { id: "", name: "", code: "" },
+        categoryId: "",
+        categoryName: "",
+        topicId: params.openTopicId,
+        topicTitle: params.openTopicTitle ?? "Konu",
+      });
+    }
+  }, [route.params]);
 
   useEffect(() => {
     if (!token) return;
@@ -113,14 +129,18 @@ export function ForumScreen() {
       <ForumTopicDetailScreen
         topicId={view.topicId}
         topicTitle={view.topicTitle}
-        onBack={() =>
-          setView({
-            kind: "topics",
-            country: view.country,
-            categoryId: view.categoryId,
-            categoryName: view.categoryName,
-          })
-        }
+        onBack={() => {
+          if (!view.country.id) {
+            setView({ kind: "countries" });
+          } else {
+            setView({
+              kind: "topics",
+              country: view.country,
+              categoryId: view.categoryId,
+              categoryName: view.categoryName,
+            });
+          }
+        }}
       />
     );
   }
@@ -169,7 +189,7 @@ export function ForumScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
   }
@@ -177,7 +197,7 @@ export function ForumScreen() {
   if (error) {
     return (
       <View style={styles.center}>
-        <Ionicons name="alert-circle" size={36} color="#EF4444" />
+        <Ionicons name="alert-circle" size={36} color={Colors.danger} />
         <Text style={styles.errorText}>{error}</Text>
       </View>
     );
@@ -191,7 +211,7 @@ export function ForumScreen() {
         <TextInput
           style={styles.search}
           placeholder="Ülke ara..."
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={Colors.textMuted}
           value={search}
           onChangeText={handleSearch}
         />
@@ -210,7 +230,7 @@ export function ForumScreen() {
             <Text style={styles.flag}>{FLAG_MAP[item.code] ?? "🌍"}</Text>
             <Text style={styles.countryName}>{item.name}</Text>
             <View style={styles.cardFooter}>
-              <Ionicons name="chatbubbles-outline" size={14} color="#6B7280" />
+              <Ionicons name="chatbubbles-outline" size={14} color={Colors.textSecondary} />
               <Text style={styles.cardFooterText}>Forum'a git</Text>
             </View>
           </TouchableOpacity>
@@ -226,44 +246,43 @@ export function ForumScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F9FAFB" },
+  container: { flex: 1, backgroundColor: Colors.background },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 40 },
   title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#111827",
-    paddingHorizontal: 16,
+    ...Typography.h1,
+    color: Colors.textPrimary,
+    paddingHorizontal: Spacing.md,
     paddingTop: 56,
     paddingBottom: 12,
   },
   searchBox: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 12,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.md,
     paddingHorizontal: 12,
-    marginHorizontal: 16,
+    marginHorizontal: Spacing.md,
     marginBottom: 12,
-    gap: 8,
+    gap: Spacing.sm,
   },
-  search: { flex: 1, paddingVertical: 12, fontSize: 15, color: "#111827" },
-  list: { paddingHorizontal: 16, paddingBottom: 24 },
+  search: { flex: 1, paddingVertical: 12, fontSize: 15, color: Colors.textPrimary },
+  list: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.lg },
   row: { justifyContent: "space-between", marginBottom: 12 },
   card: {
     flex: 0.48,
-    backgroundColor: "#fff",
-    borderRadius: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
     padding: 18,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: Colors.border,
   },
   flag: { fontSize: 36, marginBottom: 6 },
-  countryName: { fontSize: 14, fontWeight: "600", color: "#111827", textAlign: "center", marginBottom: 8 },
+  countryName: { ...Typography.label, fontWeight: "600", color: Colors.textPrimary, textAlign: "center", marginBottom: 8 },
   cardFooter: { flexDirection: "row", alignItems: "center", gap: 4 },
-  cardFooterText: { fontSize: 11, color: "#6B7280" },
-  errorText: { color: "#EF4444", fontSize: 15, marginTop: 8, textAlign: "center" },
-  emptyText: { color: "#6B7280", fontSize: 15 },
+  cardFooterText: { fontSize: 11, color: Colors.textSecondary },
+  errorText: { color: Colors.danger, fontSize: 15, marginTop: 8, textAlign: "center" },
+  emptyText: { color: Colors.textSecondary, fontSize: 15 },
 });

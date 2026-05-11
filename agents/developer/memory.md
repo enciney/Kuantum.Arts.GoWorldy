@@ -122,13 +122,416 @@ Client ID'ler [Google Cloud Console](https://console.cloud.google.com/apis/crede
 - GuideScreen koşullu adım akışı önceki sprintlerde tamamlanmıştı (computeStepStates, locked/disqualified).
 - tsc: temiz (API + Mobile).
 
+## Buton Audit — Çalışmayan İş Kalemleri (PM tarafından tespit edildi, 2026-05-11)
+
+### B1 — ProfileScreen: Avatar Düzenleme Butonu
+- **Ekran**: `mobile/src/screens/main/ProfileScreen.tsx`
+- **Buton**: Profil fotoğrafının üzerindeki kamera/kalem ikonu (avatar alanı)
+- **Beklenen davranış**: Kullanıcı butona basınca ya expo-image-picker ile galeri açılmalı ya da URL input girişi istenmeli; seçilen fotoğraf sunucuya yüklenip avatar URL'si güncellenmelidir.
+- **Neden çalışmıyor**: `onPress` handler'ı ya hiç tanımlanmamış ya da boş — görsel olarak tıklanabilir görünüyor ancak hiçbir işlem tetiklenmiyor.
+- **Gerekli adımlar**:
+  1. Kısa vadeli (MVP): Kullanıcıdan URL girmesi için Alert+TextInput ya da küçük modal — sunucu tarafı upload yok.
+  2. Uzun vadeli: `expo-image-picker` + S3/Cloudinary yükleme; `PATCH /users/me` route'una `avatarUrl` alanı ekle.
+- **Öncelik**: P2 (P0 değil — initials fallback kullanılıyor)
+
+### B2 — NotificationsScreen: Bildirim Satırı Tıklaması
+- **Ekran**: `mobile/src/screens/main/NotificationsScreen.tsx`
+- **Buton**: Her bildirim satırı (`NotifRow` bileşeni içindeki `TouchableOpacity`)
+- **Beklenen davranış**: Tıklanınca bildirimin türüne göre ilgili içeriğe navigate etmeli. Örneğin: Forum bildirimi → `ForumTopicDetailScreen`; Genel → bildirim detay modal.
+- **Neden çalışmıyor**: `TouchableOpacity.onPress` prop'u tanımlanmamış (ya hiç aktarılmıyor ya da boş).
+- **Gerekli adımlar**:
+  1. `NotifRow`'a `onPress?: () => void` prop'u ekle.
+  2. Bildirim objesine `type` ve `targetId` alanları ekle (API'dan gelecek).
+  3. Bildirim listesini API'dan çeken bir endpoint yaz (`GET /api/notifications`).
+  4. `onPress` içinde `type==='forum_comment'` → `ForumScreen` navigate et.
+- **Öncelik**: P1 (bildirim özelliğinin temel işlevi)
+
+### B3 — NotificationsScreen: "Takip Ettiklerim" Toggle'ları (Mevcut açık TODO — hatırlatma)
+- **Ekran**: `mobile/src/screens/main/NotificationsScreen.tsx`
+- **Buton**: Takip sekmetindeki Switch toggle'ları
+- **Beklenen davranış**: Açık/kapalı durumu kalıcı olmalı (API'ya yazılmalı).
+- **Neden çalışmıyor**: Frontend-only local state — `PATCH /api/users/me/notifications` gibi bir endpoint yok.
+- **Öncelik**: P2
+
+## Resolved (Button Sprint — 2026-05-11)
+- **[B1]** ProfileScreen avatar edit butonu aktif: kamera ikonuna basınca URL input modal açılıyor. `PATCH /users/me` artık `avatarUrl` kabul ediyor. `IUserRepository.User` + DB `avatarUrl TEXT` kolonu eklendi. Image bileşeni ile render — URL yoksa initials fallback.
+- **[B2]** NotificationsScreen bildirim satırı tıklanabilir: `NotifRow` artık `onPress` prop alıyor. `GET /api/notifications`, `PATCH /api/notifications/:id/read`, `PATCH /api/notifications/read-all` endpoint'leri eklendi. Forum bildirimi → ForumScreen navigate.
+- **[B3]** NotificationsScreen takip toggle'ları artık kalıcı: `GET /api/notifications/subscriptions` (tüm ülkeler + subscription durumu), `PATCH /api/notifications/subscriptions/:countryId` endpoint'leri eklendi. `user_country_subscriptions` tablosu oluşturuldu. Optimistic UI + rollback hata durumunda.
+- **[Yeni]** `INotificationRepository` + `SqliteNotificationRepository` + `notifications` tablosu eklendi. `repositories/index.ts`'e wire edildi.
+- API + Mobile tsc: temiz.
+
+## Sprint 2 — Tester Bulguları Doğrulaması (PM, 2026-05-11)
+
+T1–T4 kaynak kod incelenerek doğrulandı — hepsi çözülmüş:
+- **T1** ✅ `ForumScreen.tsx:132-145` → `!view.country.id` kontrolü ile `countries` view'ına yönlendirme var.
+- **T2** ✅ `HomeScreen.tsx:45-47` → `countries[0]?.id` ile `getSteps` çağrısı yapılıyor.
+- **T3** ✅ `ProfileScreen.tsx:192` → `setBio(savedBio)` ile geri dönüyor (boşaltmıyor).
+- **T4** ✅ `SqliteGuideRepository.ts:28-30` → `ON CONFLICT(userId, stepId) DO UPDATE SET` UPSERT mevcut.
+
+## Admin Buton Audit — Yeni Bulgular (PM, 2026-05-11)
+
+### A1 — DashboardPage: Hızlı Bağlantılar `<a href>` Kullanıyor (P3)
+- **Ekran**: `admin/src/pages/DashboardPage.tsx:51-57`
+- **Sorun**: "Konu Onay Kuyruğu →" ve "Kullanıcı Yönetimi →" bağlantıları düz HTML `<a href="/topics">` kullanıyor. SPA'da bu tam sayfa yenilemesine (full page reload) neden olur; React Router `<Link to="/topics">` kullanılmalı.
+- **Düzeltme**: `import { Link } from "react-router-dom"` ile iki `<a>` → `<Link>` olarak değiştir.
+- **Öncelik**: P3 — görsel olarak çalışıyor ama SPA deneyimini bozuyor.
+
+### A2 — TopicsPage: "Reddet" Butonu Onay Gerektirmiyor (P3)
+- **Ekran**: `admin/src/pages/TopicsPage.tsx:86-91`
+- **Sorun**: "Reddet" butonuna tek tıkla konu reddedilebiliyor; yanlışlıkla tıklama riski var. Ayrıca red sebebi de kaydedilmiyor (ayrı görev — UX memory'de belgelenmiş).
+- **Düzeltme**: `handleAction` çağrısından önce `window.confirm("Bu konuyu reddetmek istediğinizden emin misiniz?")` ekle. Sebep modalı ayrı sprint'e bırakılabilir.
+- **Öncelik**: P3 — moderatör akışı için temel güvenlik.
+
+## Sprint 6 — Rekabet Analizi Sonrası Görevler (PM tarafından atandı, 2026-05-11)
+
+| Kod | Öncelik | Görev | Notlar |
+|-----|---------|-------|--------|
+| R1 | **P1** | Forum full-text arama endpoint'i | `GET /api/forum/search?q=...` — topics + comments içinde arar, ülke/kategori filtresi opsiyonel |
+| R2 | **P1** | Forum topic upvote sistemi | `POST /api/forum/topics/:id/upvote` + `upvotes` kolonu, aynı kullanıcı iki kez upvote edemez |
+| R3 | **P1** | Deep link scheme | `app.json`'da `scheme: "goworldy"` zaten var; `goworldy://forum/topic/:id` ve `goworldy://guide/:countryId` route'larını wiring |
+| R4 | **P2** | Onboarding flow API | `PATCH /api/users/me` → `onboardingCompleted: boolean`, `targetCountryId: number` alanları; yeni kayıtta `onboardingCompleted: false` default |
+| R5 | **P2** | Danışman profil endpoint'leri | `GET /api/consultants` (userType=consultant olanları döner) + `GET /api/consultants/:id` — yeni bir route değil, mevcut users üzerine filtre |
+
 ## Open TODOs (next session)
-- Forum approval queue admin UI (admin dashboard yapılınca).
 - Push notifications (Expo Notifications + topic abone olunca tetikleme).
-- Image storage (avatar upload).
-- **Admin dashboard (React) — henüz başlamadı. En büyük eksik.**
-- Reset token e-posta servisi (SendGrid/SES) — şu an console.log.
-- NotificationsScreen "takip ettiklerim" toggle'ları frontend-only (API endpoint yok).
-- LoginScreen hata mesajı: Google flow path'inde Alert ile gösteriliyor, diğer path'lerde error box — UI tutarsızlığı.
-- followingCount `/users/me/stats` içinde hardcoded 0 — follow sistemi backend'de yok.
-- Stripe: Gerçek `priceId` (Stripe Price ID) yapılandırması yapılmadan checkout çalışmaz. `.env.development`'a `STRIPE_SECRET_KEY` + her paket için Stripe Price ID eklenmeli.
+- Image storage (avatar upload — şu an URL girişi, S3/Cloudinary entegrasyonu eksik).
+- followingCount `/users/me/stats` içinde hardcoded 0 — follow sistemi backend'de yok. (P3)
+- Bildirim seed'i yok — notifications tablosu boş başlıyor. Seed'e örnek bildirimler eklenebilir. (P3)
+- Stripe: `.env.development`'a gerçek Stripe Price ID'ler yazılmadan checkout tetiklenmez. (Stakeholder bekleniyor)
+- Admin dashboard: `cd admin && npm run dev` ile localhost:5173'te açılır. Gerçek prod build için Vite ile build + nginx/Caddy önünde servis edilmeli.
+- Admin CORS: localhost:5173 → localhost:3000 isteklerinin whitelist'e alınması gerekebilir.
+- Admin Config Panel sayfası yok. (P3)
+- Admin Reddet sebep modalı yok. (P3 — UX spec'i memory'de mevcut)
+
+## Tester Bulguları — 2026-05-11 (3. Tur — agents/tester/memory.md kaynaklı)
+
+### T8 — PremiumScreen: credits_topic/comment/ad PRICE_MAP'te Yok [P1-KRİTİK]
+- **Neden**: T7 düzeltmesi `PremiumScreen.tsx`'deki 3 kredi kartının `productType`'larını `credits_50`'den `credits_topic`, `credits_comment`, `credits_ad` olarak değiştirdi. Ancak `payment.ts:17-23` PRICE_MAP yalnızca eski tip'leri (`credits_50`, `credits_100`, `credits_250`) biliyor.
+- **Sonuç**: "Konu Aç", "Yorum Erişimi", "Reklam Yayınla" butonlarına basınca backend 400 dönüyor — satın alma tamamen bloke.
+- **Düzeltme**:
+  1. `api/src/routes/payment.ts:17-23` — PRICE_MAP'e ekle:
+     ```typescript
+     credits_topic: config.stripe.prices.credits_50,   // 50 TL — credits_50 fiyatını paylaşır
+     credits_comment: config.stripe.prices.credits_50,
+     credits_ad: config.stripe.prices.credits_50,
+     ```
+  2. `api/src/index.ts:20-24` — CREDITS_GRANT'a ekle:
+     ```typescript
+     credits_topic: 50,
+     credits_comment: 50,
+     credits_ad: 50,
+     ```
+  3. Ya da ayrı env değişkenleri: `STRIPE_PRICE_CREDITS_TOPIC`, `STRIPE_PRICE_CREDITS_COMMENT`, `STRIPE_PRICE_CREDITS_AD` (stakeholder kararı gerekir).
+
+### T9 — LoginScreen: Google Flow Hata Mesajı UI Tutarsızlığı [P2]
+- **Dosya**: `mobile/src/screens/auth/LoginScreen.tsx:39-45`
+- **Sorun**: `loginWithGoogle` başarısız olursa `Alert.alert(...)` çağrılıyor. Normal e-posta/şifre hatası `setError(...)` ile inline error box gösteriyor (satır 61). İki farklı hata UI pattern.
+- **Düzeltme**: `LoginScreen.tsx:39-45` catch bloğunda `Alert.alert` yerine:
+  ```typescript
+  .catch((e: unknown) => setError(e instanceof Error ? e.message : "Google girişi başarısız."))
+  ```
+
+### A1 — Admin DashboardPage: `<a href>` SPA Uyumsuzluğu [P3]
+- **Dosya**: `admin/src/pages/DashboardPage.tsx:52-56`
+- **Düzeltme**: `import { Link } from "react-router-dom"` ekle; `<a href="/topics">` → `<Link to="/topics">`, `<a href="/users">` → `<Link to="/users">`. Style prop'unu Link'e taşı.
+
+### A2 — Admin TopicsPage: Reddet Onay Dialogu Yok [P3]
+- **Dosya**: `admin/src/pages/TopicsPage.tsx:87-90`
+- **Düzeltme**: "Reddet" butonunun `onClick` handler'ına confirm ekle:
+  ```typescript
+  onClick={() => {
+    if (!window.confirm("Bu konuyu reddetmek istediğinizden emin misiniz?")) return;
+    handleAction(t.id, "rejected");
+  }}
+  ```
+
+### Auth Branding — ForgotPassword ve ResetPassword Logo Yok [P3]
+- **Dosya**: `ForgotPasswordScreen.tsx:49-53`, `ResetPasswordScreen.tsx:77-81`
+- **Düzeltme**: Her iki ekrana LoginScreen'deki `logoBox` bileşenini ekle: `<MaterialCommunityIcons name="earth" size={56} color={Colors.primary} />` + `<Text style={styles.logo}>GoWorldy</Text>` `paddingTop:80`'den önce.
+
+## Sonraki Sprint — UX Polish İş Kalemleri (PM, 2026-05-11)
+
+Aşağıdaki görevler UX/UI agent tarafından spec'lendi; developer implementasyonu bekleniyor.
+
+### BU3 — PremiumScreen: Satın Alma Fail State UX (P1)
+- **Ekran**: `mobile/src/screens/main/PremiumScreen.tsx`
+- **Görev**: Stripe hatası geldiğinde teknik Alert mesajı yerine kullanıcı dostu inline hata banner göster.
+- **Değişiklikler**:
+  1. Hata state'i için `purchaseError: string | null` ekle.
+  2. Alert kaldır — satın alma kartının altında kırmızı inline banner: "Ödeme tamamlanamadı. Lütfen tekrar deneyin veya destek@goworldy.com ile iletişime geçin."
+  3. "Yükle" (balanceBtn) butonuna da `ActivityIndicator` loading spinner ekle (şu an sadece 3 action card'da var).
+  4. Başarılı ödeme sonrası (Stripe deep link callback `goworldy://payment/success`): `Linking.addEventListener` ile yakalanınca `/users/me` yeniden çek, bakiye güncelle.
+- **UX token'ları**: hata arka plan `Colors.dangerLight`, ikon `"alert-circle"`, metin `Colors.danger`.
+
+### BU4 — HomeScreen: Aktivite Feed Dolu State Tasarımı (P2)
+- **Ekran**: `mobile/src/screens/main/HomeScreen.tsx`
+- **Görev**: `users.myActivity` API çağrısı B5 ile eklendi; artık gelen veri için dolu state render'ı eksik.
+- **Değişiklikler**:
+  1. Aktivite listesi geldiğinde her satır: sol kenarda renkli ikon badge (forum yorum → `Colors.primary` "chatbubble" ikonu, guide adım → `Colors.secondary` "checkmark-circle" ikonu).
+  2. Sağda tarih: `formatRelativeTime` helper (B7'de yazıldı, import et).
+  3. Alt satırda içerik özeti: maksimum 60 karakter, `numberOfLines={1}` ile truncate.
+  4. Maksimum 5 aktivite göster; altında "Tümünü Gör →" linki (Forum/Guide tab'ına navigate).
+  5. Boş gelirse mevcut empty state korunuyor — değişiklik yok.
+
+### BU5 — HomeScreen: Header Logout Butonu Kaldır (P2)
+- **Ekran**: `mobile/src/screens/main/HomeScreen.tsx`
+- **Görev**: `HomeScreen.tsx` header'daki `TouchableOpacity onPress={logout}` bloğunu kaldır.
+- **Neden**: ProfileScreen'de zaten "Çıkış Yap" butonu var. İki yerde çıkış — tutarsızlık ve yanlışlıkla tıklama riski.
+- **Değişiklik**: Header'da yalnızca çan (bildirim) ikonu kalsın. Logout handler referansı da `useAuth`'tan kaldırılabilir (başka yerde kullanılmıyorsa).
+
+### P0 — Admin Dashboard Scaffold (kritik)
+- Şu an admin ekranı olmadığı için forum topic onay süreci manuel ve sınırsız sürüyor. Her kullanıcı topic'i "pending" olarak takılıp kalıyor.
+- **Görev**: `admin/` klasörü altında React + TypeScript projesi oluştur.
+- **MVP kapsam** (öncelik sırasıyla):
+  1. Giriş ekranı (JWT auth, `admin@goworldy.com`).
+  2. Topic onay queue — `GET /api/admin/topics/pending` listesi; "Onayla" / "Reddet" butonları.
+  3. Kullanıcı listesi + rol atama (`PATCH /api/admin/users/:id/role`).
+  4. Özet stats sayfası (`GET /api/admin/stats`).
+- **Bağımlılık**: Tüm backend route'ları (`/api/admin/*`) mevcut ve çalışır durumda — sadece frontend eksik.
+
+## Resolved (B4–B8 Sprint — 2026-05-11)
+- **[B4]** `routes/payment.ts`: `PRICE_MAP` eklendi (`productType → STRIPE_PRICE_xxx` env). `priceId` artık frontend'den gelmiyor, backend'de resolve ediliyor. Env yoksa 400 dönüyor. `config/index.ts`'e `stripe.prices` ve `sendgrid` blokları eklendi.
+- **[B5]** `GET /api/users/me/activity` eklendi: son 10 forum yorumu + son 5 tamamlanan guide adımı, chronological birleşim. `IForumRepository.getRecentCommentsByAuthor` + `IGuideRepository.getRecentProgress` interface + SQLite impl. Mobile `api.ts`'e `users.myActivity`. `HomeScreen` gerçek aktivite listesi gösteriyor — boş gelirse empty state korunuyor. Aktiviteler tıklanabilir (forum → ForumScreen+topicId, guide → Guide tab).
+- **[B6]** `NotificationsScreen.handleNotifPress`: `navigation.navigate("Forum", { openTopicId, openTopicTitle })` ile topic'e direkt geçiş. `MainTabParamList.Forum` params kabul ediyor. `ForumScreen` `useRoute` ile `openTopicId` okuyor, `topic-detail` view'ına atlıyor.
+- **[B7]** `NotificationsScreen`: `formatRelativeTime(dateStr)` helper eklendi. Ham ISO string yerine "5 dk önce", "2 saat önce", "3 gün önce" gösteriliyor.
+- **[B8]** `services/email.ts` oluşturuldu: `SENDGRID_API_KEY` varsa SendGrid REST API ile reset e-postası gönderir, yoksa console.log'a yazar (graceful degrade). `routes/auth.ts` artık `sendResetEmail(email, token)` çağırıyor.
+- API + Mobile tsc: temiz.
+
+## Buton Audit — 2. Tur (PM, 2026-05-11)
+
+### B4 — PremiumScreen: Tüm Satın Alma Butonları (5 buton) ❌ BROKEN
+- **Ekran**: `mobile/src/screens/main/PremiumScreen.tsx`
+- **Butonlar**: "Yükle" (100 Kredi), "Şimdi Premium Ol" (Aylık Premium), "Konu Aç" (50 Kredi), "Yorum Erişimi" (50 Kredi), "Reklam Yayınla" (50 Kredi)
+- **Beklenen davranış**: Kullanıcıya Stripe ödeme sayfası açılmalı; ödeme tamamlanınca kredi/premium balance güncellenmeli.
+- **Neden çalışmıyor**:
+  1. `PremiumScreen.tsx:66-73` → `api.payment.checkout({ productType, successUrl, cancelUrl }, token)` çağrısında `priceId` parametresi **hiç gönderilmiyor**.
+  2. `routes/payment.ts:25` → `priceId` undefined olarak alınıyor.
+  3. `StripePaymentProvider.ts:26` → `line_items: [{ price: undefined, quantity: 1 }]` → Stripe API "No such price" hatası fırlatıyor.
+  4. Kullanıcıya "Ödeme Başlatılamadı / Stripe yapılandırması eksik olabilir" Alert'i görünüyor.
+- **Gerekli adımlar**:
+  1. `payment.ts` içinde `productType → Stripe priceId` mapping tablosu oluştur (env'den oku: `STRIPE_PRICE_CREDITS_50`, `STRIPE_PRICE_CREDITS_100`, `STRIPE_PRICE_PREMIUM_MONTHLY` vb.).
+  2. `routes/payment.ts` checkout handler'ında: `priceId = PRICE_MAP[productType]`; priceId yoksa 400 döndür.
+  3. `.env.development`'a gerçek (veya Stripe test modu) priceId'leri ekle.
+  4. Alternatif: `PremiumScreen`'daki `handlePurchase` çağrısına `priceId` prop'u ekle — ancak priceId'leri frontend'e gömmek önerilmez.
+- **Öncelik**: P0 — gerçek para akışı tamamen bloke
+
+### B5 — HomeScreen: "Son Aktiviteler" Bölümü ❌ BROKEN (içerik yok)
+- **Ekran**: `mobile/src/screens/main/HomeScreen.tsx:135-151`
+- **Bileşen**: "Henüz aktivite yok" placeholder kartı + tıklanınca Forum navigate
+- **Beklenen davranış**: Kullanıcının son forum yorumları ve tamamladığı rehber adımları kronolojik olarak listelenmeli.
+- **Neden çalışmıyor**: Backend'de `GET /api/users/me/activity` endpoint'i yok. Şu an daima empty state gösteriyor; tıklayınca Forum'a gitmek çalışıyor ama içerik sıfır.
+- **Gerekli adımlar**:
+  1. `routes/users.ts`'e `GET /me/activity` ekle: son 10 forum yorumu (forum_comments) + son 5 tamamlanan guide adımı (user_guide_progress), birleşik kronolojik sıralı.
+  2. `IUserRepository` veya yeni bir servis metoduna ekle (ya da doğrudan route içinde iki repo çağrısı yap).
+  3. `api.ts`'e `users.myActivity(token)` metodu ekle.
+  4. `HomeScreen`'de `useEffect` içinde aktivite verisini çek, boş gelirse empty state göster.
+- **Öncelik**: P2 — ürün kullanılabilir ama aktivite bölümü anlamsız
+
+### B6 — NotificationsScreen: Bildirim Satırı → Direkt Topic'e Gitmiyor ❌ BROKEN
+- **Ekran**: `mobile/src/screens/main/NotificationsScreen.tsx`
+- **Buton**: `NotifRow` tıklaması (`handleNotifPress`)
+- **Beklenen davranış**: Forum bildirimine tıklandığında ilgili konu detay ekranına (ForumTopicDetailScreen) geçilmeli.
+- **Neden çalışmıyor**: `handleNotifPress` şu an sadece `navigation.navigate("Forum")` yapıyor (root ekrana); `notif.targetId` kullanılmıyor. ForumScreen iç state machine'e programatik geçiş mekanizması yok.
+- **Gerekli adımlar**:
+  1. ForumScreen'e dışarıdan başlangıç view'ı geçebilmek için navigation param desteği ekle (ör. `initialTopicId`).
+  2. `handleNotifPress` içinde `notif.targetType === "forum_topic"` kontrolü; `notif.targetId` ile ForumScreen'e navigate et ve o topic'i açık konumla başlat.
+  3. Alternatif: ForumScreen'i state machine'den çıkarıp gerçek stack navigator'a taşı (daha temiz ama daha büyük refactor).
+- **Öncelik**: P1 — bildirim özelliğinin temel UX değeri bu navigate'e bağlı
+
+### B7 — NotificationsScreen: Tarih Formatı Ham ISO String ❌ UX SORUN
+- **Ekran**: `mobile/src/screens/main/NotificationsScreen.tsx`
+- **Alan**: `NotifRow` içindeki `notif.createdAt` gösterimi
+- **Beklenen davranış**: "2 saat önce", "Dün", "3 Mayıs" gibi okunabilir format.
+- **Neden çalışmıyor**: `new Date(notif.createdAt).toLocaleDateString("tr-TR")` benzeri bir dönüşüm yok; ham `"2026-05-11T10:30:00.000Z"` string'i gösteriliyor.
+- **Gerekli adımlar**: `createdAt` değerini `toRelativeTime(dateStr)` helper ile işle. `date-fns` veya basit bir `formatRelative` yardımcı fonksiyon yazılabilir. Dependency eklemek istemiyorsan pure JS çözüm yeterli.
+- **Öncelik**: P2 — işlevsel değil ama görünüm bozuk
+
+### B8 — ForgotPasswordScreen: E-posta Gerçekte Gitmiyor ⚠️ YAPISAL SORUN
+- **Ekran**: `mobile/src/screens/auth/ForgotPasswordScreen.tsx` → "Sıfırlama Linki Gönder"
+- **Beklenen davranış**: Kullanıcı e-posta adresine reset token linki gelmeli.
+- **Neden çalışmıyor**: `routes/auth.ts` reset token üretiyor ama e-posta servisi yok — token sadece `console.log`'a yazılıyor. Kullanıcı API'den 200 alıyor ama hiçbir şey gelmiyor.
+- **Gerekli adımlar**: SendGrid veya AWS SES entegrasyonu. `SENDGRID_API_KEY` env ekle; `services/email.ts` yaz; auth route'ta `sendResetEmail(email, token)` çağır.
+- **Öncelik**: P1 — reset akışı görünürde çalışıyor ama sıfırlama imkânsız
+
+---
+
+## Resolved (UX Sprint — 2026-05-11)
+- **[BU5]** `HomeScreen.tsx`: header'dan logout butonu kaldırıldı. `useAuth` destructuring'den `logout` çıkarıldı. Header'da yalnızca çan ikonu kaldı.
+- **[BU3]** `PremiumScreen.tsx`: Alert hata mesajı kaldırıldı. `purchaseError: string | null` state eklendi. Satın alma hatası inline kırmızı banner ile gösteriliyor (`Colors.dangerLight` arka plan, `alert-circle` ikonu). `Linking.addEventListener` ile `goworldy://payment/success` deep link yakalanınca `/users/me` yeniden çekiliyor.
+- **[BU3]** "Yükle" (balanceBtn) butonuna `ActivityIndicator` loading spinner eklendi.
+- **[T6]** `PremiumScreen.tsx`: Header'a kapat butonu eklendi (`Ionicons "close"`, `navigation.goBack()`).
+- **[T7]** `PremiumScreen.tsx`: CREDIT_ITEMS productType'ları düzeltildi — `credits_topic`, `credits_comment`, `credits_ad` olarak ayrıldı (önceden hepsi `credits_50`'ydi).
+- **[BU4]** `HomeScreen.tsx`: aktivite feed — `formatRelativeTime` helper eklendi, her satırda sağda kısa tarih gösteriyor. Ikon badge'leri (`chatbubble`/`checkmark-circle`) renkli arka planla birlikte eklendi. Max 5 aktivite gösteriliyor; 5'ten fazlaysa "Tümünü Gör →" linki görünüyor.
+- **[T5]** `NotificationsScreen.tsx`: header sağına kapat butonu eklendi (`navigation.goBack()`). "Tümünü Okundu İşaretle" ve kapat butonu `headerRight` row içinde yan yana.
+- **[P0]** `admin/` klasörü: Vite + React + TypeScript scaffold oluşturuldu. `npm install` + `@types/react` + `@types/react-dom` + `react-router-dom` + `axios` eklendi.
+- **[P0]** Admin sayfaları: `LoginPage` (JWT auth, admin/mod kontrolü), `DashboardPage` (stats kartları + quick links), `TopicsPage` (pending topic listesi, Onayla/Reddet), `UsersPage` (kullanıcı listesi + rol dropdown).
+- **[P0]** Admin `api.ts`: `auth.login`, `admin.dashboard/users/updateUserRole/pendingTopics`, `forum.updateTopicStatus` metodları.
+- **[P0]** Admin `AuthContext.tsx`: localStorage persist, token/user state, login/logout.
+- **[P0]** Admin `Layout.tsx`: sidebar nav (Dashboard / Konu Onayı / Kullanıcılar), kullanıcı adı, çıkış butonu.
+- tsc: API + Mobile + Admin — hepsi temiz.
+
+## Tester Bulguları — 2026-05-11 (agents/tester/memory.md kaynaklı)
+
+### T1 — ForumScreen: Deep-Link Topic'ten Geri Navigasyon Bozuk [P1]
+- **Dosya**: `mobile/src/screens/main/ForumScreen.tsx:68-77` ve `128-142`
+- **Sorun**: HomeScreen aktivite akışından bir topic açıldığında (`openTopicId` param), `view` şu şekilde set ediliyor: `{ kind: "topic-detail", country: { id: "", name: "", code: "" }, categoryId: "", categoryName: "" }`. Geri basılınca boş `categoryId` ile `ForumTopicsScreen` render ediliyor → `getTopics("")` boş dönüyor → "Henüz konu yok" boş ekranı. Kullanıcı gerçek ülke listesine ulaşmak için 3 kez geri basmak zorunda kalıyor.
+- **Düzeltme**: `view.kind === "topic-detail"` + `view.country.id === ""` koşulunda `onBack` direkt `{ kind: "countries" }` set etmeli.
+
+### T2 — HomeScreen: Rehber Progress Bar Daima %0 [P2]
+- **Dosya**: `mobile/src/screens/main/HomeScreen.tsx:41`
+- **Sorun**: `api.guide.getSteps("1", token)` hardcoded `"1"` ID kullanıyor. Seed'deki ülke ID'leri `"us"`, `"de"`, `"uk"`, `"ca"` vb. `"1"` ID'si DB'de yok → `totalSteps = 0` → `completionPct = 0` → progress bar daima boş.
+- **Düzeltme**: `getCountries` çağrısından dönen ülke listesinin ilk elemanının ID'sini kullan: `countries[0]?.id` ile `getSteps` çağır. Ya da `getProgress` üzerinden distinct stepId sayısını kullanacak şekilde stats hesapla.
+
+### T3 — ProfileScreen: Bio "İptal" Butonu Kaydedilmiş Biyo'yu Siliyor [P2]
+- **Dosya**: `mobile/src/screens/main/ProfileScreen.tsx:188`
+- **Sorun**: `onPress={() => { setEditing(false); setBio(""); }}` — `setBio("")` ile bio boş string'e sıfırlanıyor. Kullanıcı düzenleme iptal ettikten sonra tekrar düzenleme açtığında boş alan görüyor.
+- **Düzeltme**: Orijinal bio değerini ayrı bir `const [savedBio, setSavedBio]` state'e sakla; API'den yüklenince `setSavedBio(u.bio || "")` çağır; kaydetince `setSavedBio(bio)` güncelle; iptal'de `setBio(savedBio)` ile geri dön.
+
+### T4 — SqliteGuideRepository: saveProgress Upsert Değil INSERT — Yinelenen Satırlar [P2]
+- **Dosya**: `api/src/repositories/sqlite/SqliteGuideRepository.ts:22-26`
+- **Sorun**: `saveProgress` her çağrıda yeni row INSERT ediyor. Kullanıcı tamamlanmış bir adımı yeniden cevaplarsa (`state === "completed"` adım tıklanıp güncellendi) DB'de aynı `userId + stepId` için iki satır oluşuyor. `getUserProgress` tüm satırları döndürüyor → `users.ts:56` `completedSteps: progress.length` şişmiş sayı dönüyor (örn. 1 adım güncellendiyse 2 dönüyor).
+- **Düzeltme**: `INSERT OR REPLACE INTO user_guide_progress ... ON CONFLICT(userId, stepId) DO UPDATE SET answer=excluded.answer, completedAt=datetime('now')` kullan. Veya önce `SELECT` ile var/yok kontrol et. Ayrıca `IGuideRepository` interface'ine `UNIQUE(userId, stepId)` constraint eklenmeli (db.ts migration). `users.ts` stats route'u `completedSteps: new Set(progress.map(p => p.stepId)).size` olarak güncellenmeli.
+
+### T5-T7 — Küçük UX Sorunları [P3]
+- **T5** `NotificationsScreen`: Header'a görünür "×" veya geri butonu ekle (modal olarak sunuluyor, iOS'ta swipe dışında görünür kapat yolu yok).
+- **T6** `PremiumScreen`: Header'a görünür kapat butonu ekle (aynı sebep).
+- **T7** `PremiumScreen.tsx:17-42`: 3 kredi kartı hepsi `productType: "credits_50"` kullanıyor — ya farklı ürünler olacaksa ayrı product type kullan, ya da aynı ürün olduklarını UI'da belirt.
+
+## Resolved (Tester/PM Sprint — 2026-05-11 Tur 3)
+- **[T8]** `config/index.ts`: `stripe.prices` içine `credits_topic`, `credits_comment`, `credits_ad` eklendi — `STRIPE_PRICE_CREDITS_TOPIC/COMMENT/AD` env yoksa `STRIPE_PRICE_CREDITS_50`'yi fallback kullanıyor. `routes/payment.ts` PRICE_MAP'e 3 yeni productType eklendi. `index.ts` CREDITS_GRANT'a aynı tipler (50 kredi each) eklendi. Artık "Konu Aç" / "Yorum Erişimi" / "Reklam Yayınla" butonları backend 400 yerine Stripe Checkout URL döndürüyor.
+- **[T9]** `LoginScreen.tsx`: Google flow hatası `Alert.alert` yerine `setError(...)` ile inline error box'a yönleniyor. `Alert` import'u kaldırıldı. `isGoogleSignInConfigured()` false durumu da aynı pattern'e geçirildi. Tüm Google hata yolları artık diğer hata kutularıyla aynı UI'da gösteriliyor.
+- **[A1]** `DashboardPage.tsx`: `import { Link } from "react-router-dom"` eklendi. `<a href="/topics">` → `<Link to="/topics">`, `<a href="/users">` → `<Link to="/users">` — SPA full-page reload önlendi.
+- **[A2]** `TopicsPage.tsx`: "Reddet" butonuna `window.confirm("Bu konuyu reddetmek istediğinizden emin misiniz?")` eklendi; iptal edilirse `handleAction` çağrılmıyor.
+- **[Auth Branding]** `ForgotPasswordScreen.tsx` + `ResetPasswordScreen.tsx`: Her iki ekrana `MaterialCommunityIcons` import edildi ve LoginScreen'deki `logoBox` stili eklendi (`earth` ikonu + "GoWorldy" metni). `paddingTop` 80→60 azaltıldı, logo için `marginBottom` ayrıldı.
+- tsc: API + Mobile + Admin — hepsi temiz.
+
+## Buton Audit — Sprint 4 Açık İş Kalemleri (PM tarafından tespit edildi, 2026-05-11)
+
+Tüm mobile + admin butonları kod seviyesinde incelendi. P0/P1/P2 maddelerin tümü çözülmüş durumda.
+Aşağıdakiler kalan P3 iş kalemleridir.
+
+### D_NEW1 — RegisterScreen: Logo/Marka Görseli Eksik (P3)
+- **Ekran**: `mobile/src/screens/auth/RegisterScreen.tsx`
+- **Sorun**: LoginScreen, ForgotPasswordScreen ve ResetPasswordScreen'de `logoBox` bileşeni var (`MaterialCommunityIcons name="earth"` + "GoWorldy" text). RegisterScreen'de yok — görsel tutarsızlık.
+- **Düzeltme**:
+  1. `MaterialCommunityIcons` import ekle.
+  2. `paddingTop: 60` yerine `paddingTop: 20` yap, üste logoBox ekle (LoginScreen:49-57 ile aynı pattern).
+  3. `logoBox` + `logo` + `logoText` stillerini ekle.
+- **Öncelik**: P3 — işlevsel değil ama marka tutarlılığı için gerekli.
+
+### D_NEW2 — ProfileScreen: followingCount Hardcoded 0 (P3)
+- **Ekran**: `mobile/src/screens/main/ProfileScreen.tsx` + `api/src/routes/users.ts`
+- **Sorun**: `GET /api/users/me/stats` followingCount değeri hardcoded 0 döndürüyor. Follow/takip sistemi backend'de mevcut değil.
+- **Düzeltme**: MVP için `users_follows` tablosu gerekir. Bu kapsamlı bir özellik — kısa vadede stat'ı UI'dan kaldır veya "yakında" etiketi koy. Uzun vadede follow sistemi ekle.
+- **Öncelik**: P3 — kullanıcı deneyimini bozmaz, sadece istatistik yanıltıcı.
+
+### D_NEW3 — Bildirim Seed Datası Yok (P3)
+- **Dosya**: `api/src/repositories/sqlite/db.ts` (seed bölümü)
+- **Sorun**: `notifications` tablosu boş başlıyor. Test/demo ortamında bildirim akışı her zaman "Henüz bildirim yok" gösteriyor.
+- **Düzeltme**: Seed'e 3-5 örnek bildirim ekle: 1 `topic_approved`, 1 `comment_reply`, 1 `system` tipi — admin user ID'sine atanmış.
+- **Öncelik**: P3 — sadece geliştirme/demo deneyimi için.
+
+### D_NEW4 — Admin: Reddet Sebep Modalı Yok (P3)
+- **Ekran**: `admin/src/pages/TopicsPage.tsx`
+- **Sorun**: Moderatör konu reddederken sebep giremez. UX spec'i mevcut (`agents/ux-ui/memory.md`). Şu an `window.confirm` ile tek tıkla reddetme var; sebep DB'ye kaydedilmiyor.
+- **Düzeltme**:
+  1. `TopicsPage.tsx`'e `rejectModal: { open: boolean; topicId: string }` state ekle.
+  2. "Reddet" butonuna modalı aç, modal içinde `<textarea>` ile sebep girişi.
+  3. "Onayla" clicked'da `api.forum.updateTopicStatus(id, "rejected", token, { reason })` çağır.
+  4. Backend `PATCH /api/admin/topics/:id/status` — `reason` alanını `forum_topics.rejectionReason TEXT` kolonu olarak kaydet.
+- **Öncelik**: P3 — moderatör iş akışı kalitesi.
+
+### D_NEW5 — Admin: Config Panel Sayfası Yok (P3)
+- **Ekran**: `admin/` — `/config` route yok
+- **Sorun**: Forum fiyatlandırması ve feature toggle'ları admin panelinden yönetilemiyor. Şu an tüm config env'den geliyor.
+- **Düzeltme**:
+  1. `admin/src/pages/ConfigPage.tsx` oluştur.
+  2. `GET /api/admin/config` endpoint: `config.forum.createTopicCost`, `config.stripe.prices.*` değerlerini döndür.
+  3. `PATCH /api/admin/config` (opsiyonel): runtime override için in-memory store veya DB config tablosu.
+  4. Admin sidebar'a "Ayarlar" linki ekle (`Layout.tsx`).
+- **Öncelik**: P3 — MVP için zorunlu değil.
+
+### D_NEW6 — Admin: CORS Whitelist (P3)
+- **Dosya**: `api/src/index.ts`
+- **Sorun**: Admin dashboard `localhost:5173`'ten API'ye `localhost:3000`'e istek atıyor. CORS middleware `localhost:5173` origin'ini whitelist'e almıyorsa tarayıcı isteklerini bloke eder.
+- **Düzeltme**: `api/src/index.ts` içinde `cors({ origin: ["http://localhost:5173", "http://localhost:3000"] })` ekle (geliştirme için). Prod'da env-driven origin listesi.
+- **Öncelik**: P3 — admin dashboard şu an çalışıyorsa sorun yok; deployment öncesinde gerekli.
+
+## Resolved (Sprint 5 — P3 Görevleri — 2026-05-11)
+- **[D_NEW1]** `RegisterScreen.tsx`: `MaterialCommunityIcons` import eklendi. `logoBox` + `logo` stilleri eklendi. `paddingTop` 60→20. `ScrollView` içine `<View style={styles.logoBox}>` + `earth` ikonu + "GoWorldy" metni eklendi. Diğer auth ekranlarıyla (Login/ForgotPassword/ResetPassword) marka tutarlılığı sağlandı.
+- **[D_NEW2]** Eylem gerekmedi: ProfileScreen stats grid zaten yalnızca topicCount/commentCount/completedSteps gösteriyor. `followingCount` state'de mevcut ancak hiç render edilmiyor — UI önceki sprint'te zaten temizlenmişti.
+- **[D_NEW3]** `seed.ts`: Admin kullanıcısına 3 örnek bildirim eklendi (`topic_approved`, `comment_reply`, `system`). Admin için daha önce bildirim seed'i yoksa ekleniyor (idempotent kontrol).
+- **[D_NEW4]** Reddet sebep modalı eklendi end-to-end:
+  - `db.ts`: `addColumnIfNotExists("forum_topics", "rejectionReason", "TEXT")` — idempotent migrasyon.
+  - `IForumRepository.updateTopicStatus`: `reason?: string` parametresi eklendi.
+  - `SqliteForumRepository.updateTopicStatus`: reason varsa `SET status = ?, rejectionReason = ?` çalışıyor.
+  - `routes/forum.ts`: `req.body.reason` route'a geçirildi.
+  - `admin/api.ts`: `updateTopicStatus` imzasına `reason?: string` eklendi.
+  - `TopicsPage.tsx`: `rejectModal` state eklendi. "Reddet" butonu modalı açıyor. `<textarea>` ile sebep girişi. "Reddet" confirm → `handleConfirmReject` → API çağrısı. Modal stillleri eklendi.
+- **[D_NEW5]** Admin Config Panel oluşturuldu:
+  - `admin/src/pages/ConfigPage.tsx`: `GET /api/admin/config` çağrısı, 5 bölümlü salt-okunur tablo (App/Forum/Premium/Rehber/Bildirimler).
+  - `admin/api.ts`: `api.admin.config(token)` metodu + `AdminConfig` interface eklendi.
+  - `admin/src/App.tsx`: `/config` route eklendi (`ConfigPage`).
+  - `admin/src/components/Layout.tsx`: NAV dizisine "Ayarlar" linki eklendi.
+- **[D_NEW6]** `api/src/index.ts`: `cors()` → `cors({ origin: allowedOrigins })` şeklinde güncellendi. `CORS_ALLOWED_ORIGINS` env varsa virgülle ayrılmış liste olarak parse ediliyor; yoksa dev defaults (localhost:3000/5173/19006).
+- tsc: API + Mobile + Admin — hepsi temiz.
+
+## Sprint 5 — Stakeholder Raporu (2026-05-11) — YENİ
+
+Stakeholder aşağıdaki sorunları raporladı. Tümü incelenmeli ve düzeltilmeli.
+
+### FETCH-1 — Forum + Rehberim "Network Request Failed / Not Fetch" Hatası [P0]
+- **Dosya**: `mobile/src/services/api.ts:1` — `const BASE_URL = "http://localhost:3000/api"` hardcoded
+- **Sorun**: React Native/Expo'da `localhost` fiziksel cihazda veya Android emülatöründe host makineye değil cihazın kendisine işaret eder. Bu nedenle `getCountries`, `getSteps`, `getProgress` gibi tüm API çağrıları "Network request failed" (kullanıcı bunu "not fetch hatası" olarak tarif ediyor) dönüyor.
+- **Düzeltme adımları**:
+  1. `mobile/.env`'e (veya `mobile/.env.local`'e) `EXPO_PUBLIC_API_URL` değişkeni ekle
+  2. `api.ts:1` → `const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000/api";`
+  3. Android emülatörü için: `EXPO_PUBLIC_API_URL=http://10.0.2.2:3000/api`
+  4. Fiziksel cihaz için: `EXPO_PUBLIC_API_URL=http://192.168.x.x:3000/api` (makinenin yerel IP'si)
+  5. iOS Simulator + Expo Web için mevcut `localhost` çalışır
+- **Bağımlılık**: PROF-1, PROF-2 de aynı kök nedenli olabilir — önce FETCH-1'i çöz
+- **Öncelik**: P0 — forum ve rehberim sayfaları tamamen kilitli
+
+### PROF-1 — Profil Telefon Toggle'ı Çalışmıyor [P1]
+- **Dosya**: `mobile/src/screens/main/PrivacyScreen.tsx:38-51`
+- **Sorun**: Toggle `PATCH /api/users/me { sharePhoneNumber: 0 | 1 }` çağrısı yapıyor. FETCH-1 çözülünce test et. Kök neden aynı ağ erişimi sorunuysa düzelir. Bağımsız sorun varsa:
+  - `db.ts`'de `users.sharePhoneNumber INTEGER DEFAULT 1` kolonunun var olduğunu doğrula
+  - `SqliteUserRepository.update` metodunun `sharePhoneNumber` alanını güncellediğini doğrula
+- **Test komutu**: `curl -X PATCH http://localhost:3000/api/users/me -H "Authorization: Bearer TOKEN" -H "Content-Type: application/json" -d '{"sharePhoneNumber": 0}'`
+- **Öncelik**: P1
+
+### PROF-2 — Profil Hakkımda Kaydedilemiyor [P1]
+- **Dosya**: `mobile/src/screens/main/ProfileScreen.tsx:79-91` (`handleSaveBio`)
+- **Sorun**: `PATCH /api/users/me { bio: "..." }` çağrısı yapıyor. FETCH-1 çözülünce test et. Ağ sorunu dışında başka bir sorun varsa:
+  - API route (`routes/users.ts:19-49`) `bio` alanını doğru işlediğini doğrula — kod incelemesinde doğru görünüyor
+  - Kullanıcının token'ının geçerli olduğunu doğrula
+- **Test komutu**: `curl -X PATCH http://localhost:3000/api/users/me -H "Authorization: Bearer TOKEN" -H "Content-Type: application/json" -d '{"bio": "test bio"}'`
+- **Öncelik**: P1
+
+### PROF-3 — Avatar Dosya Seçici (Feature Request) [P2]
+- **Dosya**: `mobile/src/screens/main/ProfileScreen.tsx:270-305` — mevcut modal URL girişi yapıyor
+- **Talep**: Kullanıcı bilgisayardan/cihazdan dosya seçerek avatar yükleyebilmeli (mevcut URL girişi yerine veya ek olarak)
+- **Gerekli değişiklikler**:
+  1. `expo-image-picker` yükle: `cd mobile && npx expo install expo-image-picker`
+  2. `app.json` permissions: `"ios.infoPlist.NSPhotoLibraryUsageDescription"` + `"android.permissions": ["READ_EXTERNAL_STORAGE"]`
+  3. `ProfileScreen.tsx` avatar modalını güncelle:
+     - "Galeriden Seç" butonu → `ImagePicker.launchImageLibraryAsync({ mediaTypes: "images", base64: true, quality: 0.7 })`
+     - Seçilen görseli `data:image/jpeg;base64,...` formatında `avatarUrl` olarak kaydet (MVP — sunucu upload yok)
+     - Expo Web'de `launchImageLibraryAsync` otomatik browser file input açar
+  4. UX: modal içinde "Galeriden Seç" (birincil) + "URL Gir" (ikincil) seçenekleri sunsun
+- **Öncelik**: P2
+
+## Resolved (Stakeholder Sprint — 2026-05-11)
+- **[FETCH-1]** `mobile/src/services/api.ts:1`: `BASE_URL` artık `process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000/api"` kullanıyor. `mobile/.env` template dosyası oluşturuldu — Android emülatör (10.0.2.2), fiziksel cihaz (yerel IP) ve iOS Simulator/Web (localhost) talimatları yorumlarda var.
+- **[PROF-1 + PROF-2]** Kod incelendi: `PrivacyScreen.handlePhoneToggle` ve `ProfileScreen.handleSaveBio` doğru API çağrılarını yapıyor. FETCH-1 çözümü ile bu sorunlar da çözülmüş oldu — ağ erişimi düzelince toggle ve bio kaydetme çalışır.
+- **[PROF-3]** `expo-image-picker@~17.0.11` kuruldu. `app.json`'a iOS (`NSPhotoLibraryUsageDescription`) ve Android (`READ_EXTERNAL_STORAGE`, `READ_MEDIA_IMAGES`) izinleri eklendi. `ProfileScreen.tsx` avatar modalı iki görünümlü hale getirildi: "options" view'ında "Galeriden Seç" (birincil) + "URL Gir" (ikincil) butonları; "url" view'ında URL input + Geri/Kaydet. Galeri seçiminde base64 data URL olarak `PATCH /users/me` çağrısı yapılıyor (MVP — server-side upload yok). İzin reddedilirse kullanıcıya bilgilendirme Alert'i gösteriliyor.
+- tsc: API + Mobile — hepsi temiz.
+
+## Open TODOs (güncel)
+- PROF-1/PROF-2: FETCH-1 düzeltmesi ile ağ erişimi sağlandıktan sonra fiziksel cihazda test edilmeli. `mobile/.env`'de `EXPO_PUBLIC_API_URL` ayarlanmalı.
+- PROF-3: Base64 avatar büyük veri URL'leri üretiyor — uzun vadede S3/Cloudinary yükleme önerilir.
+- Push notifications (Expo Notifications + topic abone olunca tetikleme).
+- followingCount `/users/me/stats` içinde hardcoded 0 — follow sistemi backend'de yok. (P3)
+- Stripe: `.env.development`'a gerçek Stripe Price ID'ler yazılmadan checkout tetiklenmez. (Stakeholder bekleniyor)
+- Admin Config Panel sayfası salt-okunur — runtime override yok. (P3)
+- Admin Reddet sebep modalı mevcut ama `rejectionReason` bildirim olarak kullanıcıya ulaşmıyor. (P3)

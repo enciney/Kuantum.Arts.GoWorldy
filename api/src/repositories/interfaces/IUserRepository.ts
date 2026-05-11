@@ -11,6 +11,7 @@ export interface User {
   premiumUntil?: string;
   phoneNumber?: string;
   sharePhoneNumber?: boolean;
+  avatarUrl?: string;
   createdAt: string;
 }
 

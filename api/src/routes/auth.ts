@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import { config } from "../config";
 import { Repositories } from "../repositories";
 import { isGoogleConfigured, verifyGoogleIdToken } from "../services/google-auth";
+import { sendResetEmail } from "../services/email";
 
 export function authRoutes(repos: Repositories): Router {
   const router = Router();
@@ -37,8 +38,9 @@ export function authRoutes(repos: Repositories): Router {
           config.jwtSecret,
           { expiresIn: "1h" } as object
         );
-        // TODO: gerçek e-posta servisi entegrasyonu (SendGrid/SES). Şimdilik log.
-        console.log(`[forgot-password] reset token for ${email}: ${resetToken}`);
+        await sendResetEmail(email, resetToken).catch((err: unknown) =>
+          console.error("[forgot-password] e-posta gönderilemedi:", err)
+        );
       }
       res.json({ ok: true, message: "Eğer hesap varsa sıfırlama bağlantısı e-posta ile gönderildi." });
     } catch (e: any) {

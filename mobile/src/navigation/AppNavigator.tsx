@@ -5,6 +5,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Colors } from "../theme";
 
 import { useAuth } from "../context/AuthContext";
 import { LoginScreen } from "../screens/auth/LoginScreen";
@@ -34,7 +35,7 @@ export type HomeStackParamList = {
 export type MainTabParamList = {
   Home: undefined;
   Guide: undefined;
-  Forum: undefined;
+  Forum: { openTopicId?: string; openTopicTitle?: string } | undefined;
   Profile: undefined;
 };
 
@@ -103,11 +104,11 @@ function MainTabs() {
   return (
     <MainTab.Navigator
       screenOptions={({ route }) => ({
-        tabBarActiveTintColor: "#2563EB",
-        tabBarInactiveTintColor: "#6B7280",
+        tabBarActiveTintColor: Colors.primary,
+        tabBarInactiveTintColor: Colors.neutral,
         tabBarStyle: {
-          backgroundColor: "#fff",
-          borderTopColor: "#E5E7EB",
+          backgroundColor: Colors.surface,
+          borderTopColor: Colors.border,
           height: 60,
           paddingBottom: 6,
           paddingTop: 6,
@@ -151,7 +152,7 @@ export function AppNavigator() {
   if (isLoading) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
   }
@@ -164,5 +165,5 @@ export function AppNavigator() {
 }
 
 const styles = StyleSheet.create({
-  loading: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F9FAFB" },
+  loading: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: Colors.background },
 });

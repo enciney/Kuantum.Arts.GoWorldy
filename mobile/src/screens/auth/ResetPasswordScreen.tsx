@@ -10,8 +10,9 @@ import {
   ActivityIndicator,
   ScrollView,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { api } from "../../services/api";
+import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 
 type Props = {
   onNavigateLogin: () => void;
@@ -55,7 +56,7 @@ export function ResetPasswordScreen({ onNavigateLogin }: Props) {
     return (
       <View style={styles.successContainer}>
         <View style={styles.successIcon}>
-          <Ionicons name="checkmark-circle" size={64} color="#10B981" />
+          <Ionicons name="checkmark-circle" size={64} color={Colors.secondary} />
         </View>
         <Text style={styles.successTitle}>Şifre Güncellendi</Text>
         <Text style={styles.successText}>
@@ -74,6 +75,10 @@ export function ResetPasswordScreen({ onNavigateLogin }: Props) {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <View style={styles.logoBox}>
+          <MaterialCommunityIcons name="earth" size={56} color={Colors.primary} />
+          <Text style={styles.logo}>GoWorldy</Text>
+        </View>
         <Text style={styles.title}>Yeni Şifre Belirle</Text>
         <Text style={styles.subtitle}>
           E-postana gönderilen sıfırlama kodunu ve yeni şifreni gir.
@@ -81,18 +86,18 @@ export function ResetPasswordScreen({ onNavigateLogin }: Props) {
 
         {error && (
           <View style={styles.errorBox}>
-            <Ionicons name="alert-circle" size={18} color="#EF4444" />
-            <Text style={styles.error}>{error}</Text>
+            <Ionicons name="alert-circle" size={18} color={Colors.danger} />
+            <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
 
         <Text style={styles.label}>Sıfırlama Kodu</Text>
         <View style={styles.inputRow}>
-          <Ionicons name="key-outline" size={20} color="#6B7280" />
+          <Ionicons name="key-outline" size={20} color={Colors.neutral} />
           <TextInput
             style={styles.input}
             placeholder="E-posta ile gelen kod"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={Colors.textMuted}
             value={token}
             onChangeText={setToken}
             autoCapitalize="none"
@@ -102,31 +107,35 @@ export function ResetPasswordScreen({ onNavigateLogin }: Props) {
 
         <Text style={styles.label}>Yeni Şifre</Text>
         <View style={styles.inputRow}>
-          <Ionicons name="lock-closed-outline" size={20} color="#6B7280" />
+          <Ionicons name="lock-closed-outline" size={20} color={Colors.neutral} />
           <TextInput
             style={styles.input}
             placeholder="En az 6 karakter"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={Colors.textMuted}
             value={password}
             onChangeText={setPassword}
             secureTextEntry={!showPassword}
           />
-          <TouchableOpacity onPress={() => setShowPassword((v) => !v)}>
+          <TouchableOpacity
+            onPress={() => setShowPassword((v) => !v)}
+            style={styles.showBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
             <Ionicons
               name={showPassword ? "eye-off-outline" : "eye-outline"}
               size={22}
-              color="#6B7280"
+              color={Colors.neutral}
             />
           </TouchableOpacity>
         </View>
 
         <Text style={styles.label}>Şifre Tekrar</Text>
         <View style={styles.inputRow}>
-          <Ionicons name="lock-closed-outline" size={20} color="#6B7280" />
+          <Ionicons name="lock-closed-outline" size={20} color={Colors.neutral} />
           <TextInput
             style={styles.input}
             placeholder="Şifreyi tekrar gir"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={Colors.textMuted}
             value={confirm}
             onChangeText={setConfirm}
             secureTextEntry={!showPassword}
@@ -154,52 +163,78 @@ export function ResetPasswordScreen({ onNavigateLogin }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F9FAFB" },
-  scroll: { padding: 24, paddingTop: 80 },
-  title: { fontSize: 24, fontWeight: "bold", color: "#111827", marginBottom: 8 },
-  subtitle: { fontSize: 14, color: "#6B7280", marginBottom: 24, lineHeight: 20 },
+  container: { flex: 1, backgroundColor: Colors.background },
+  scroll: { padding: Spacing.lg, paddingTop: 60 },
+  logoBox: { alignItems: "center", marginBottom: Spacing.md },
+  logo: { fontSize: 28, fontWeight: "bold", color: Colors.primary, marginTop: 4 },
+  title: { ...Typography.h1, color: Colors.textPrimary, marginBottom: Spacing.sm },
+  subtitle: {
+    ...Typography.label,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.lg,
+    lineHeight: 20,
+  },
   errorBox: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FEE2E2",
-    borderRadius: 10,
+    backgroundColor: Colors.dangerLight,
+    borderRadius: Radius.md,
     padding: 10,
-    marginBottom: 12,
-    gap: 8,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
   },
-  error: { color: "#EF4444", fontSize: 13, flex: 1 },
-  label: { fontSize: 13, fontWeight: "500", color: "#374151", marginBottom: 6, marginTop: 4 },
+  errorText: { ...Typography.caption, color: Colors.danger, flex: 1 },
+  label: {
+    ...Typography.caption,
+    fontWeight: "500",
+    color: Colors.textPrimary,
+    marginBottom: 6,
+    marginTop: 4,
+  },
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 12,
-    paddingHorizontal: 12,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
     marginBottom: 14,
-    gap: 8,
+    gap: Spacing.sm,
+    minHeight: MinTapTarget,
   },
-  input: { flex: 1, paddingVertical: 14, fontSize: 16, color: "#111827" },
+  input: { flex: 1, paddingVertical: 14, fontSize: 16, color: Colors.textPrimary },
+  showBtn: {
+    minWidth: MinTapTarget,
+    minHeight: MinTapTarget,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   btn: {
-    backgroundColor: "#2563EB",
-    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.md,
     paddingVertical: 16,
     alignItems: "center",
-    marginTop: 12,
+    marginTop: Spacing.md,
+    minHeight: MinTapTarget,
   },
   btnDisabled: { opacity: 0.6 },
   btnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  link: { alignItems: "center", paddingVertical: 12, marginTop: 4 },
-  linkText: { color: "#2563EB", fontSize: 14 },
+  link: { alignItems: "center", paddingVertical: Spacing.md, marginTop: Spacing.xs },
+  linkText: { ...Typography.label, color: Colors.primary },
   successContainer: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: Colors.background,
     justifyContent: "center",
     alignItems: "center",
-    padding: 32,
+    padding: Spacing.xl,
   },
-  successIcon: { marginBottom: 16 },
-  successTitle: { fontSize: 22, fontWeight: "bold", color: "#111827", marginBottom: 8 },
-  successText: { fontSize: 15, color: "#6B7280", textAlign: "center", marginBottom: 32 },
+  successIcon: { marginBottom: Spacing.md },
+  successTitle: { ...Typography.h1, color: Colors.textPrimary, marginBottom: Spacing.sm },
+  successText: {
+    fontSize: 15,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    marginBottom: Spacing.xl,
+  },
 });

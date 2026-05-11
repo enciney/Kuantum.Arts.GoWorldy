@@ -64,8 +64,12 @@ export class SqliteForumRepository implements IForumRepository {
     return { ...row, commentCount: 0 };
   }
 
-  async updateTopicStatus(id: string, status: ForumTopic["status"]): Promise<void> {
-    getDb().prepare("UPDATE forum_topics SET status = ? WHERE id = ?").run(status, id);
+  async updateTopicStatus(id: string, status: ForumTopic["status"], reason?: string): Promise<void> {
+    if (reason !== undefined) {
+      getDb().prepare("UPDATE forum_topics SET status = ?, rejectionReason = ? WHERE id = ?").run(status, reason, id);
+    } else {
+      getDb().prepare("UPDATE forum_topics SET status = ? WHERE id = ?").run(status, id);
+    }
   }
 
   async pinTopic(id: string, isPinned: boolean): Promise<void> {
@@ -119,6 +123,19 @@ export class SqliteForumRepository implements IForumRepository {
       .prepare("SELECT COUNT(*) as count FROM forum_comments WHERE authorId = ?")
       .get(userId) as unknown as { count: number };
     return r.count;
+  }
+
+  async getRecentCommentsByAuthor(userId: string, limit: number): Promise<{ id: string; content: string; topicId: string; topicTitle: string; createdAt: string }[]> {
+    return getDb()
+      .prepare(`
+        SELECT c.id, c.content, c.topicId, t.title AS topicTitle, c.createdAt
+        FROM forum_comments c
+        JOIN forum_topics t ON t.id = c.topicId
+        WHERE c.authorId = ?
+        ORDER BY c.createdAt DESC
+        LIMIT ?
+      `)
+      .all(userId, limit) as unknown as { id: string; content: string; topicId: string; topicTitle: string; createdAt: string }[];
   }
 
   async getStats(countryId?: string): Promise<ForumStats> {

@@ -9,7 +9,9 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { api } from "../../services/api";
+import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 
 type Props = {
   onNavigateLogin: () => void;
@@ -45,6 +47,10 @@ export function ForgotPasswordScreen({ onNavigateLogin, onNavigateReset }: Props
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.inner}>
+        <View style={styles.logoBox}>
+          <MaterialCommunityIcons name="earth" size={56} color={Colors.primary} />
+          <Text style={styles.logo}>GoWorldy</Text>
+        </View>
         <Text style={styles.title}>Şifremi Unuttum</Text>
         <Text style={styles.subtitle}>
           E-posta adresinizi girin, şifre sıfırlama bağlantısı gönderelim.
@@ -53,6 +59,7 @@ export function ForgotPasswordScreen({ onNavigateLogin, onNavigateReset }: Props
         {submitted ? (
           <>
             <View style={styles.successBox}>
+              <Ionicons name="checkmark-circle" size={20} color={Colors.secondary} />
               <Text style={styles.successText}>
                 Şifre sıfırlama kodu e-posta ile gönderildi.
               </Text>
@@ -63,11 +70,16 @@ export function ForgotPasswordScreen({ onNavigateLogin, onNavigateReset }: Props
           </>
         ) : (
           <>
-            {error && <Text style={styles.error}>{error}</Text>}
+            {error && (
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle" size={18} color={Colors.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
             <TextInput
               style={styles.input}
               placeholder="E-posta adresiniz"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={Colors.textMuted}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -75,7 +87,7 @@ export function ForgotPasswordScreen({ onNavigateLogin, onNavigateReset }: Props
               autoCorrect={false}
             />
             <TouchableOpacity
-              style={[styles.btn, loading && { opacity: 0.6 }]}
+              style={[styles.btn, loading && styles.btnDisabled]}
               onPress={handleSubmit}
               disabled={loading}
             >
@@ -97,37 +109,59 @@ export function ForgotPasswordScreen({ onNavigateLogin, onNavigateReset }: Props
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F9FAFB" },
-  inner: { flex: 1, paddingHorizontal: 24, paddingTop: 80 },
-  title: { fontSize: 24, fontWeight: "bold", color: "#111827", marginBottom: 8 },
-  subtitle: { fontSize: 15, color: "#6B7280", marginBottom: 32, lineHeight: 22 },
-  error: { color: "#EF4444", fontSize: 14, marginBottom: 12 },
+  container: { flex: 1, backgroundColor: Colors.background },
+  inner: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: 60 },
+  logoBox: { alignItems: "center", marginBottom: Spacing.md },
+  logo: { fontSize: 28, fontWeight: "bold", color: Colors.primary, marginTop: 4 },
+  title: { ...Typography.h1, color: Colors.textPrimary, marginBottom: Spacing.sm },
+  subtitle: {
+    fontSize: 15,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xl,
+    lineHeight: 22,
+  },
+  errorBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.dangerLight,
+    borderRadius: Radius.md,
+    padding: 10,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  errorText: { ...Typography.caption, color: Colors.danger, flex: 1 },
   input: {
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
     paddingVertical: 14,
     fontSize: 16,
-    color: "#111827",
-    marginBottom: 12,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.md,
+    minHeight: MinTapTarget,
   },
   btn: {
-    backgroundColor: "#2563EB",
-    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.md,
     paddingVertical: 16,
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: Spacing.md,
+    minHeight: MinTapTarget,
   },
+  btnDisabled: { opacity: 0.6 },
   btnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
   successBox: {
-    backgroundColor: "#D1FAE5",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: Colors.secondaryLight,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
   },
-  successText: { color: "#065F46", fontSize: 15, lineHeight: 22 },
-  link: { alignItems: "center", paddingVertical: 8 },
-  linkText: { color: "#2563EB", fontSize: 14 },
+  successText: { fontSize: 15, color: "#065F46", lineHeight: 22, flex: 1 },
+  link: { alignItems: "center", paddingVertical: Spacing.sm },
+  linkText: { ...Typography.label, color: Colors.primary },
 });

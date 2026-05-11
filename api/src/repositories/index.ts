@@ -1,8 +1,9 @@
 import { config } from "../config";
-import { IUserRepository, IForumRepository, IGuideRepository, IPaymentProvider } from "./interfaces";
+import { IUserRepository, IForumRepository, IGuideRepository, IPaymentProvider, INotificationRepository } from "./interfaces";
 import { SqliteUserRepository } from "./sqlite/SqliteUserRepository";
 import { SqliteForumRepository } from "./sqlite/SqliteForumRepository";
 import { SqliteGuideRepository } from "./sqlite/SqliteGuideRepository";
+import { SqliteNotificationRepository } from "./sqlite/SqliteNotificationRepository";
 import { StripePaymentProvider } from "./stripe/StripePaymentProvider";
 
 export interface Repositories {
@@ -10,6 +11,7 @@ export interface Repositories {
   forum: IForumRepository;
   guide: IGuideRepository;
   payment: IPaymentProvider;
+  notifications: INotificationRepository;
 }
 
 export function createRepositories(): Repositories {
@@ -25,5 +27,6 @@ export function createRepositories(): Repositories {
     forum: new SqliteForumRepository(),
     guide: new SqliteGuideRepository(),
     payment,
+    notifications: new SqliteNotificationRepository(),
   };
 }

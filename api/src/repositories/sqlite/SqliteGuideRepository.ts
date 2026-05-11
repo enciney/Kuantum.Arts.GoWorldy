@@ -21,8 +21,30 @@ export class SqliteGuideRepository implements IGuideRepository {
 
   async saveProgress(data: Omit<UserGuideProgress, "id" | "completedAt">): Promise<UserGuideProgress> {
     const id = crypto.randomUUID();
-    getDb().prepare("INSERT INTO user_guide_progress (id, userId, stepId, answer) VALUES (?, ?, ?, ?)").run(id, data.userId, data.stepId, data.answer);
-    return getDb().prepare("SELECT * FROM user_guide_progress WHERE id = ?").get(id) as unknown as UserGuideProgress;
+    getDb()
+      .prepare(`
+        INSERT INTO user_guide_progress (id, userId, stepId, answer)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(userId, stepId)
+        DO UPDATE SET answer=excluded.answer, completedAt=datetime('now')
+      `)
+      .run(id, data.userId, data.stepId, data.answer);
+    return getDb()
+      .prepare("SELECT * FROM user_guide_progress WHERE userId = ? AND stepId = ?")
+      .get(data.userId, data.stepId) as unknown as UserGuideProgress;
+  }
+
+  async getRecentProgress(userId: string, limit: number): Promise<{ stepId: string; question: string; answer: string; completedAt: string }[]> {
+    return getDb()
+      .prepare(`
+        SELECT p.stepId, s.question, p.answer, p.completedAt
+        FROM user_guide_progress p
+        JOIN guide_steps s ON s.id = p.stepId
+        WHERE p.userId = ?
+        ORDER BY p.completedAt DESC
+        LIMIT ?
+      `)
+      .all(userId, limit) as unknown as { stepId: string; question: string; answer: string; completedAt: string }[];
   }
 
   async getStats(): Promise<GuideStats> {

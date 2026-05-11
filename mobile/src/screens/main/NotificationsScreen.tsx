@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,59 +7,136 @@ import {
   TouchableOpacity,
   Switch,
   FlatList,
+  ActivityIndicator,
 } from "react-native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { useAuth } from "../../context/AuthContext";
+import { api } from "../../services/api";
+import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 
-interface Notification {
+type NotifType = "topic_approved" | "topic_rejected" | "comment_reply" | "system";
+
+interface Notif {
   id: string;
-  type: "topic" | "comment" | "system";
+  type: NotifType;
   title: string;
   message: string;
-  time: string;
+  targetType?: "forum_topic" | null;
+  targetId?: string | null;
   read: boolean;
+  createdAt: string;
 }
 
-const MOCK_NOTIFS: Notification[] = [
-  {
-    id: "1",
-    type: "system",
-    title: "Hoş geldin!",
-    message: "GoWorldy'ye katıldığın için teşekkürler. İlk rehber adımını tamamlayarak başla.",
-    time: "Az önce",
-    read: false,
-  },
-];
+interface CountrySub {
+  countryId: string;
+  countryName: string;
+  countryCode: string;
+  subscribed: boolean;
+}
 
-const FOLLOWED_GROUPS = [
-  { id: "1", name: "ABD Vizesi", emoji: "🇺🇸", subscribed: true },
-  { id: "2", name: "Almanya Çalışma Vizesi", emoji: "🇩🇪", subscribed: true },
-  { id: "3", name: "Kanada Express Entry", emoji: "🇨🇦", subscribed: false },
-];
+const FLAG_MAP: Record<string, string> = {
+  US: "🇺🇸", DE: "🇩🇪", CA: "🇨🇦", GB: "🇬🇧",
+  AU: "🇦🇺", NL: "🇳🇱", CH: "🇨🇭", SE: "🇸🇪",
+};
 
 export function NotificationsScreen() {
+  const { token } = useAuth();
+  const navigation = useNavigation<any>();
   const [tab, setTab] = useState<"feed" | "settings">("feed");
-  const [notifs, setNotifs] = useState(MOCK_NOTIFS);
-  const [groups, setGroups] = useState(FOLLOWED_GROUPS);
+  const [notifs, setNotifs] = useState<Notif[]>([]);
+  const [subs, setSubs] = useState<CountrySub[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  const markAllRead = () => {
+  const loadFeed = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await api.notifications.getAll(token);
+      setNotifs(data);
+    } catch {
+      // ağ hatası sessizce yoksay
+    }
+  }, [token]);
+
+  const loadSubs = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await api.notifications.getSubscriptions(token);
+      setSubs(data);
+    } catch {
+      // ağ hatası sessizce yoksay
+    }
+  }, [token]);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      await Promise.all([loadFeed(), loadSubs()]);
+      setLoading(false);
+    })();
+  }, [loadFeed, loadSubs]);
+
+  const markAllRead = async () => {
+    if (!token) return;
+    await api.notifications.markAllRead(token).catch(() => {});
     setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
-  const toggleGroup = (id: string) => {
-    setGroups((prev) =>
-      prev.map((g) => (g.id === id ? { ...g, subscribed: !g.subscribed } : g))
+  const handleNotifPress = async (notif: Notif) => {
+    if (!token) return;
+    if (!notif.read) {
+      await api.notifications.markRead(notif.id, token).catch(() => {});
+      setNotifs((prev) =>
+        prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
+      );
+    }
+    if (notif.targetType === "forum_topic" && notif.targetId) {
+      navigation.navigate("Forum", {
+        openTopicId: notif.targetId,
+        openTopicTitle: notif.title,
+      });
+    }
+  };
+
+  const toggleSub = async (countryId: string, current: boolean) => {
+    if (!token || togglingId === countryId) return;
+    setTogglingId(countryId);
+    setSubs((prev) =>
+      prev.map((s) =>
+        s.countryId === countryId ? { ...s, subscribed: !current } : s
+      )
     );
+    try {
+      await api.notifications.setSubscription(countryId, !current, token);
+    } catch {
+      setSubs((prev) =>
+        prev.map((s) =>
+          s.countryId === countryId ? { ...s, subscribed: current } : s
+        )
+      );
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Bildirimler</Text>
-        {tab === "feed" && (
-          <TouchableOpacity onPress={markAllRead}>
-            <Text style={styles.markRead}>Tümünü Okundu İşaretle</Text>
+        <View style={styles.headerRight}>
+          {tab === "feed" && (
+            <TouchableOpacity onPress={markAllRead}>
+              <Text style={styles.markRead}>Tümünü Okundu İşaretle</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="close" size={24} color={Colors.textSecondary} />
           </TouchableOpacity>
-        )}
+        </View>
       </View>
 
       <View style={styles.tabs}>
@@ -81,34 +158,49 @@ export function NotificationsScreen() {
         </TouchableOpacity>
       </View>
 
-      {tab === "feed" ? (
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator color={Colors.primary} />
+        </View>
+      ) : tab === "feed" ? (
         <FlatList
           data={notifs}
           keyExtractor={(n) => n.id}
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Ionicons name="notifications-off-outline" size={48} color="#9CA3AF" />
+              <Ionicons name="notifications-off-outline" size={48} color={Colors.textMuted} />
               <Text style={styles.emptyTitle}>Henüz bildirim yok</Text>
               <Text style={styles.emptyText}>
                 Takip ettiğin gruplardan yeni içerik geldiğinde burada görünecek.
               </Text>
             </View>
           }
-          renderItem={({ item }) => <NotifRow notif={item} />}
+          renderItem={({ item }) => (
+            <NotifRow notif={item} onPress={() => handleNotifPress(item)} />
+          )}
         />
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
           <Text style={styles.sectionLabel}>Takip ettiğin gruplar</Text>
-          {groups.map((g) => (
-            <View key={g.id} style={styles.groupRow}>
-              <Text style={styles.groupEmoji}>{g.emoji}</Text>
-              <Text style={styles.groupName}>{g.name}</Text>
+          {subs.length === 0 && (
+            <View style={styles.empty}>
+              <Ionicons name="earth-outline" size={48} color={Colors.textMuted} />
+              <Text style={styles.emptyTitle}>Henüz ülke yok</Text>
+            </View>
+          )}
+          {subs.map((s) => (
+            <View key={s.countryId} style={styles.groupRow}>
+              <Text style={styles.groupEmoji}>
+                {FLAG_MAP[s.countryCode] ?? "🌍"}
+              </Text>
+              <Text style={styles.groupName}>{s.countryName}</Text>
               <Switch
-                value={g.subscribed}
-                onValueChange={() => toggleGroup(g.id)}
-                trackColor={{ false: "#D1D5DB", true: "#93C5FD" }}
-                thumbColor={g.subscribed ? "#2563EB" : "#fff"}
+                value={s.subscribed}
+                onValueChange={() => toggleSub(s.countryId, s.subscribed)}
+                disabled={togglingId === s.countryId}
+                trackColor={{ false: Colors.borderStrong, true: "#93C5FD" }}
+                thumbColor={s.subscribed ? Colors.primary : Colors.surface}
               />
             </View>
           ))}
@@ -118,15 +210,36 @@ export function NotificationsScreen() {
   );
 }
 
-function NotifRow({ notif }: { notif: Notification }) {
-  const iconMap = {
-    topic: { name: "document-text" as const, color: "#2563EB" },
-    comment: { name: "chatbubble" as const, color: "#10B981" },
-    system: { name: "megaphone" as const, color: "#F59E0B" },
-  };
-  const ic = iconMap[notif.type];
+function formatRelativeTime(dateStr: string): string {
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (diff < 60) return "Az önce";
+  if (diff < 3600) return `${Math.floor(diff / 60)} dk önce`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} saat önce`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)} gün önce`;
+  return new Date(dateStr).toLocaleDateString("tr-TR", { day: "numeric", month: "short" });
+}
+
+const ICON_MAP: Record<NotifType, { name: React.ComponentProps<typeof Ionicons>["name"]; color: string }> = {
+  topic_approved: { name: "checkmark-circle", color: Colors.secondary },
+  topic_rejected: { name: "close-circle", color: Colors.danger },
+  comment_reply: { name: "chatbubble", color: Colors.primary },
+  system: { name: "megaphone", color: Colors.warning },
+};
+
+function NotifRow({
+  notif,
+  onPress,
+}: {
+  notif: Notif;
+  onPress: () => void;
+}) {
+  const ic = ICON_MAP[notif.type] ?? ICON_MAP.system;
   return (
-    <TouchableOpacity style={[styles.notif, !notif.read && styles.notifUnread]}>
+    <TouchableOpacity
+      style={[styles.notif, !notif.read && styles.notifUnread]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
       <View style={[styles.notifIcon, { backgroundColor: ic.color + "20" }]}>
         <Ionicons name={ic.name} size={20} color={ic.color} />
       </View>
@@ -135,7 +248,7 @@ function NotifRow({ notif }: { notif: Notification }) {
         <Text style={styles.notifMessage} numberOfLines={2}>
           {notif.message}
         </Text>
-        <Text style={styles.notifTime}>{notif.time}</Text>
+        <Text style={styles.notifTime}>{formatRelativeTime(notif.createdAt)}</Text>
       </View>
       {!notif.read && <View style={styles.dot} />}
     </TouchableOpacity>
@@ -143,64 +256,73 @@ function NotifRow({ notif }: { notif: Notification }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F9FAFB" },
+  container: { flex: 1, backgroundColor: Colors.background },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
+    paddingHorizontal: Spacing.md,
     paddingTop: 56,
     paddingBottom: 12,
   },
-  title: { fontSize: 24, fontWeight: "bold", color: "#111827" },
-  markRead: { fontSize: 13, color: "#2563EB", fontWeight: "500" },
+  title: { ...Typography.h1, color: Colors.textPrimary },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 12 },
+  markRead: { ...Typography.caption, color: Colors.primary, fontWeight: "500" },
   tabs: {
     flexDirection: "row",
-    backgroundColor: "#fff",
-    marginHorizontal: 16,
-    borderRadius: 10,
+    backgroundColor: Colors.surface,
+    marginHorizontal: Spacing.md,
+    borderRadius: Radius.md,
     padding: 4,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: Colors.border,
   },
-  tab: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 8 },
-  tabActive: { backgroundColor: "#EFF6FF" },
-  tabText: { fontSize: 13, color: "#6B7280", fontWeight: "500" },
-  tabTextActive: { color: "#2563EB", fontWeight: "600" },
-  list: { paddingHorizontal: 16, paddingBottom: 24 },
-  sectionLabel: { fontSize: 13, color: "#6B7280", marginBottom: 8, fontWeight: "500" },
+  tab: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: Radius.sm, minHeight: MinTapTarget, justifyContent: "center" },
+  tabActive: { backgroundColor: Colors.primaryLight },
+  tabText: { ...Typography.caption, color: Colors.textSecondary, fontWeight: "500" },
+  tabTextActive: { color: Colors.primary, fontWeight: "600" },
+  list: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.lg },
+  sectionLabel: { ...Typography.caption, color: Colors.textSecondary, marginBottom: Spacing.sm, fontWeight: "500" },
   notif: {
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: "#fff",
-    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
     padding: 12,
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: Colors.border,
     gap: 12,
+    overflow: "hidden",
   },
-  notifUnread: { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" },
+  notifUnread: {
+    backgroundColor: Colors.primaryLight,
+    borderColor: "#BFDBFE",
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.primary,
+  },
   notifIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: "center", alignItems: "center" },
-  notifTitle: { fontSize: 14, fontWeight: "600", color: "#111827", marginBottom: 2 },
-  notifMessage: { fontSize: 13, color: "#6B7280", lineHeight: 18 },
-  notifTime: { fontSize: 11, color: "#9CA3AF", marginTop: 4 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#2563EB", marginTop: 6 },
+  notifTitle: { ...Typography.label, fontWeight: "600", color: Colors.textPrimary, marginBottom: 2 },
+  notifMessage: { ...Typography.caption, color: Colors.textSecondary, lineHeight: 18 },
+  notifTime: { fontSize: 11, color: Colors.textMuted, marginTop: 4 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary, marginTop: 6 },
   groupRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
     padding: 14,
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: Colors.border,
     gap: 12,
+    minHeight: MinTapTarget,
   },
   groupEmoji: { fontSize: 24 },
-  groupName: { flex: 1, fontSize: 15, fontWeight: "500", color: "#111827" },
+  groupName: { flex: 1, fontSize: 15, fontWeight: "500", color: Colors.textPrimary },
   empty: { alignItems: "center", padding: 40 },
-  emptyTitle: { fontSize: 16, fontWeight: "600", color: "#111827", marginTop: 12 },
-  emptyText: { fontSize: 13, color: "#6B7280", textAlign: "center", marginTop: 6, lineHeight: 18 },
+  emptyTitle: { fontSize: 16, fontWeight: "600", color: Colors.textPrimary, marginTop: 12 },
+  emptyText: { ...Typography.caption, color: Colors.textSecondary, textAlign: "center", marginTop: 6, lineHeight: 18 },
 });
