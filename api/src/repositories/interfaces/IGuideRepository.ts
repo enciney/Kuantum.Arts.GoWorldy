@@ -5,6 +5,8 @@ export interface GuideStep {
   question: string;
   description?: string;
   blockingAnswer?: string;
+  options?: string[];
+  faqUrl?: string;
 }
 
 export interface UserGuideProgress {

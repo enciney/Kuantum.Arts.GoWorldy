@@ -4,14 +4,25 @@ import { IGuideRepository, GuideStep, UserGuideProgress, GuideStats } from "../i
 
 export class SqliteGuideRepository implements IGuideRepository {
   async getSteps(countryId: string): Promise<GuideStep[]> {
-    return getDb().prepare('SELECT * FROM guide_steps WHERE countryId = ? ORDER BY "order" ASC').all(countryId) as unknown as GuideStep[];
+    const rows = getDb()
+      .prepare('SELECT * FROM guide_steps WHERE countryId = ? ORDER BY "order" ASC')
+      .all(countryId) as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      ...(r as unknown as GuideStep),
+      options: r.options ? JSON.parse(r.options as string) as string[] : undefined,
+    }));
   }
 
   async createStep(data: Omit<GuideStep, "id">): Promise<GuideStep> {
     const id = crypto.randomUUID();
     getDb()
-      .prepare('INSERT INTO guide_steps (id, countryId, "order", question, description, blockingAnswer) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(id, data.countryId, data.order, data.question, data.description || null, data.blockingAnswer || null);
+      .prepare('INSERT INTO guide_steps (id, countryId, "order", question, description, blockingAnswer, options, faqUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(
+        id, data.countryId, data.order, data.question,
+        data.description ?? null, data.blockingAnswer ?? null,
+        data.options ? JSON.stringify(data.options) : null,
+        data.faqUrl ?? null,
+      );
     return { id, ...data };
   }
 

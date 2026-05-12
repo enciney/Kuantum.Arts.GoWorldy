@@ -126,4 +126,6 @@ function initTables(db: DatabaseSync) {
   addColumnIfNotExists(db, "forum_topics", "rejectionReason", "TEXT");
   addColumnIfNotExists(db, "users", "onboardingCompleted", "INTEGER DEFAULT 0");
   addColumnIfNotExists(db, "users", "targetCountryId", "TEXT");
+  addColumnIfNotExists(db, "guide_steps", "options", "TEXT");
+  addColumnIfNotExists(db, "guide_steps", "faqUrl", "TEXT");
 }

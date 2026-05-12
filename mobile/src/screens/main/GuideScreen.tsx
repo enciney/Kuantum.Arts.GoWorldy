@@ -1,21 +1,19 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
-  FlatList,
+  ScrollView,
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
-  Modal,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
+  Linking,
 } from "react-native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Step {
   id: string;
@@ -23,6 +21,8 @@ interface Step {
   question: string;
   description?: string;
   blockingAnswer?: string;
+  options?: string[];
+  faqUrl?: string;
 }
 
 interface Progress {
@@ -38,7 +38,7 @@ interface Country {
   code: string;
 }
 
-type StepState = "completed" | "active" | "locked" | "disqualified";
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const FLAG_MAP: Record<string, string> = {
   US: "🇺🇸", DE: "🇩🇪", GB: "🇬🇧", CA: "🇨🇦",
@@ -50,34 +50,31 @@ const COUNTRY_NAME_MAP: Record<string, string> = {
   AU: "Avustralya", NL: "Hollanda", FR: "Fransa", TR: "Türkiye",
 };
 
-function computeStepStates(steps: Step[], completedMap: Map<string, Progress>): StepState[] {
-  let foundFirstIncomplete = false;
-  let disqualified = false;
-
-  return steps.map((step) => {
-    if (disqualified) return "disqualified";
-
-    const prog = completedMap.get(step.id);
-    const done = !!prog;
-
-    if (done) {
-      if (
-        step.blockingAnswer &&
-        prog.answer.trim().toLowerCase() === step.blockingAnswer.trim().toLowerCase()
-      ) {
-        disqualified = true;
-      }
-      return "completed";
-    }
-
-    if (!foundFirstIncomplete) {
-      foundFirstIncomplete = true;
-      return "active";
-    }
-
-    return "locked";
-  });
+function getStepOptions(step: Step): string[] {
+  if (step.options && step.options.length > 0) return step.options;
+  return ["Evet", "Hayır"];
 }
+
+function isBlocking(step: Step, answer: string): boolean {
+  return !!(
+    step.blockingAnswer &&
+    answer.trim().toLowerCase() === step.blockingAnswer.trim().toLowerCase()
+  );
+}
+
+function computeVisible(
+  steps: Step[],
+  completedMap: Map<string, Progress>
+): { visibleUpTo: number; blocked: boolean } {
+  for (let i = 0; i < steps.length; i++) {
+    const prog = completedMap.get(steps[i].id);
+    if (!prog) return { visibleUpTo: i, blocked: false };
+    if (isBlocking(steps[i], prog.answer)) return { visibleUpTo: i, blocked: true };
+  }
+  return { visibleUpTo: steps.length - 1, blocked: false };
+}
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
 
 export function GuideScreen() {
   const { token } = useAuth();
@@ -87,11 +84,8 @@ export function GuideScreen() {
   const [progress, setProgress] = useState<Progress[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Answer modal state
-  const [activeStep, setActiveStep] = useState<Step | null>(null);
-  const [answer, setAnswer] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<string | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -106,115 +100,98 @@ export function GuideScreen() {
       );
   }, [token]);
 
-  const loadStepsAndProgress = async () => {
+  const loadData = async () => {
     if (!token || !selectedCountryId) return;
-    try {
-      const [s, p] = await Promise.all([
-        api.guide.getSteps(selectedCountryId, token),
-        api.guide.getProgress(token),
-      ]);
-      setSteps(s);
-      setProgress(p);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Yüklenemedi.");
-    }
+    const [s, p] = await Promise.all([
+      api.guide.getSteps(selectedCountryId, token),
+      api.guide.getProgress(token),
+    ]);
+    setSteps(s);
+    setProgress(p);
   };
 
   useEffect(() => {
     if (!token || !selectedCountryId) return;
     setLoading(true);
     setError(null);
-    loadStepsAndProgress().finally(() => setLoading(false));
+    loadData()
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Yüklenemedi."))
+      .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, selectedCountryId]);
 
-  const completedMap = new Map(progress.map((p) => [p.stepId, p]));
-  const stepStates = computeStepStates(steps, completedMap);
-  const completionPct =
-    steps.length > 0
-      ? Math.round((completedMap.size / steps.length) * 100)
-      : 0;
-
-  const openStep = (step: Step, state: StepState) => {
-    if (state === "locked") {
-      Alert.alert(
-        "Adım Kilitli",
-        "Bu adıma geçebilmek için önceki adımı tamamlaman gerekiyor.",
-        [{ text: "Anladım" }]
-      );
-      return;
-    }
-    if (state === "disqualified") {
-      return;
-    }
-    setActiveStep(step);
-    setAnswer(completedMap.get(step.id)?.answer || "");
-  };
-
-  const closeModal = () => {
-    setActiveStep(null);
-    setAnswer("");
-  };
-
-  const handleSave = async () => {
-    if (!token || !activeStep) return;
-    if (!answer.trim()) {
-      Alert.alert("Eksik", "Cevap boş olamaz.");
-      return;
-    }
-    setSaving(true);
+  const handleAnswer = async (step: Step, answer: string) => {
+    if (!token || saving) return;
+    setSaving(step.id);
     try {
-      await api.guide.saveProgress(activeStep.id, answer.trim(), token);
-      await loadStepsAndProgress();
-      closeModal();
-    } catch (e: unknown) {
-      Alert.alert("Hata", e instanceof Error ? e.message : "Kaydedilemedi.");
+      await api.guide.saveProgress(step.id, answer, token);
+      await loadData();
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
     } finally {
-      setSaving(false);
+      setSaving(null);
     }
   };
+
+  const completedMap = new Map(progress.map((p) => [p.stepId, p]));
+  const { visibleUpTo, blocked } = computeVisible(steps, completedMap);
+  const completedCount = completedMap.size;
+  const totalSteps = steps.length;
+  const pct = totalSteps > 0 ? Math.round((completedCount / totalSteps) * 100) : 0;
+  const allDone = completedCount === totalSteps && totalSteps > 0 && !blocked;
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Rehberim</Text>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Rehberim</Text>
+        {totalSteps > 0 && (
+          <View style={styles.progressPill}>
+            <Text style={styles.progressPillText}>
+              {completedCount}/{totalSteps} · %{pct}
+            </Text>
+          </View>
+        )}
+      </View>
 
-      {/* Country selector */}
-      <FlatList
+      {/* Country chips */}
+      <ScrollView
         horizontal
-        data={countries}
-        keyExtractor={(c) => c.id}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.countryList}
-        renderItem={({ item }) => (
+      >
+        {countries.map((c) => (
           <TouchableOpacity
+            key={c.id}
             style={[
               styles.countryChip,
-              selectedCountryId === item.id && styles.countryChipSelected,
+              selectedCountryId === c.id && styles.countryChipSelected,
             ]}
-            onPress={() => setSelectedCountryId(item.id)}
+            onPress={() => setSelectedCountryId(c.id)}
             activeOpacity={0.7}
           >
-            <Text style={styles.countryFlag}>{FLAG_MAP[item.code] ?? "🌍"}</Text>
+            <Text style={styles.countryFlag}>{FLAG_MAP[c.code] ?? "🌍"}</Text>
             <Text
               style={[
                 styles.countryChipText,
-                selectedCountryId === item.id && styles.countryChipTextSelected,
+                selectedCountryId === c.id && styles.countryChipTextSelected,
               ]}
             >
-              {COUNTRY_NAME_MAP[item.code] ?? item.name}
+              {COUNTRY_NAME_MAP[c.code] ?? c.name}
             </Text>
           </TouchableOpacity>
-        )}
-      />
+        ))}
+      </ScrollView>
 
       {/* Progress bar */}
-      <View style={styles.progressContainer}>
-        <Text style={styles.progressLabel}>Tamamlanan: %{completionPct}</Text>
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${completionPct}%` }]} />
+      {totalSteps > 0 && (
+        <View style={styles.progressBarWrap}>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${pct}%` as `${number}%` }]} />
+          </View>
         </View>
-      </View>
+      )}
 
+      {/* Content */}
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={Colors.primary} />
@@ -223,234 +200,207 @@ export function GuideScreen() {
         <View style={styles.center}>
           <Text style={styles.errorText}>{error}</Text>
         </View>
+      ) : totalSteps === 0 ? (
+        <View style={styles.center}>
+          <Ionicons name="map-outline" size={48} color={Colors.textMuted} />
+          <Text style={styles.emptyText}>Bu ülke için henüz adım yok.</Text>
+        </View>
       ) : (
-        <FlatList
-          data={steps}
-          keyExtractor={(s) => s.id}
+        <ScrollView
+          ref={scrollRef}
+          style={styles.scroll}
           contentContainerStyle={styles.stepList}
-          ListEmptyComponent={
-            <View style={styles.center}>
-              <Text style={styles.emptyText}>Bu ülke için henüz adım yok.</Text>
-            </View>
-          }
-          renderItem={({ item, index }) => {
-            const state = stepStates[index] ?? "locked";
-            const completedProgress = completedMap.get(item.id);
+          showsVerticalScrollIndicator={false}
+        >
+          {steps.slice(0, visibleUpTo + 1).map((step, idx) => {
+            const prog = completedMap.get(step.id);
+            if (prog) {
+              return (
+                <CompletedCard
+                  key={step.id}
+                  step={step}
+                  index={idx}
+                  answer={prog.answer}
+                />
+              );
+            }
             return (
-              <StepRow
-                step={item}
-                index={index}
-                state={state}
-                completedProgress={completedProgress}
-                onPress={() => openStep(item, state)}
+              <ActiveStepCard
+                key={step.id}
+                step={step}
+                index={idx}
+                total={totalSteps}
+                saving={saving === step.id}
+                onAnswer={(ans) => handleAnswer(step, ans)}
               />
             );
-          }}
-        />
+          })}
+
+          {blocked && (
+            <BlockerCard step={steps[visibleUpTo]} />
+          )}
+
+          {allDone && (
+            <View style={styles.doneCard}>
+              <Ionicons name="checkmark-circle" size={56} color={Colors.secondary} />
+              <Text style={styles.doneTitle}>Tebrikler!</Text>
+              <Text style={styles.doneSub}>
+                Tüm adımları başarıyla tamamladınız.
+              </Text>
+            </View>
+          )}
+        </ScrollView>
       )}
-
-      {/* Answer Modal */}
-      <Modal
-        visible={!!activeStep}
-        animationType="slide"
-        transparent
-        onRequestClose={closeModal}
-      >
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalLabel}>Adım</Text>
-              <TouchableOpacity onPress={closeModal} style={styles.modalClose}>
-                <Ionicons name="close" size={24} color={Colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.modalQuestion}>{activeStep?.question}</Text>
-            {activeStep?.description && (
-              <Text style={styles.modalDesc}>{activeStep.description}</Text>
-            )}
-
-            <Text style={styles.modalInputLabel}>Cevabın</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Cevabını veya notunu yaz..."
-              placeholderTextColor={Colors.textMuted}
-              value={answer}
-              onChangeText={setAnswer}
-              multiline
-              autoFocus
-            />
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancel}
-                onPress={closeModal}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.modalCancelText}>İptal</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalSave, saving && { opacity: 0.6 }]}
-                onPress={handleSave}
-                disabled={saving}
-                activeOpacity={0.7}
-              >
-                {saving ? (
-                  <ActivityIndicator color={Colors.surface} size="small" />
-                ) : (
-                  <>
-                    <Ionicons name="checkmark" size={18} color={Colors.surface} />
-                    <Text style={styles.modalSaveText}>Kaydet</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </View>
   );
 }
 
-// ─── StepRow ─────────────────────────────────────────────────────────────────
+// ─── CompletedCard ────────────────────────────────────────────────────────────
 
-function StepRow({
+function CompletedCard({
   step,
   index,
-  state,
-  completedProgress,
-  onPress,
+  answer,
 }: {
   step: Step;
   index: number;
-  state: StepState;
-  completedProgress?: Progress;
-  onPress: () => void;
+  answer: string;
 }) {
-  const isInteractive = state === "completed" || state === "active";
-
+  const blocking = isBlocking(step, answer);
   return (
-    <TouchableOpacity
-      style={[styles.stepRow, stepRowVariant[state]]}
-      onPress={onPress}
-      activeOpacity={isInteractive ? 0.7 : 1}
-    >
-      {/* Step dot / icon */}
-      <StepDot state={state} index={index} />
-
-      {/* Content */}
-      <View style={styles.stepContent}>
-        <Text style={[styles.stepQuestion, stepQuestionVariant[state]]}>
+    <View style={[styles.completedCard, blocking && styles.completedCardWarn]}>
+      <View style={[styles.badge, blocking ? styles.badgeWarn : styles.badgeDone]}>
+        {blocking ? (
+          <Ionicons name="alert" size={13} color={Colors.warning} />
+        ) : (
+          <Ionicons name="checkmark" size={14} color="#fff" />
+        )}
+      </View>
+      <View style={styles.cardBody}>
+        <Text style={styles.completedQuestion} numberOfLines={2}>
           {step.question}
         </Text>
-
-        {step.description && state !== "disqualified" && (
-          <Text style={styles.stepDesc}>{step.description}</Text>
-        )}
-
-        {/* Completed: show saved answer */}
-        {state === "completed" && completedProgress && (
-          <View style={styles.answerBox}>
-            <MaterialCommunityIcons
-              name="comment-check-outline"
-              size={14}
-              color={Colors.secondary}
-            />
-            <Text style={styles.answerText} numberOfLines={2}>
-              {completedProgress.answer}
-            </Text>
-          </View>
-        )}
-
-        {/* Disqualified: blocking warning */}
-        {state === "disqualified" && (
-          <View style={styles.disqualifiedBox}>
-            <Ionicons name="alert-circle" size={14} color={Colors.warning} />
-            <Text style={styles.disqualifiedText}>
-              Bu kriteri sağlamadan devam edemezsin.
-            </Text>
-          </View>
-        )}
-
-        {/* Locked: hint */}
-        {state === "locked" && (
-          <Text style={styles.lockedHint}>Önceki adımı tamamla</Text>
-        )}
+        <View style={[styles.answerChip, blocking && styles.answerChipWarn]}>
+          <Text style={[styles.answerChipText, blocking && styles.answerChipTextWarn]}>
+            {answer}
+          </Text>
+        </View>
       </View>
-
-      {/* Right icon */}
-      {state === "completed" && (
-        <Ionicons name="pencil-outline" size={18} color={Colors.secondary} style={styles.stepArrow} />
-      )}
-      {state === "active" && (
-        <Ionicons name="chevron-forward" size={18} color={Colors.primary} style={styles.stepArrow} />
-      )}
-      {state === "locked" && (
-        <Ionicons name="lock-closed-outline" size={16} color={Colors.textMuted} style={styles.stepArrow} />
-      )}
-      {state === "disqualified" && (
-        <Ionicons name="ban-outline" size={16} color={Colors.warning} style={styles.stepArrow} />
-      )}
-    </TouchableOpacity>
-  );
-}
-
-function StepDot({ state, index }: { state: StepState; index: number }) {
-  const dotStyle = [styles.stepDot, stepDotVariant[state]];
-
-  if (state === "completed") {
-    return (
-      <View style={dotStyle}>
-        <Ionicons name="checkmark" size={16} color={Colors.surface} />
-      </View>
-    );
-  }
-  if (state === "active") {
-    return (
-      <View style={dotStyle}>
-        <Text style={styles.stepNum}>{String(index + 1)}</Text>
-      </View>
-    );
-  }
-  if (state === "locked") {
-    return (
-      <View style={dotStyle}>
-        <Ionicons name="lock-closed" size={13} color={Colors.textMuted} />
-      </View>
-    );
-  }
-  // disqualified
-  return (
-    <View style={dotStyle}>
-      <Ionicons name="alert" size={13} color={Colors.warning} />
+      <Text style={styles.stepNumSmall}>{index + 1}</Text>
     </View>
   );
 }
 
-// ─── State-dependent style maps ───────────────────────────────────────────────
+// ─── ActiveStepCard ───────────────────────────────────────────────────────────
 
-const stepRowVariant: Record<StepState, object> = {
-  completed:    { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" },
-  active:       { backgroundColor: Colors.surface, borderColor: Colors.primary, borderWidth: 1.5 },
-  locked:       { backgroundColor: "#FAFAFA", borderColor: Colors.border, opacity: 0.7 },
-  disqualified: { backgroundColor: Colors.warningLight, borderColor: "#FDE68A" },
-};
+function ActiveStepCard({
+  step,
+  index,
+  total,
+  saving,
+  onAnswer,
+}: {
+  step: Step;
+  index: number;
+  total: number;
+  saving: boolean;
+  onAnswer: (answer: string) => void;
+}) {
+  const options = getStepOptions(step);
+  const [tapped, setTapped] = useState<string | null>(null);
 
-const stepDotVariant: Record<StepState, object> = {
-  completed:    { backgroundColor: Colors.secondary, borderColor: Colors.secondary },
-  active:       { borderColor: Colors.primary, borderWidth: 2 },
-  locked:       { borderColor: Colors.textMuted, borderWidth: 1.5, backgroundColor: "#F3F4F6" },
-  disqualified: { borderColor: Colors.warning, borderWidth: 1.5, backgroundColor: Colors.warningLight },
-};
+  const handleTap = (opt: string) => {
+    if (saving) return;
+    setTapped(opt);
+    onAnswer(opt);
+  };
 
-const stepQuestionVariant: Record<StepState, object> = {
-  completed:    { color: "#065F46" },
-  active:       { color: Colors.textPrimary },
-  locked:       { color: Colors.textMuted },
-  disqualified: { color: Colors.warning },
-};
+  const twoCol = options.length === 2;
+
+  return (
+    <View style={styles.activeCard}>
+      {/* Meta row */}
+      <View style={styles.activeMeta}>
+        <View style={styles.badge}>
+          <Text style={styles.badgeNum}>{index + 1}</Text>
+        </View>
+        <Text style={styles.activeMetaText}>
+          Adım {index + 1} / {total}
+        </Text>
+      </View>
+
+      {/* Question */}
+      <Text style={styles.activeQuestion}>{step.question}</Text>
+      {!!step.description && (
+        <Text style={styles.activeDesc}>{step.description}</Text>
+      )}
+
+      {/* Options */}
+      <View style={[styles.optionsRow, twoCol && styles.optionsRowTwo]}>
+        {options.map((opt) => {
+          const isSelected = tapped === opt;
+          const isLoading = isSelected && saving;
+          return (
+            <TouchableOpacity
+              key={opt}
+              style={[
+                styles.optionBtn,
+                twoCol && styles.optionBtnHalf,
+                isSelected && styles.optionBtnSelected,
+                saving && !isSelected && styles.optionBtnDimmed,
+              ]}
+              onPress={() => handleTap(opt)}
+              activeOpacity={0.75}
+              disabled={saving}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color={Colors.surface} />
+              ) : (
+                <Text
+                  style={[
+                    styles.optionBtnText,
+                    isSelected && styles.optionBtnTextSelected,
+                  ]}
+                >
+                  {opt}
+                </Text>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// ─── BlockerCard ──────────────────────────────────────────────────────────────
+
+function BlockerCard({ step }: { step: Step }) {
+  return (
+    <View style={styles.blockerCard}>
+      <View style={styles.blockerIconWrap}>
+        <Ionicons name="alert-circle" size={22} color={Colors.warning} />
+      </View>
+      <View style={styles.blockerBody}>
+        <Text style={styles.blockerTitle}>Bu adımda durmanız gerekiyor</Text>
+        <Text style={styles.blockerText}>
+          {step.description ??
+            "Bu soruya verdiğiniz yanıt nedeniyle sürece bu aşamada devam edilemiyor. Önce bu kriteri karşılamanız gerekiyor."}
+        </Text>
+        {!!step.faqUrl && (
+          <TouchableOpacity
+            style={styles.blockerLink}
+            onPress={() => Linking.openURL(step.faqUrl!)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.blockerLinkText}>Daha fazla bilgi al</Text>
+            <Ionicons name="open-outline" size={13} color={Colors.primary} />
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -459,19 +409,31 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  title: {
-    ...Typography.h1,
-    color: Colors.textPrimary,
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.md,
     paddingTop: 56,
     paddingBottom: 12,
   },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: Spacing.lg,
+  title: {
+    ...Typography.h1,
+    color: Colors.textPrimary,
   },
+  progressPill: {
+    backgroundColor: Colors.primaryLight,
+    borderRadius: Radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  progressPillText: {
+    ...Typography.small,
+    fontWeight: "600",
+    color: Colors.primary,
+  },
+
+  // Country chips
   countryList: {
     paddingHorizontal: Spacing.md,
     paddingBottom: 12,
@@ -493,9 +455,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryLight,
     borderColor: Colors.primary,
   },
-  countryFlag: {
-    fontSize: 18,
-  },
+  countryFlag: { fontSize: 18 },
   countryChipText: {
     ...Typography.label,
     color: Colors.textSecondary,
@@ -503,212 +463,246 @@ const styles = StyleSheet.create({
   countryChipTextSelected: {
     color: Colors.primary,
   },
-  progressContainer: {
+
+  // Progress bar
+  progressBarWrap: {
     paddingHorizontal: Spacing.md,
     marginBottom: Spacing.md,
   },
-  progressLabel: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    marginBottom: 6,
-  },
   progressTrack: {
-    height: 8,
+    height: 6,
     backgroundColor: Colors.border,
     borderRadius: Radius.full,
     overflow: "hidden",
   },
   progressFill: {
-    height: 8,
+    height: 6,
     backgroundColor: Colors.secondary,
     borderRadius: Radius.full,
   },
-  stepList: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  stepRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    borderRadius: Radius.md,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: 10,
-  },
-  stepArrow: {
-    alignSelf: "center",
-  },
-  stepDot: {
-    width: 32,
-    height: 32,
-    borderRadius: Radius.full,
+
+  // Layout
+  center: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: Colors.surface,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    flexShrink: 0,
+    gap: Spacing.sm,
+    padding: Spacing.lg,
   },
-  stepNum: {
-    ...Typography.caption,
-    fontWeight: "600",
-    color: Colors.primary,
-  },
-  stepContent: {
-    flex: 1,
-    paddingTop: 4,
-  },
-  stepQuestion: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: Colors.textPrimary,
-    marginBottom: 4,
-  },
-  stepDesc: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    lineHeight: 18,
-  },
-  answerBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.surface,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    borderRadius: Radius.sm,
-    marginTop: 6,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: "#D1FAE5",
-  },
-  answerText: {
-    ...Typography.small,
-    color: "#065F46",
-    flex: 1,
-  },
-  disqualifiedBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 6,
-  },
-  disqualifiedText: {
-    ...Typography.caption,
-    color: Colors.warning,
-    flex: 1,
-    lineHeight: 18,
-  },
-  lockedHint: {
-    ...Typography.small,
-    color: Colors.textMuted,
-    marginTop: 4,
-  },
-  errorText: {
-    color: Colors.danger,
-    fontSize: 15,
-  },
-  emptyText: {
-    color: Colors.textSecondary,
-    fontSize: 15,
+  errorText: { color: Colors.danger, fontSize: 15 },
+  emptyText: { color: Colors.textSecondary, fontSize: 15, marginTop: 8 },
+  scroll: { flex: 1 },
+  stepList: {
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.xl,
+    gap: Spacing.sm,
   },
 
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
+  // Badge (shared dot)
+  badge: {
+    width: 28,
+    height: 28,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    flexShrink: 0,
   },
-  modalCard: {
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: Radius.lg,
-    borderTopRightRadius: Radius.lg,
-    padding: 20,
-    paddingBottom: 32,
+  badgeDone: {
+    backgroundColor: Colors.secondary,
   },
-  modalHeader: {
+  badgeWarn: {
+    backgroundColor: Colors.warningLight,
+    borderWidth: 1.5,
+    borderColor: Colors.warning,
+  },
+  badgeNum: {
+    ...Typography.small,
+    fontWeight: "700",
+    color: "#fff",
+  },
+
+  // Completed card
+  completedCard: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: Spacing.sm,
+    backgroundColor: Colors.secondaryLight,
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+    borderRadius: Radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 10,
   },
-  modalLabel: {
+  completedCardWarn: {
+    backgroundColor: Colors.warningLight,
+    borderColor: "#FDE68A",
+  },
+  cardBody: {
+    flex: 1,
+    gap: 4,
+  },
+  completedQuestion: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  answerChip: {
+    alignSelf: "flex-start",
+    backgroundColor: "#D1FAE5",
+    borderRadius: Radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  answerChipWarn: {
+    backgroundColor: "#FEF3C7",
+  },
+  answerChipText: {
+    ...Typography.small,
+    fontWeight: "600",
+    color: "#065F46",
+  },
+  answerChipTextWarn: {
+    color: "#92400E",
+  },
+  stepNumSmall: {
+    ...Typography.small,
+    color: Colors.textMuted,
+    minWidth: 16,
+    textAlign: "right",
+  },
+
+  // Active step card
+  activeCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    padding: Spacing.md,
+    gap: Spacing.sm,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  activeMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  activeMetaText: {
     ...Typography.small,
     fontWeight: "600",
     color: Colors.primary,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
-  modalClose: {
-    padding: 4,
-    minWidth: MinTapTarget,
-    minHeight: MinTapTarget,
-    justifyContent: "center",
-    alignItems: "flex-end",
-  },
-  modalQuestion: {
-    fontSize: 18,
-    fontWeight: "600",
+  activeQuestion: {
+    fontSize: 17,
+    fontWeight: "700",
     color: Colors.textPrimary,
-    marginBottom: 6,
+    lineHeight: 24,
   },
-  modalDesc: {
+  activeDesc: {
     ...Typography.caption,
     color: Colors.textSecondary,
     lineHeight: 18,
-    marginBottom: Spacing.md,
   },
-  modalInputLabel: {
-    ...Typography.caption,
-    fontWeight: "500",
-    color: "#374151",
-    marginBottom: 6,
+  optionsRow: {
+    flexDirection: "column",
+    gap: Spacing.sm,
+    marginTop: 4,
   },
-  modalInput: {
-    backgroundColor: Colors.background,
-    borderWidth: 1,
-    borderColor: Colors.borderStrong,
-    borderRadius: Radius.md,
-    padding: 12,
-    fontSize: 15,
-    color: Colors.textPrimary,
-    minHeight: 100,
-    textAlignVertical: "top",
-    marginBottom: Spacing.md,
-  },
-  modalActions: {
+  optionsRowTwo: {
     flexDirection: "row",
+  },
+  optionBtn: {
+    paddingVertical: 14,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: Colors.borderStrong,
+    backgroundColor: Colors.background,
+    minHeight: MinTapTarget,
+    flex: 1,
+  },
+  optionBtnHalf: {
+    flex: 1,
+  },
+  optionBtnSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  optionBtnDimmed: {
+    opacity: 0.4,
+  },
+  optionBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  optionBtnTextSelected: {
+    color: Colors.surface,
+  },
+
+  // Blocker card
+  blockerCard: {
+    flexDirection: "row",
+    backgroundColor: Colors.warningLight,
+    borderWidth: 1.5,
+    borderColor: "#FDE68A",
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    gap: 12,
+    marginTop: 4,
+  },
+  blockerIconWrap: {
+    paddingTop: 2,
+    flexShrink: 0,
+  },
+  blockerBody: {
+    flex: 1,
+    gap: 6,
+  },
+  blockerTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#92400E",
+  },
+  blockerText: {
+    ...Typography.caption,
+    color: "#78350F",
+    lineHeight: 19,
+  },
+  blockerLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+  },
+  blockerLinkText: {
+    ...Typography.caption,
+    fontWeight: "600",
+    color: Colors.primary,
+  },
+
+  // Done card
+  doneCard: {
+    alignItems: "center",
+    paddingVertical: Spacing.xl,
     gap: Spacing.sm,
   },
-  modalCancel: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: Radius.md,
-    alignItems: "center",
-    backgroundColor: "#F3F4F6",
-    minHeight: MinTapTarget,
-    justifyContent: "center",
+  doneTitle: {
+    ...Typography.h2,
+    color: Colors.secondary,
   },
-  modalCancelText: {
+  doneSub: {
+    ...Typography.body,
     color: Colors.textSecondary,
-    fontWeight: "600",
-    fontSize: 15,
-  },
-  modalSave: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: Radius.md,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.primary,
-    gap: 6,
-    minHeight: MinTapTarget,
-  },
-  modalSaveText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 15,
+    textAlign: "center",
   },
 });

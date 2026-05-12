@@ -253,6 +253,8 @@ export const api = {
         question: string;
         description?: string;
         blockingAnswer?: string;
+        options?: string[];
+        faqUrl?: string;
       }[]>(`/guide/steps/${countryId}`, { token }),
     getProgress: (token: string) =>
       request<{ id: string; stepId: string; answer: string; completedAt: string }[]>(
