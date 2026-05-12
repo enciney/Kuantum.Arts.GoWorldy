@@ -12,9 +12,9 @@ import { notificationRoutes } from "./routes/notifications";
 import { seedDatabase } from "./seed";
 
 const app = express();
-const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
+const allowedOrigins: string[] | boolean = process.env.CORS_ALLOWED_ORIGINS
   ? process.env.CORS_ALLOWED_ORIGINS.split(",")
-  : ["http://localhost:3000", "http://localhost:5173", "http://localhost:19006"];
+  : true; // dev: tüm origin'lere izin ver; prod'da CORS_ALLOWED_ORIGINS env ile kısıtla
 app.use(cors({ origin: allowedOrigins }));
 
 const repos = createRepositories();
@@ -55,7 +55,7 @@ app.post("/api/payment/webhook", express.raw({ type: "application/json" }), asyn
   }
 });
 
-app.use(express.json());
+app.use(express.json({ limit: "5mb" }));
 
 seedDatabase();
 

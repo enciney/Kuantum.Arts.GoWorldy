@@ -535,3 +535,163 @@ Stakeholder aşağıdaki sorunları raporladı. Tümü incelenmeli ve düzeltilm
 - Stripe: `.env.development`'a gerçek Stripe Price ID'ler yazılmadan checkout tetiklenmez. (Stakeholder bekleniyor)
 - Admin Config Panel sayfası salt-okunur — runtime override yok. (P3)
 - Admin Reddet sebep modalı mevcut ama `rejectionReason` bildirim olarak kullanıcıya ulaşmıyor. (P3)
+
+## Sprint 7 — Profil Sayfası Tam Çalışma (Aktif — 2026-05-12)
+
+Stakeholder talebi: Profil sayfasındaki tüm fonksiyonlar çalışmalı — fotoğraf yükleme, radio buttonlar (userType), bio, tüm butonlar.
+
+### PS-1 — userType Değiştirme (Radio Button) [P1 — KRİTİK EKSİK]
+- **Sorun**: `ProfileScreen` userType badge GÖSTERIYOR ama kullanıcı türünü DEĞİŞTİREMİYOR. "Göç Adayı / Danışman / Yurt Dışında" için seçim UI'ı yok. Bu stakeholder'ın "radio buttonlar çalışmıyor" dediği şey.
+- **Backend eksik**: `api/src/routes/users.ts:21` — `PATCH /users/me` `userType` alanını desteklemiyor (sadece `displayName`, `bio`, `phoneNumber`, `sharePhoneNumber`, `avatarUrl` var).
+- **Gerekli değişiklikler**:
+  1. `api/src/routes/users.ts:21-37` — `userType` alanını `allowed` nesnesine ekle:
+     ```typescript
+     const VALID_USER_TYPES = ["emigrant", "consultant", "diaspora"] as const;
+     if (typeof userType === "string" && VALID_USER_TYPES.includes(userType as any)) {
+       allowed.userType = userType;
+     }
+     ```
+  2. `mobile/src/services/api.ts` — `updateMe` tip tanımına `userType?: string` ekle
+  3. `mobile/src/screens/main/ProfileScreen.tsx` — Bio bölümünün altına veya profil kartına "Üye Türü" seçici ekle:
+     - 3 seçenek: Göç Adayı / Danışman / Yurt Dışında
+     - Seçili olan highlight — UX spec için UX-UI memory'ye bakın
+     - Seçim değişince `api.users.updateMe({ userType }, token)` çağrısı
+     - Başarı/hata inline feedback (Alert değil)
+- **Dosyalar**: `api/src/routes/users.ts`, `mobile/src/services/api.ts`, `mobile/src/screens/main/ProfileScreen.tsx`
+- **Öncelik**: P1
+
+### PS-2 — Telefon Numarası Input UI [P1 — EKSİK ÖZELLİK]
+- **Sorun**: Backend `PATCH /users/me { phoneNumber }` destekliyor. PrivacyScreen'de "Telefon Numaramı Paylaş" toggle'ı var ama telefon numarasının GİRİLECEĞİ bir input alanı yok. Kullanıcı numarasını kaydedemez.
+- **Gerekli değişiklikler**:
+  1. `mobile/src/screens/main/PrivacyScreen.tsx` — "Telefon Numaramı Paylaş" toggle'ının üstüne `phoneNumber` input alanı ekle:
+     - TextInput (phone keyboard), kaydet butonu
+     - `api.users.me(token)` ile mevcut numarayı yükle
+     - "Kaydet" basınca `api.users.updateMe({ phoneNumber }, token)` çağrısı
+     - Inline başarı/hata mesajı
+- **Dosyalar**: `mobile/src/screens/main/PrivacyScreen.tsx`
+- **Öncelik**: P1
+
+### PS-3 — Profil Fonksiyonları Doğrulama [P1]
+- **Kapsam**: Bio kaydet, Avatar galeri seç, Avatar URL gir, Gizlilik toggle — tümünü tsc temiz + kod seviyesinde doğrula.
+- **Tester Doğrulaması (2026-05-12)**:
+  - Avatar (PROF-3): ✅ `expo-image-picker` entegre, galeri + URL modal çalışıyor
+  - Bio (PROF-2): ✅ `handleSaveBio` → `PATCH /users/me { bio }` doğru
+  - Phone toggle (PROF-1): ✅ `PrivacyScreen.handlePhoneToggle` → `PATCH /users/me { sharePhoneNumber }` doğru
+  - userType seçici: ✅ PS-1 tamamlandı (Sprint 7 Loop)
+  - Phone input: ✅ PS-2 tamamlandı (Sprint 7 Loop)
+- tsc: API + Mobile + Admin — temiz
+- **Öncelik**: PS-1 ve PS-2 tamamlandı ✅
+
+## Tester Bulguları — 2026-05-12 (6. Tur — Sprint 7)
+
+### S7-1 — ProfileScreen: userType Seçici ✅ ÇÖZÜLDÜ
+### S7-2 — PrivacyScreen: Telefon Numarası Input ✅ ÇÖZÜLDÜ
+
+## Resolved (Sprint 7 — Profil Tam Çalışma — 2026-05-12)
+- **[S7-1 / PS-1]** `api/src/routes/users.ts:21` — `PATCH /me` handler'a `userType` destructuring eklendi. `VALID_USER_TYPES` array ile validasyon; `ValidUserType` union type ile `allowed` objesine eklendi. Artık backend `userType` değişikliğini kabul ediyor.
+- **[S7-1]** `mobile/src/services/api.ts:87` — `updateMe` params'ına `userType?: "emigrant" | "consultant" | "diaspora"` eklendi.
+- **[S7-1]** `mobile/src/screens/main/ProfileScreen.tsx` — `handleSelectUserType` fonksiyonu eklendi (optimistic update + rollback). Profil kartından hemen sonra "Üye Türü" section'ı eklendi: 3'lü chip seçici (Göç Adayı / Danışman / Yurt Dışında), seçili chip mavi highlight, inline hata mesajı, loading spinner.
+- **[S7-2 / PS-2]** `mobile/src/screens/main/PrivacyScreen.tsx` — `phoneNumber` / `phoneSaved` / `phoneSaving` / `phoneError` state'leri eklendi. `useEffect`'te `api.users.me` ile mevcut numara yükleniyor. Toggle'ın üstüne yeni bir card olarak telefon input bölümü eklendi: TextInput (phone-pad), "Kaydet" butonu (değişiklik yoksa disabled), inline hata, submit-on-return.
+- tsc: API + Mobile — hepsi temiz.
+
+### T10-T13 — Renkli Butonlarda `#fff` Token Tutarsızlığı [P3]
+- `CreateTopicScreen.tsx:158,161` — Gönder butonu `color="#fff"` → `Colors.surface`
+- `ForumTopicDetailScreen.tsx:133,135` — Yorum butonu `color="#fff"` → `Colors.surface`
+- `ForumTopicsScreen.tsx:149` — FAB "+" `color="#fff"` → `Colors.surface`
+- `GuideScreen.tsx:301,304,406` — Modal kaydet + step dot `color="#fff"` → `Colors.surface`
+- **Not**: UX Sprint 7 kapsamı dışında kalmış — UX/UI agent görevi.
+
+## Tester Doğrulaması — 2026-05-12 (7. Tur)
+- **S7-1 ✅**: `ProfileScreen.tsx:129,239` chip seçici + `api.ts:94` userType param + `routes/users.ts:40` backend validasyonu — çözülmüş.
+- **S7-2 ✅**: `PrivacyScreen.tsx:25,46,104` telefon input + `api.ts:92` phoneNumber param + `routes/users.ts:31` backend — çözülmüş.
+- **C1 ❌ P0**: `api/src/index.ts:15-17` — allowedOrigins dev'de `true` olmalı; şu an `localhost:3000/5173/19006` array'ine default ediyor; `localhost:8081` Expo web dev server CORS'tan geçemiyor.
+- **C2 ❌ P1**: `ProfileScreen.tsx:374-447` — Avatar modal (URL girişi dahil) hâlâ mevcut; stakeholder "sadece galeri" istedi.
+- **C3 ❌ P1**: `ProfileScreen.tsx:461-479` — `StatItem` hâlâ `<View>`; tıklanamıyor.
+- **C4 ❌ P1**: `ProfileScreen.tsx:170-176` — "Hakkında" `Alert.alert` kullanıyor; Expo Web'de popup blocker engelliyor.
+
+## Sprint 8 — Stakeholder CORS + UI Bugları (2026-05-12)
+
+**Kök neden**: CORS whitelist eksik + 3 bağımsız UI bug. Önce C1'i çöz, sonra C5 listesini doğrula.
+
+### C1 — CORS Kök Fix [P0 — İLK YAP]
+- **Dosya**: `api/src/index.ts:15-18`
+- **Sorun**: `allowedOrigins` whitelist sadece `localhost:3000/5173/19006`'yı kapsıyor. Expo web `localhost:8081` veya başka bir port üzerinden istek atıyor; browser bu origin için CORS preflight'tan geçemiyor. Etkilenen endpoint'ler: tüm `PATCH /api/users/me` ve `PATCH /api/notifications/subscriptions/:id` çağrıları.
+- **Düzeltme**:
+  ```typescript
+  const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
+    ? process.env.CORS_ALLOWED_ORIGINS.split(",")
+    : true; // dev: tüm origin'lere izin ver
+  app.use(cors({ origin: allowedOrigins }));
+  ```
+  `true` değeri her `Origin` header'ını yansıtır — production'da `CORS_ALLOWED_ORIGINS` env ile kısıtlanır.
+- **Beklenen etki**: C1 fix sonrası C5 listesindeki sorunların çoğu otomatik çözülür.
+- **Öncelik**: P0
+
+### C2 — Avatar: Sadece Galeriden Yükle, URL Girişini Kaldır [P1]
+- **Dosya**: `mobile/src/screens/main/ProfileScreen.tsx`
+- **Sorun**: Stakeholder "sadece localden yükleme kalsın" istiyor. Mevcut avatar modal iki seçenek sunuyor: "Galeriden Seç" + "URL Gir". URL girişi kaldırılacak, galeri akışı direkt tetiklenecek.
+- **Düzeltme**:
+  1. `avatarModalVisible` state kaldır. Avatar'a basınca doğrudan `handlePickFromGallery()` çağır — modal gösterme.
+  2. `avatarModalView`, `avatarInput`, `avatarOptionBtn`, `avatarOptionSecondaryBtn`, `modalInput`, `modalActions` → tümünü kaldır.
+  3. `handleSaveAvatar` (URL input için olan) kaldır.
+  4. `closeAvatarModal` kaldır.
+  5. `Modal` (avatar modal) → tamamen kaldır.
+  6. `handlePickFromGallery` zaten `ImagePicker.launchImageLibraryAsync` → `PATCH /users/me { avatarUrl }` yapıyor; bu akış korunuyor.
+- **Sonuç**: Avatar alanına tek tıkla galeri açılır, seçim yapılır, kayıt otomatik olur.
+- **Öncelik**: P1
+
+### C3 — İstatistik Kartları Tıklanabilir Yap [P1]
+- **Dosya**: `mobile/src/screens/main/ProfileScreen.tsx`
+- **Sorun**: `StatItem` bileşeni `<View>` kullanıyor — tıklanamıyor. Stakeholder "Konu / Yorum / Adım üzerine tıklanamıyor" diye raporladı.
+- **Düzeltme**:
+  1. `StatItem` fonksiyonuna `onPress?: () => void` prop'u ekle.
+  2. `<View style={styles.statItem}>` → `<TouchableOpacity style={styles.statItem} onPress={onPress} activeOpacity={0.75}>`.
+  3. Stats grid'deki her `<StatItem>` çağrısına navigasyon ekle:
+     - "Konu" → `navigation.navigate("Forum")` (Forum tab)
+     - "Yorum" → `navigation.navigate("Forum")` (Forum tab)
+     - "Adım" → `navigation.navigate("Guide")` (Guide tab)
+  4. `onPress` yoksa (undefined) `TouchableOpacity` yine de render edilebilir — no-op.
+- **Öncelik**: P1
+
+### C4 — "Hakkında" Butonu Araştırma + Fix [P1]
+- **Dosya**: `mobile/src/screens/main/ProfileScreen.tsx:169-175`
+- **Durum**: Kod doğru görünüyor — `MenuRow` → `handleMenuPress("about")` → `Alert.alert(...)`. Expo Web'de `Alert.alert` `window.alert()` olarak çalışır; bazı tarayıcılar bunu popup blocker ile engelliyor olabilir.
+- **Düzeltme**:
+  1. Expo Web'de `Alert` yerine React Native `Modal` veya inline bilgi paneli kullan. Ya da `Platform.OS === "web"` kontrolü ile web'de alternatif göster.
+  2. Kısa vadeli MVP fix: `Alert.alert` yerine `Alert.alert` korunabilir ama web'de log ekle (`console.log("About pressed")`). Sorun devam ederse `ProfileAboutModal` oluştur.
+- **Öncelik**: P1
+
+### C5 — CORS Sonrası Doğrulama Listesi [P1 — C1 bağımlılığı]
+C1 fix'i sonrası aşağıdaki akışları test et; her biri `PATCH /api/users/me` veya ilgili endpoint'e istek atıyor:
+- **Bio kaydetme** (`ProfileScreen.handleSaveBio`): Backend `bio` alanını kabul ediyor ✅, sadece CORS engelliyor.
+- **userType seçimi** (`ProfileScreen.handleSelectUserType`): Backend `userType` validasyonu var ✅.
+- **Telefon numarası kaydetme** (`PrivacyScreen.handleSavePhone`): Backend `phoneNumber` kabul ediyor ✅.
+- **Telefon paylaş toggle** (`PrivacyScreen.handlePhoneToggle`): Backend `sharePhoneNumber` boolean/number kabul ediyor ✅.
+- **Takip Ettiklerim toggle** (`NotificationsScreen.handleSubscriptionToggle`): `PATCH /notifications/subscriptions/:id` — CORS fix sonrası test et.
+- Eğer C1 sonrası hâlâ başarısız olursa: `curl -X PATCH http://localhost:3000/api/users/me -H "Origin: http://localhost:8081" -H "Authorization: Bearer TOKEN" -H "Content-Type: application/json" -d '{"bio":"test"}'` ile test et.
+- **Öncelik**: P1 (C1 tamamlanınca)
+
+## Resolved (Sprint 8 — CORS + UI Bugları — 2026-05-12)
+- **[C1]** `api/src/index.ts:15-18`: `allowedOrigins` dev'de `true` olarak güncellendi. `CORS_ALLOWED_ORIGINS` env varsa split ile parse ediliyor; yoksa `true` (tüm origin'ler). Expo web `localhost:8081` dahil tüm dev originleri artık CORS'tan geçiyor.
+- **[C2]** `ProfileScreen.tsx`: Avatar modal tamamen kaldırıldı (`avatarModalVisible`, `avatarModalView`, `avatarInput`, `closeAvatarModal`, `handleSaveAvatar` state/fonksiyonları silindi). Avatar box `onPress` artık direkt `handlePickFromGallery()` çağırıyor. URL girişi yok. Galeri seçimi otomatik kayıt yapıyor.
+- **[C3]** `ProfileScreen.tsx:StatItem`: `<View>` → `<TouchableOpacity onPress={onPress} activeOpacity={0.75}>`. Stats grid'e navigasyon eklendi: Konu/Yorum → `navigate("Forum")`, Adım → `navigate("Guide")`.
+- **[C4]** `ProfileScreen.tsx:handleMenuPress("about")`: `Alert.alert` kaldırıldı. `aboutVisible` state eklendi. Hakkında bilgisi React Native `Modal` ile gösteriliyor — Expo Web'de popup blocker engeli yok.
+- Kullanılmayan stiller (`modalInput`, `modalActions`, `modalCancel`, `modalCancelText`, `avatarOptionBtn`, `avatarOptionBtnText`, `avatarOptionSecondaryBtn`, `avatarOptionSecondaryBtnText`) silindi.
+- tsc: API + Mobile — hepsi temiz.
+
+## Resolved (Sprint 6 — Rekabet Analizi Görevleri — 2026-05-12)
+- **[R1]** `GET /api/forum/search?q=...&countryId=...` endpoint eklendi. `IForumRepository.searchTopics` interface + `ForumSearchResult` type. `SqliteForumRepository.searchTopics`: LIKE sorgusu — title veya comment içeriği eşleşirse döndürüyor. ülke filtresi opsiyonel. Limit 50. Mobile `api.forum.search` metodu eklendi.
+- **[R2]** `POST /api/forum/topics/:id/upvote` [auth] endpoint eklendi (toggle: varsa sil, yoksa ekle). `forum_topic_upvotes` tablosu `db.ts`'e eklendi. `IForumRepository.upvoteTopic` interface + `ForumTopic.upvotes?: number` alanı. `SqliteForumRepository.upvoteTopic` implementasyonu. Mobile `api.forum.upvoteTopic` metodu eklendi.
+- **[R3]** `AppNavigator.tsx`'e `linking` config eklendi: `goworldy://forum/topic/:openTopicId` → Forum tab (ForumScreen `openTopicId` param'ı zaten okuyor), `goworldy://guide/:countryId` → Guide tab, `goworldy://home` → Home, `goworldy://profile` → Profile.
+- **[R4]** `IUserRepository.User`'a `onboardingCompleted?: boolean` ve `targetCountryId?: string` eklendi. `db.ts`'e idempotent migrasyon kolonu eklendi. `routes/users.ts` PATCH `/me` handler'ı bu alanları kabul ediyor. Mobile `api.users.updateMe` tip tanımı güncellendi.
+- **[R5]** `GET /api/users/consultants` (userType=consultant filtreli, şifre hariç) ve `GET /api/users/consultants/:id` endpoint'leri `routes/users.ts`'e eklendi. Mobile `api.users.consultants()` ve `api.users.consultant(id)` metodları eklendi.
+- tsc: API + Mobile — hepsi temiz.
+
+## Open TODOs (güncellendi — 2026-05-12)
+- Push notifications (Expo Notifications + topic abone olunca tetikleme). (P2)
+- S3/Cloudinary avatar yükleme — şu an base64 data URL (büyük veri). (P3)
+- followingCount `/users/me/stats` hardcoded 0 — follow sistemi yok. (P3)
+- Stripe: `.env.development`'a gerçek Price ID'ler yazılmadan checkout tetiklenmez. (Stakeholder bekleniyor)
+- Admin Reddet sebep modalı mevcut ama `rejectionReason` kullanıcıya bildirim olarak ulaşmıyor. (P3)
+- Onboarding flow UI (mobile): `onboardingCompleted` backend'de hazır, mobil ekran yok. (P2)
+- SqliteUserRepository: `onboardingCompleted` INTEGER→boolean dönüşümü `toUser`'da yapılmalı (şu an raw integer dönüyor). (minor bug)

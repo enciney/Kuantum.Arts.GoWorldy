@@ -12,6 +12,8 @@ export interface User {
   phoneNumber?: string;
   sharePhoneNumber?: boolean;
   avatarUrl?: string;
+  onboardingCompleted?: boolean;
+  targetCountryId?: string;
   createdAt: string;
 }
 

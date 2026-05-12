@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "../theme";
 
@@ -16,6 +17,8 @@ import { HomeScreen } from "../screens/main/HomeScreen";
 import { ForumScreen } from "../screens/main/ForumScreen";
 import { GuideScreen } from "../screens/main/GuideScreen";
 import { ProfileScreen } from "../screens/main/ProfileScreen";
+import { MyTopicsScreen } from "../screens/main/MyTopicsScreen";
+import { MyCommentsScreen } from "../screens/main/MyCommentsScreen";
 import { NotificationsScreen } from "../screens/main/NotificationsScreen";
 import { PremiumScreen } from "../screens/main/PremiumScreen";
 
@@ -32,6 +35,12 @@ export type HomeStackParamList = {
   Premium: undefined;
 };
 
+export type ProfileStackParamList = {
+  ProfileMain: undefined;
+  MyTopics: undefined;
+  MyComments: undefined;
+};
+
 export type MainTabParamList = {
   Home: undefined;
   Guide: undefined;
@@ -41,6 +50,7 @@ export type MainTabParamList = {
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
+const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 const MainTab = createBottomTabNavigator<MainTabParamList>();
 
 function LoginWrapper({ navigation }: NativeStackScreenProps<AuthStackParamList, "Login">) {
@@ -91,6 +101,16 @@ function HomeStackNavigator() {
   );
 }
 
+function ProfileStackNavigator() {
+  return (
+    <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
+      <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} />
+      <ProfileStack.Screen name="MyTopics" component={MyTopicsScreen} />
+      <ProfileStack.Screen name="MyComments" component={MyCommentsScreen} />
+    </ProfileStack.Navigator>
+  );
+}
+
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
 const TAB_ICONS: Record<keyof MainTabParamList, { active: IconName; inactive: IconName }> = {
@@ -101,6 +121,9 @@ const TAB_ICONS: Record<keyof MainTabParamList, { active: IconName; inactive: Ic
 };
 
 function MainTabs() {
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = 52 + insets.bottom;
+
   return (
     <MainTab.Navigator
       screenOptions={({ route }) => ({
@@ -109,8 +132,8 @@ function MainTabs() {
         tabBarStyle: {
           backgroundColor: Colors.surface,
           borderTopColor: Colors.border,
-          height: 60,
-          paddingBottom: 6,
+          height: tabBarHeight,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 6,
           paddingTop: 6,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: "500" },
@@ -130,7 +153,7 @@ function MainTabs() {
       <MainTab.Screen name="Home" component={HomeStackNavigator} options={{ title: "Ana Sayfa" }} />
       <MainTab.Screen name="Guide" component={GuideScreen} options={{ title: "Rehberim" }} />
       <MainTab.Screen name="Forum" component={ForumScreen} options={{ title: "Forum" }} />
-      <MainTab.Screen name="Profile" component={ProfileScreen} options={{ title: "Profil" }} />
+      <MainTab.Screen name="Profile" component={ProfileStackNavigator} options={{ title: "Profil" }} />
     </MainTab.Navigator>
   );
 }
@@ -146,6 +169,24 @@ function AuthNavigator() {
   );
 }
 
+const linking = {
+  prefixes: ["goworldy://"],
+  config: {
+    screens: {
+      Home: "home",
+      Guide: {
+        path: "guide/:countryId",
+        parse: { countryId: (id: string) => id },
+      },
+      Forum: {
+        path: "forum/topic/:openTopicId",
+        parse: { openTopicId: (id: string) => id },
+      },
+      Profile: "profile",
+    },
+  },
+};
+
 export function AppNavigator() {
   const { user, isLoading } = useAuth();
 
@@ -158,7 +199,7 @@ export function AppNavigator() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer linking={linking}>
       {user ? <MainTabs /> : <AuthNavigator />}
     </NavigationContainer>
   );

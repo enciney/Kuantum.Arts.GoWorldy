@@ -20,6 +20,7 @@ export interface ForumTopic {
   status: "pending" | "approved" | "rejected";
   createdAt: string;
   commentCount: number;
+  upvotes?: number;
 }
 
 export interface ForumComment {
@@ -29,6 +30,12 @@ export interface ForumComment {
   authorDisplayName: string;
   content: string;
   createdAt: string;
+}
+
+export interface ForumSearchResult extends ForumTopic {
+  categoryName: string;
+  countryId: string;
+  countryName: string;
 }
 
 export interface ForumStats {
@@ -49,12 +56,16 @@ export interface IForumRepository {
   createCategory(data: Omit<ForumCategory, "id">): Promise<ForumCategory>;
 
   // Topics
+  searchTopics(query: string, countryId?: string): Promise<ForumSearchResult[]>;
   getTopics(categoryId: string): Promise<ForumTopic[]>;
   getPendingTopics(limit: number, offset: number): Promise<ForumTopic[]>;
   createTopic(data: Omit<ForumTopic, "id" | "createdAt" | "commentCount">): Promise<ForumTopic>;
   updateTopicStatus(id: string, status: ForumTopic["status"], reason?: string): Promise<void>;
   pinTopic(id: string, isPinned: boolean): Promise<void>;
   countTopics(): Promise<number>;
+
+  // Upvotes
+  upvoteTopic(topicId: string, userId: string): Promise<{ upvotes: number; hasVoted: boolean }>;
 
   // Comments
   getComments(topicId: string): Promise<ForumComment[]>;
@@ -67,6 +78,16 @@ export interface IForumRepository {
   // User-scoped counts
   countTopicsByAuthor(userId: string): Promise<number>;
   countCommentsByAuthor(userId: string): Promise<number>;
+
+  // User-scoped lists
+  getTopicsByAuthor(userId: string, limit: number, offset: number): Promise<ForumTopic[]>;
+  getCommentsByAuthor(userId: string, limit: number, offset: number): Promise<{
+    id: string;
+    topicId: string;
+    topicTitle: string;
+    content: string;
+    createdAt: string;
+  }[]>;
 
   // Activity feed
   getRecentCommentsByAuthor(userId: string, limit: number): Promise<{

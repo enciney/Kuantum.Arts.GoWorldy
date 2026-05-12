@@ -8,19 +8,26 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Colors, Typography, Spacing, Radius } from "../../theme";
+import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
 
 interface Props {
   onBack: () => void;
+  onPhoneSettingsChange?: (phoneNumber: string, sharePhone: boolean) => void;
 }
 
-export function PrivacyScreen({ onBack }: Props) {
+export function PrivacyScreen({ onBack, onPhoneSettingsChange }: Props) {
   const { token } = useAuth();
   const [sharePhone, setSharePhone] = useState(true);
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [phoneSaved, setPhoneSaved] = useState("");
+  const [phoneSaving, setPhoneSaving] = useState(false);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [phoneSaveSuccess, setPhoneSaveSuccess] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -30,10 +37,29 @@ export function PrivacyScreen({ onBack }: Props) {
       .me(token)
       .then((u) => {
         setSharePhone(u.sharePhoneNumber !== false);
+        setPhoneNumber(u.phoneNumber || "");
+        setPhoneSaved(u.phoneNumber || "");
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [token]);
+
+  const handleSavePhone = async () => {
+    if (!token) return;
+    setPhoneError(null);
+    setPhoneSaving(true);
+    try {
+      await api.users.updateMe({ phoneNumber }, token);
+      setPhoneSaved(phoneNumber);
+      setPhoneSaveSuccess(true);
+      setTimeout(() => setPhoneSaveSuccess(false), 2000);
+      onPhoneSettingsChange?.(phoneNumber, sharePhone);
+    } catch (e: unknown) {
+      setPhoneError(e instanceof Error ? e.message : "Kaydedilemedi.");
+    } finally {
+      setPhoneSaving(false);
+    }
+  };
 
   const handlePhoneToggle = async (value: boolean) => {
     if (!token) return;
@@ -42,6 +68,7 @@ export function PrivacyScreen({ onBack }: Props) {
     setSaving(true);
     try {
       await api.users.updateMe({ sharePhoneNumber: value ? 1 : 0 }, token);
+      onPhoneSettingsChange?.(phoneSaved, value);
     } catch {
       setSharePhone(prev);
       Alert.alert("Hata", "Ayar kaydedilemedi. Lütfen tekrar dene.");
@@ -68,6 +95,52 @@ export function PrivacyScreen({ onBack }: Props) {
       ) : (
         <ScrollView contentContainerStyle={styles.scroll}>
           <Text style={styles.sectionLabel}>İLETİŞİM BİLGİLERİ</Text>
+
+          {/* Telefon Numarası Input */}
+          <View style={styles.card}>
+            <View style={styles.phoneRow}>
+              <View style={styles.settingIconBox}>
+                <Ionicons name="call-outline" size={20} color={Colors.primary} />
+              </View>
+              <View style={styles.phoneInputWrapper}>
+                <Text style={styles.settingTitle}>Telefon Numarası</Text>
+                <TextInput
+                  style={styles.phoneInput}
+                  placeholder="+90 5XX XXX XX XX"
+                  placeholderTextColor={Colors.textMuted}
+                  keyboardType="phone-pad"
+                  value={phoneNumber}
+                  onChangeText={(v) => {
+                    setPhoneNumber(v);
+                    setPhoneError(null);
+                  }}
+                  returnKeyType="done"
+                  onSubmitEditing={handleSavePhone}
+                />
+                {phoneError && (
+                  <Text style={styles.phoneError}>{phoneError}</Text>
+                )}
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.phoneSaveBtn,
+                  phoneSaveSuccess && styles.phoneSaveBtnSuccess,
+                  (phoneSaving || (!phoneSaveSuccess && phoneNumber === phoneSaved)) && { opacity: 0.4 },
+                ]}
+                onPress={handleSavePhone}
+                disabled={phoneSaving || phoneSaveSuccess || phoneNumber === phoneSaved}
+                activeOpacity={0.7}
+              >
+                {phoneSaving ? (
+                  <ActivityIndicator size="small" color={Colors.surface} />
+                ) : phoneSaveSuccess ? (
+                  <Ionicons name="checkmark" size={16} color={Colors.surface} />
+                ) : (
+                  <Text style={styles.phoneSaveBtnText}>Kaydet</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
 
           <View style={styles.card}>
             <View style={styles.settingRow}>
@@ -199,5 +272,47 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: Spacing.xs,
     marginHorizontal: Spacing.xs,
+  },
+  phoneRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    gap: Spacing.md,
+  },
+  phoneInputWrapper: {
+    flex: 1,
+  },
+  phoneInput: {
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 14,
+    color: Colors.textPrimary,
+    marginTop: 4,
+  },
+  phoneError: {
+    ...Typography.small,
+    color: Colors.danger,
+    marginTop: 4,
+  },
+  phoneSaveBtn: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.sm,
+    minHeight: MinTapTarget,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  phoneSaveBtnSuccess: {
+    backgroundColor: Colors.secondary,
+  },
+  phoneSaveBtnText: {
+    color: Colors.surface,
+    fontWeight: "600",
+    fontSize: 13,
   },
 });

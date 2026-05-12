@@ -192,9 +192,30 @@ Benzer platformlar incelendi: InterNations, Expat.com, Lawfully, MigraConnect, E
 | Gerçek zamanlı vize başvuru takibi | Yüksek teknik karmaşıklık, MVP dışı |
 | AI destekli chatbot | Önce platform stabilitesi, sonra AI katmanı |
 
+## Sprint 8 — AKTİF (2026-05-12)
+
+Stakeholder 9 sorun raporladı. Kök neden: CORS + 3 bağımsız UI bug.
+
+### Kök Neden Analizi
+- **CORS**: `api/src/index.ts` whitelist (`localhost:3000/5173/19006`) Expo web dev server origin'ini karşılamıyor. Expo SDK'nın yeni sürümleri `localhost:8081`'de çalışıyor. Tüm `PATCH /api/users/me` ve `PATCH /api/notifications/subscriptions/:id` çağrıları preflight'ta başarısız.
+- **Etkilenen sorunlar**: userType seçimi (2), bio kaydetme (6), telefon numarası (7), telefon paylaş toggle (8), takip toggle (4 — kısmen).
+
+### Sprint 8 Görev Tablosu
+
+| Kod | Öncelik | Görev | Sahip | Durum |
+|-----|---------|-------|-------|-------|
+| C1 | **P0** | CORS kök fix: `cors({ origin: true })` dev'de | Developer | ⏳ |
+| C2 | **P1** | Avatar modal kaldır, direkt galeri aç (URL girişi kaldır) | Developer + UX-UI | ⏳ |
+| C3 | **P1** | İstatistik kartları (Konu/Yorum/Adım) tıklanabilir + navigate | Developer | ⏳ |
+| C4 | **P1** | "Hakkında" butonu araştır + Expo Web fix | Developer | ⏳ |
+| C5 | **P1** | C1 sonrası: bio / userType / tel / paylaş toggle / takip toggle doğrula | Developer | ⏳ C1 bekleniyor |
+
+### Stakeholder Kararı (2026-05-12)
+- Avatar: URL girişi kaldırıldı — sadece cihaz galerisi (stakeholder "sadece localden" istedi).
+
 ## Open Questions
 - **Push notifications**: Firebase FCM mi, Expo Notifications mı? (Karar verilmedi)
-- **Avatar**: Kamera rulo upload mu, URL input mu? (MVP için URL input önerildi ✅ uygulandı)
+- **Avatar**: ✅ Karar verildi: sadece galeri (lokal). S3/Cloudinary uzun vadeli.
 - **App store hedefi**: App Store, Google Play, ikisi birden? (Belirsiz)
 - **E-posta servisi**: Reset token e-postası için SendGrid mi, SES mi? (Şu an console.log)
 - **Seed verisi dışındaki ortamlar**: Prod'da seed nasıl çalışacak? (Belirsiz)

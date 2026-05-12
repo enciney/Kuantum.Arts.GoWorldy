@@ -146,7 +146,7 @@ export function ForumTopicsScreen({
       )}
 
       <TouchableOpacity style={styles.fab} onPress={onCreateTopic}>
-        <Ionicons name="add" size={28} color="#fff" />
+        <Ionicons name="add" size={28} color={Colors.surface} />
       </TouchableOpacity>
     </View>
   );

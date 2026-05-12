@@ -298,10 +298,10 @@ export function GuideScreen() {
                 activeOpacity={0.7}
               >
                 {saving ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                  <ActivityIndicator color={Colors.surface} size="small" />
                 ) : (
                   <>
-                    <Ionicons name="checkmark" size={18} color="#fff" />
+                    <Ionicons name="checkmark" size={18} color={Colors.surface} />
                     <Text style={styles.modalSaveText}>Kaydet</Text>
                   </>
                 )}
@@ -403,7 +403,7 @@ function StepDot({ state, index }: { state: StepState; index: number }) {
   if (state === "completed") {
     return (
       <View style={dotStyle}>
-        <Ionicons name="checkmark" size={16} color="#fff" />
+        <Ionicons name="checkmark" size={16} color={Colors.surface} />
       </View>
     );
   }

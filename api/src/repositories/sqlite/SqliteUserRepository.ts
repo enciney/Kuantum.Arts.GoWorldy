@@ -9,6 +9,7 @@ function toUser(row: unknown): User | null {
     ...r,
     isPremium: r.isPremium === 1 || r.isPremium === true,
     sharePhoneNumber: r.sharePhoneNumber === 1 || r.sharePhoneNumber === true,
+    onboardingCompleted: r.onboardingCompleted === 1 || r.onboardingCompleted === true,
   } as User;
 }
 

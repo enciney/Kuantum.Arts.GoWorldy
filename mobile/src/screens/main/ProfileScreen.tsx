@@ -26,6 +26,12 @@ const USER_TYPE_LABELS: Record<string, string> = {
   diaspora: "Yurt Dışında",
 };
 
+const CHIP_ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
+  emigrant: "location-outline",
+  consultant: "briefcase-outline",
+  diaspora: "earth-outline",
+};
+
 const APP_VERSION = "1.0.0";
 
 export function ProfileScreen() {
@@ -37,10 +43,12 @@ export function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [userType, setUserType] = useState<string>("");
   const [avatarUrl, setAvatarUrl] = useState<string>("");
-  const [avatarModalVisible, setAvatarModalVisible] = useState(false);
-  const [avatarModalView, setAvatarModalView] = useState<"options" | "url">("options");
-  const [avatarInput, setAvatarInput] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState<string>("");
+  const [sharePhone, setSharePhone] = useState<boolean>(false);
+  const [aboutVisible, setAboutVisible] = useState(false);
   const [avatarPickerLoading, setAvatarPickerLoading] = useState(false);
+  const [userTypeSaving, setUserTypeSaving] = useState(false);
+  const [userTypeError, setUserTypeError] = useState<string | null>(null);
   const [privacyVisible, setPrivacyVisible] = useState(false);
   const [stats, setStats] = useState({
     topicCount: 0,
@@ -57,16 +65,12 @@ export function ProfileScreen() {
         setSavedBio(u.bio || "");
         setUserType(u.userType || "");
         setAvatarUrl(u.avatarUrl || "");
+        setPhoneNumber(u.phoneNumber || "");
+        setSharePhone(u.sharePhoneNumber === true);
       }).catch(() => {}),
       api.users.myStats(token).then(setStats).catch(() => {}),
     ]);
   }, [token]);
-
-  const closeAvatarModal = () => {
-    setAvatarModalVisible(false);
-    setAvatarModalView("options");
-    setAvatarInput("");
-  };
 
   const handlePickFromGallery = async () => {
     if (!token) return;
@@ -80,9 +84,10 @@ export function ProfileScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: "images",
         base64: true,
-        quality: 0.7,
+        quality: 0.4,
         allowsEditing: true,
         aspect: [1, 1],
+        exif: false,
       });
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
@@ -91,7 +96,6 @@ export function ProfileScreen() {
           : asset.uri;
         await api.users.updateMe({ avatarUrl: dataUrl }, token);
         setAvatarUrl(dataUrl);
-        closeAvatarModal();
       }
     } catch (e: unknown) {
       Alert.alert("Hata", e instanceof Error ? e.message : "Fotoğraf seçilemedi.");
@@ -100,21 +104,19 @@ export function ProfileScreen() {
     }
   };
 
-  const handleSaveAvatar = async () => {
-    if (!token) return;
-    const url = avatarInput.trim();
-    if (!url) {
-      setAvatarUrl("");
-      closeAvatarModal();
-      await api.users.updateMe({ avatarUrl: "" }, token).catch(() => {});
-      return;
-    }
+  const handleSelectUserType = async (type: "emigrant" | "consultant" | "diaspora") => {
+    if (!token || type === userType) return;
+    setUserTypeError(null);
+    setUserTypeSaving(true);
+    const prev = userType;
+    setUserType(type);
     try {
-      await api.users.updateMe({ avatarUrl: url }, token);
-      setAvatarUrl(url);
-      closeAvatarModal();
+      await api.users.updateMe({ userType: type }, token);
     } catch (e: unknown) {
-      Alert.alert("Hata", e instanceof Error ? e.message : "Kaydedilemedi.");
+      setUserType(prev);
+      setUserTypeError(e instanceof Error ? e.message : "Kaydedilemedi.");
+    } finally {
+      setUserTypeSaving(false);
     }
   };
 
@@ -143,11 +145,7 @@ export function ProfileScreen() {
         );
         break;
       case "about":
-        Alert.alert(
-          "GoWorldy Hakkında",
-          `Sürüm: ${APP_VERSION}\n\nGoWorldy, göç sürecinizi kolaylaştırmak için tasarlanmış güvenilir rehberinizdir.`,
-          [{ text: "Tamam" }]
-        );
+        setAboutVisible(true);
         break;
     }
   };
@@ -174,10 +172,7 @@ export function ProfileScreen() {
           <TouchableOpacity
             style={styles.avatarBox}
             activeOpacity={0.8}
-            onPress={() => {
-              setAvatarInput(avatarUrl);
-              setAvatarModalVisible(true);
-            }}
+            onPress={handlePickFromGallery}
           >
             <View style={styles.avatar}>
               {avatarUrl ? (
@@ -204,6 +199,50 @@ export function ProfileScreen() {
             )}
           </View>
           <Text style={styles.email}>{user?.email}</Text>
+          {sharePhone && !!phoneNumber && (
+            <View style={styles.phoneRow}>
+              <Ionicons name="call-outline" size={14} color={Colors.textSecondary} />
+              <Text style={styles.phoneText}>{phoneNumber}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Üye Türü Seçici */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Üye Türü</Text>
+          </View>
+          <View style={styles.chipRow}>
+            {(["emigrant", "consultant", "diaspora"] as const).map((type) => {
+              const active = userType === type;
+              const isSavingThis = userTypeSaving && active;
+              return (
+                <TouchableOpacity
+                  key={type}
+                  style={[styles.chip, active && styles.chipActive]}
+                  onPress={() => handleSelectUserType(type)}
+                  activeOpacity={0.7}
+                  disabled={userTypeSaving}
+                >
+                  {isSavingThis ? (
+                    <ActivityIndicator size="small" color={Colors.surface} />
+                  ) : (
+                    <Ionicons
+                      name={CHIP_ICONS[type]}
+                      size={14}
+                      color={active ? Colors.surface : Colors.textSecondary}
+                    />
+                  )}
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                    {USER_TYPE_LABELS[type]}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {userTypeError && (
+            <Text style={styles.inlineError}>{userTypeError}</Text>
+          )}
         </View>
 
         {/* Bio */}
@@ -261,18 +300,21 @@ export function ProfileScreen() {
               color={Colors.primary}
               value={stats.topicCount.toString()}
               label="Konu"
+              onPress={() => navigation.navigate("MyTopics")}
             />
             <StatItem
               icon="chatbubble-ellipses"
               color={Colors.secondary}
               value={stats.commentCount.toString()}
               label="Yorum"
+              onPress={() => navigation.navigate("MyComments")}
             />
             <StatItem
               icon="checkmark-done"
               color={Colors.warning}
               value={stats.completedSteps.toString()}
               label="Adım"
+              onPress={() => navigation.getParent()?.navigate("Guide")}
             />
           </View>
         </View>
@@ -282,7 +324,7 @@ export function ProfileScreen() {
           <MenuRow
             icon={<MaterialCommunityIcons name="bell-outline" size={22} color={Colors.neutral} />}
             label="Bildirim Ayarları"
-            onPress={() => navigation.navigate("Home", { screen: "Notifications" })}
+            onPress={() => navigation.getParent()?.navigate("Home", { screen: "Notifications" })}
           />
           <MenuRow
             icon={<MaterialCommunityIcons name="shield-lock-outline" size={22} color={Colors.neutral} />}
@@ -309,77 +351,22 @@ export function ProfileScreen() {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Avatar Modal */}
+      {/* About Modal */}
       <Modal
-        visible={avatarModalVisible}
+        visible={aboutVisible}
         transparent
         animationType="fade"
-        onRequestClose={closeAvatarModal}
+        onRequestClose={() => setAboutVisible(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Profil Fotoğrafı</Text>
-
-            {avatarModalView === "options" ? (
-              <>
-                <Text style={styles.modalSubtitle}>
-                  Fotoğrafınızı nasıl güncellemek istersiniz?
-                </Text>
-
-                <TouchableOpacity
-                  style={styles.avatarOptionBtn}
-                  onPress={handlePickFromGallery}
-                  activeOpacity={0.8}
-                  disabled={avatarPickerLoading}
-                >
-                  {avatarPickerLoading ? (
-                    <ActivityIndicator size="small" color={Colors.surface} />
-                  ) : (
-                    <Ionicons name="images-outline" size={20} color={Colors.surface} />
-                  )}
-                  <Text style={styles.avatarOptionBtnText}>Galeriden Seç</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.avatarOptionSecondaryBtn}
-                  onPress={() => setAvatarModalView("url")}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="link-outline" size={20} color={Colors.primary} />
-                  <Text style={styles.avatarOptionSecondaryBtnText}>URL Gir</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.modalCancel} onPress={closeAvatarModal}>
-                  <Text style={styles.modalCancelText}>İptal</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <Text style={styles.modalSubtitle}>
-                  Fotoğrafınızın doğrudan bağlantısını girin (https://...)
-                </Text>
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="https://..."
-                  placeholderTextColor={Colors.textMuted}
-                  value={avatarInput}
-                  onChangeText={setAvatarInput}
-                  autoCapitalize="none"
-                  keyboardType="url"
-                />
-                <View style={styles.modalActions}>
-                  <TouchableOpacity
-                    style={styles.modalCancel}
-                    onPress={() => setAvatarModalView("options")}
-                  >
-                    <Text style={styles.modalCancelText}>Geri</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.modalSave} onPress={handleSaveAvatar}>
-                    <Text style={styles.modalSaveText}>Kaydet</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
+            <Text style={styles.modalTitle}>GoWorldy Hakkında</Text>
+            <Text style={styles.modalSubtitle}>
+              {`Sürüm: ${APP_VERSION}\n\nGoWorldy, göç sürecinizi kolaylaştırmak için tasarlanmış güvenilir rehberinizdir.`}
+            </Text>
+            <TouchableOpacity style={styles.modalSave} onPress={() => setAboutVisible(false)}>
+              <Text style={styles.modalSaveText}>Tamam</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -390,7 +377,13 @@ export function ProfileScreen() {
         animationType="slide"
         onRequestClose={() => setPrivacyVisible(false)}
       >
-        <PrivacyScreen onBack={() => setPrivacyVisible(false)} />
+        <PrivacyScreen
+          onBack={() => setPrivacyVisible(false)}
+          onPhoneSettingsChange={(phone, share) => {
+            setPhoneNumber(phone);
+            setSharePhone(share);
+          }}
+        />
       </Modal>
     </>
   );
@@ -401,18 +394,20 @@ function StatItem({
   color,
   value,
   label,
+  onPress,
 }: {
   icon: React.ComponentProps<typeof Ionicons>["name"];
   color: string;
   value: string;
   label: string;
+  onPress?: () => void;
 }) {
   return (
-    <View style={styles.statItem}>
+    <TouchableOpacity style={styles.statItem} onPress={onPress} activeOpacity={0.75}>
       <Ionicons name={icon} size={22} color={color} />
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -451,7 +446,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
-    marginBottom: 20,
+    marginBottom: Spacing.lg,
   },
   headerTitle: {
     ...Typography.h1,
@@ -538,6 +533,16 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 4,
   },
+  phoneRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+  },
+  phoneText: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+  },
   section: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
@@ -550,7 +555,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 10,
+    marginBottom: Spacing.sm,
   },
   sectionTitle: {
     ...Typography.body,
@@ -576,7 +581,7 @@ const styles = StyleSheet.create({
   editActions: {
     flexDirection: "row",
     gap: Spacing.sm,
-    marginTop: 10,
+    marginTop: Spacing.sm,
     justifyContent: "flex-end",
   },
   cancelBtn: {
@@ -600,6 +605,39 @@ const styles = StyleSheet.create({
   saveBtnText: {
     color: Colors.surface,
     fontWeight: "600",
+  },
+  chipRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    flexWrap: "wrap",
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.full,
+    borderWidth: 1.5,
+    borderColor: Colors.borderStrong,
+    backgroundColor: Colors.background,
+  },
+  chipActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary,
+  },
+  chipText: {
+    ...Typography.label,
+    color: Colors.textSecondary,
+  },
+  chipTextActive: {
+    color: Colors.surface,
+    fontWeight: "600",
+  },
+  inlineError: {
+    ...Typography.small,
+    color: Colors.danger,
+    marginTop: Spacing.sm,
   },
   statsGrid: {
     flexDirection: "row",
@@ -686,31 +724,6 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginBottom: 16,
   },
-  modalInput: {
-    backgroundColor: Colors.background,
-    borderWidth: 1,
-    borderColor: Colors.borderStrong,
-    borderRadius: Radius.md,
-    padding: 12,
-    fontSize: 14,
-    color: Colors.textPrimary,
-    marginBottom: 16,
-  },
-  modalActions: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-    justifyContent: "flex-end",
-  },
-  modalCancel: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    minHeight: MinTapTarget,
-    justifyContent: "center",
-  },
-  modalCancelText: {
-    color: Colors.textSecondary,
-    fontWeight: "500",
-  },
   modalSave: {
     backgroundColor: Colors.primary,
     paddingHorizontal: 18,
@@ -718,37 +731,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.sm,
     minHeight: MinTapTarget,
     justifyContent: "center",
-  },
-  avatarOptionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.md,
-    paddingVertical: 14,
-    gap: 8,
-    marginBottom: Spacing.sm,
-  },
-  avatarOptionBtnText: {
-    color: Colors.surface,
-    fontWeight: "600",
-    fontSize: 15,
-  },
-  avatarOptionSecondaryBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: Colors.primary,
-    borderRadius: Radius.md,
-    paddingVertical: 14,
-    gap: 8,
-    marginBottom: Spacing.md,
-  },
-  avatarOptionSecondaryBtnText: {
-    color: Colors.primary,
-    fontWeight: "600",
-    fontSize: 15,
   },
   modalSaveText: {
     color: Colors.surface,

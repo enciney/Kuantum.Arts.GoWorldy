@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { getDb } from "./db";
-import { IForumRepository, ForumCountry, ForumCategory, ForumTopic, ForumComment, ForumStats } from "../interfaces";
+import { IForumRepository, ForumCountry, ForumCategory, ForumTopic, ForumComment, ForumStats, ForumSearchResult } from "../interfaces";
 
 export class SqliteForumRepository implements IForumRepository {
   async getCountries(): Promise<ForumCountry[]> {
@@ -26,6 +26,30 @@ export class SqliteForumRepository implements IForumRepository {
     const id = crypto.randomUUID();
     getDb().prepare("INSERT INTO forum_categories (id, countryId, name, parentId) VALUES (?, ?, ?, ?)").run(id, data.countryId, data.name, data.parentId || null);
     return { id, ...data };
+  }
+
+  async searchTopics(query: string, countryId?: string): Promise<ForumSearchResult[]> {
+    const like = `%${query}%`;
+    const base = `
+      SELECT t.*, COALESCE(uc.cnt, 0) AS commentCount,
+             (SELECT COUNT(*) FROM forum_topic_upvotes uv WHERE uv.topicId = t.id) AS upvotes,
+             fc.name AS categoryName, fc.countryId, co.name AS countryName
+      FROM forum_topics t
+      LEFT JOIN (SELECT topicId, COUNT(*) AS cnt FROM forum_comments GROUP BY topicId) uc ON uc.topicId = t.id
+      JOIN forum_categories fc ON fc.id = t.categoryId
+      JOIN forum_countries co ON co.id = fc.countryId
+      WHERE t.status = 'approved'
+        AND (t.title LIKE ?
+             OR EXISTS (SELECT 1 FROM forum_comments cm WHERE cm.topicId = t.id AND cm.content LIKE ?))
+    `;
+    if (countryId) {
+      return getDb()
+        .prepare(base + " AND fc.countryId = ? ORDER BY t.createdAt DESC LIMIT 50")
+        .all(like, like, countryId) as unknown as ForumSearchResult[];
+    }
+    return getDb()
+      .prepare(base + " ORDER BY t.createdAt DESC LIMIT 50")
+      .all(like, like) as unknown as ForumSearchResult[];
   }
 
   async getTopics(categoryId: string): Promise<ForumTopic[]> {
@@ -81,6 +105,22 @@ export class SqliteForumRepository implements IForumRepository {
     return result.count;
   }
 
+  async upvoteTopic(topicId: string, userId: string): Promise<{ upvotes: number; hasVoted: boolean }> {
+    const db = getDb();
+    const existing = db
+      .prepare("SELECT 1 FROM forum_topic_upvotes WHERE topicId = ? AND userId = ?")
+      .get(topicId, userId);
+    if (existing) {
+      db.prepare("DELETE FROM forum_topic_upvotes WHERE topicId = ? AND userId = ?").run(topicId, userId);
+    } else {
+      db.prepare("INSERT INTO forum_topic_upvotes (topicId, userId) VALUES (?, ?)").run(topicId, userId);
+    }
+    const result = db
+      .prepare("SELECT COUNT(*) as count FROM forum_topic_upvotes WHERE topicId = ?")
+      .get(topicId) as unknown as { count: number };
+    return { upvotes: result.count, hasVoted: !existing };
+  }
+
   async getComments(topicId: string): Promise<ForumComment[]> {
     return getDb()
       .prepare(`
@@ -123,6 +163,34 @@ export class SqliteForumRepository implements IForumRepository {
       .prepare("SELECT COUNT(*) as count FROM forum_comments WHERE authorId = ?")
       .get(userId) as unknown as { count: number };
     return r.count;
+  }
+
+  async getTopicsByAuthor(userId: string, limit: number, offset: number): Promise<ForumTopic[]> {
+    return getDb()
+      .prepare(`
+        SELECT t.*, COALESCE(c.cnt, 0) AS commentCount
+        FROM forum_topics t
+        LEFT JOIN (
+          SELECT topicId, COUNT(*) AS cnt FROM forum_comments GROUP BY topicId
+        ) c ON c.topicId = t.id
+        WHERE t.authorId = ?
+        ORDER BY t.createdAt DESC
+        LIMIT ? OFFSET ?
+      `)
+      .all(userId, limit, offset) as unknown as ForumTopic[];
+  }
+
+  async getCommentsByAuthor(userId: string, limit: number, offset: number): Promise<{ id: string; topicId: string; topicTitle: string; content: string; createdAt: string }[]> {
+    return getDb()
+      .prepare(`
+        SELECT fc.id, fc.topicId, t.title AS topicTitle, fc.content, fc.createdAt
+        FROM forum_comments fc
+        JOIN forum_topics t ON t.id = fc.topicId
+        WHERE fc.authorId = ?
+        ORDER BY fc.createdAt DESC
+        LIMIT ? OFFSET ?
+      `)
+      .all(userId, limit, offset) as unknown as { id: string; topicId: string; topicTitle: string; content: string; createdAt: string }[];
   }
 
   async getRecentCommentsByAuthor(userId: string, limit: number): Promise<{ id: string; content: string; topicId: string; topicTitle: string; createdAt: string }[]> {

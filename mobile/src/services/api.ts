@@ -91,6 +91,9 @@ export const api = {
         avatarUrl?: string;
         phoneNumber?: string;
         sharePhoneNumber?: number;
+        userType?: "emigrant" | "consultant" | "diaspora";
+        onboardingCompleted?: boolean;
+        targetCountryId?: string;
       },
       token: string
     ) =>
@@ -107,6 +110,18 @@ export const api = {
         completedSteps: number;
       }>("/users/me/stats", { token }),
 
+    myTopics: (token: string, limit = 20, offset = 0) =>
+      request<{ id: string; title: string; status: string; isPinned: boolean; commentCount: number; createdAt: string }[]>(
+        `/users/me/topics?limit=${limit}&offset=${offset}`,
+        { token }
+      ),
+
+    myComments: (token: string, limit = 20, offset = 0) =>
+      request<{ id: string; topicId: string; topicTitle: string; content: string; createdAt: string }[]>(
+        `/users/me/comments?limit=${limit}&offset=${offset}`,
+        { token }
+      ),
+
     myActivity: (token: string) =>
       request<{
         type: "comment" | "guide";
@@ -116,6 +131,18 @@ export const api = {
         targetId: string | null;
         createdAt: string;
       }[]>("/users/me/activity", { token }),
+
+    consultants: (token?: string) =>
+      request<{ id: string; displayName: string; bio?: string; avatarUrl?: string; userType: string }[]>(
+        "/users/consultants",
+        token ? { token } : {}
+      ),
+
+    consultant: (id: string, token?: string) =>
+      request<{ id: string; displayName: string; bio?: string; avatarUrl?: string; userType: string }>(
+        `/users/consultants/${id}`,
+        token ? { token } : {}
+      ),
   },
 
   forum: {
@@ -146,6 +173,18 @@ export const api = {
       request<{ id: string; status: string }>("/forum/topics", {
         method: "POST",
         body: JSON.stringify({ categoryId, title }),
+        token,
+      }),
+    search: (q: string, countryId?: string) => {
+      const params = new URLSearchParams({ q });
+      if (countryId) params.set("countryId", countryId);
+      return request<{ id: string; title: string; categoryName: string; countryName: string; createdAt: string; commentCount: number; upvotes?: number }[]>(
+        `/forum/search?${params.toString()}`
+      );
+    },
+    upvoteTopic: (topicId: string, token: string) =>
+      request<{ upvotes: number; hasVoted: boolean }>(`/forum/topics/${topicId}/upvote`, {
+        method: "POST",
         token,
       }),
   },

@@ -155,10 +155,10 @@ export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreate
             disabled={submitting}
           >
             {submitting ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={Colors.surface} />
             ) : (
               <>
-                <Ionicons name="send" size={18} color="#fff" />
+                <Ionicons name="send" size={18} color={Colors.surface} />
                 <Text style={styles.btnText}>Onayla ve Gönder</Text>
               </>
             )}

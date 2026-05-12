@@ -18,8 +18,10 @@ export function userRoutes(repos: Repositories): Router {
 
   router.patch("/me", authMiddleware, async (req: AuthRequest, res) => {
     try {
-      const { displayName, bio, phoneNumber, sharePhoneNumber, avatarUrl } = req.body;
-      const allowed: Partial<{ displayName: string; bio: string; phoneNumber: string; sharePhoneNumber: boolean; avatarUrl: string }> = {};
+      const { displayName, bio, phoneNumber, sharePhoneNumber, avatarUrl, userType } = req.body;
+      const VALID_USER_TYPES = ["emigrant", "consultant", "diaspora"] as const;
+      type ValidUserType = typeof VALID_USER_TYPES[number];
+      const allowed: Partial<{ displayName: string; bio: string; phoneNumber: string; sharePhoneNumber: boolean; avatarUrl: string; userType: ValidUserType }> = {};
       if (typeof displayName === "string" && displayName.trim()) {
         allowed.displayName = displayName.trim();
       }
@@ -34,6 +36,16 @@ export function userRoutes(repos: Repositories): Router {
       }
       if (typeof avatarUrl === "string") {
         allowed.avatarUrl = avatarUrl;
+      }
+      if (typeof userType === "string" && (VALID_USER_TYPES as readonly string[]).includes(userType)) {
+        allowed.userType = userType as ValidUserType;
+      }
+      const { onboardingCompleted, targetCountryId } = req.body;
+      if (typeof onboardingCompleted === "boolean") {
+        (allowed as any).onboardingCompleted = onboardingCompleted;
+      }
+      if (typeof targetCountryId === "string") {
+        (allowed as any).targetCountryId = targetCountryId;
       }
       if (Object.keys(allowed).length === 0) {
         return res.status(400).json({ error: "Güncellenecek alan yok" });
@@ -97,6 +109,51 @@ export function userRoutes(repos: Repositories): Router {
         .slice(0, 10);
 
       res.json(activities);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.get("/me/topics", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const limit = Math.min(Number(req.query.limit) || 20, 50);
+      const offset = Number(req.query.offset) || 0;
+      const topics = await repos.forum.getTopicsByAuthor(req.userId!, limit, offset);
+      res.json(topics);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.get("/me/comments", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const limit = Math.min(Number(req.query.limit) || 20, 50);
+      const offset = Number(req.query.offset) || 0;
+      const comments = await repos.forum.getCommentsByAuthor(req.userId!, limit, offset);
+      res.json(comments);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.get("/consultants", async (_req, res) => {
+    try {
+      const consultants = await repos.users.search({ userType: "consultant", limit: 50, offset: 0 });
+      const safe = consultants.map(({ passwordHash, ...u }) => u);
+      res.json(safe);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.get("/consultants/:id", async (req, res) => {
+    try {
+      const user = await repos.users.findById(req.params.id as string);
+      if (!user || user.userType !== "consultant") {
+        return res.status(404).json({ error: "Danışman bulunamadı" });
+      }
+      const { passwordHash, ...safe } = user;
+      res.json(safe);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }

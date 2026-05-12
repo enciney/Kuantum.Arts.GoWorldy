@@ -130,9 +130,9 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, onBack }: Props) {
           disabled={!reply.trim() || posting}
         >
           {posting ? (
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color={Colors.surface} />
           ) : (
-            <Ionicons name="send" size={18} color="#fff" />
+            <Ionicons name="send" size={18} color={Colors.surface} />
           )}
         </TouchableOpacity>
       </View>

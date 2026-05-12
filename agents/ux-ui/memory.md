@@ -340,5 +340,135 @@ Tüm `mobile/src/` ve `admin/src/` değişiklikleri incelendi. Stakeholder Sprin
 | RU3 | **P2** | Onboarding flow ekranları spec'i | Kayıt sonrası 3 adımlı wizard: (1) Nereye gitmek istiyorsun? (ülke seç), (2) Ne zaman? (zaman dilimi), (3) Başlayalım (özet + CTA). Skip butonu her adımda. |
 | RU4 | **P2** | Danışman listesi & profil ekranı spec'i | Listede: fotoğraf, isim, uzmanlık alanı (ülke), kısa bio. Profil detayda: iletişim butonu (mailto veya DM). |
 
+## Sprint 7 — Profil UX Görevleri (Tamamlandı — 2026-05-12)
+
+### PU-1 — userType Seçici UI — ÇÖZÜLDÜ ✅
+- **Uygulanan**: `ProfileScreen.tsx` — `CHIP_ICONS` map eklendi (`location-outline`, `briefcase-outline`, `earth-outline`).
+- Chip içi ikon + text yan yana (`flexDirection: "row"`, `gap: Spacing.xs`).
+- Aktif chip: `backgroundColor: Colors.primary`, text `Colors.surface`, ikon beyaz — spec'e tam uyumlu.
+- Seçilmemiş chip: `Colors.background` arka plan, `Colors.borderStrong` border.
+- Kaydedilirken: aktif chip içinde `ActivityIndicator` (header'daki spinner kaldırıldı).
+- Hata: chip altında kırmızı inline metin.
+- **Kabul edilen fark**: Spec'te `map-marker-outline` istendi; Ionicons'da karşılığı `location-outline` — semantik aynı, aynı ikon ailesi.
+
+### PU-2 — Telefon Numarası Input — ÇÖZÜLDÜ ✅
+- **Uygulanan**: `PrivacyScreen.tsx` — `phoneSaveSuccess` state eklendi.
+- Kaydet butonu 3 durumu destekliyor: spinner (kayıt sırasında) → yeşil `checkmark` ikonu (`Colors.secondary`, 2 saniye) → normal "Kaydet" metni.
+- `phoneSaveBtnSuccess` stili eklendi: `backgroundColor: Colors.secondary`.
+- Hata: `phoneError` state ile kırmızı satır-altı metin (Alert yok).
+
+## Design Audit — Mobile (2026-05-12, Sprint 8)
+
+### git diff main Taranan Dosyalar
+`mobile/src/screens/main/ProfileScreen.tsx`, `mobile/src/screens/main/PrivacyScreen.tsx`,
+`mobile/src/services/api.ts`, `api/src/routes/users.ts`.
+
+### Uygulanan Düzeltmeler ✅
+
+| Dosya | Satır | Değişiklik | Neden |
+|-------|-------|-----------|-------|
+| `main/ProfileScreen.tsx` | CHIP_ICONS | `CHIP_ICONS` map eklendi — her userType için Ionicons adı | PU-1 spec ikonları eksikti |
+| `main/ProfileScreen.tsx` | chip JSX | Chip içine ikon + `ActivityIndicator` (kaydedilirken) | PU-1 spec — ikon spec zorunlu |
+| `main/ProfileScreen.tsx` | `chipActive` | `backgroundColor: Colors.primaryLight` → `Colors.primary` | PU-1 spec solid primary istiyordu |
+| `main/ProfileScreen.tsx` | `chipTextActive` | `color: Colors.primary` → `Colors.surface` | Solid bg üstünde beyaz metin gerekli |
+| `main/ProfileScreen.tsx` | `chip` style | `flexDirection: "row"`, `alignItems: "center"`, `gap: Spacing.xs` eklendi | İkon + metin yan yana düzen |
+| `main/ProfileScreen.tsx` | `chip` style | `paddingHorizontal: 16` → `Spacing.md`, `paddingVertical: 8` → `Spacing.sm` | Token uyumu |
+| `main/ProfileScreen.tsx` | sectionHeader | `{userTypeSaving && <ActivityIndicator>}` kaldırıldı | Spinner artık chip içinde |
+| `main/ProfileScreen.tsx` | `header` style | `marginBottom: 20` → `Spacing.lg` | 4px grid uyumu |
+| `main/ProfileScreen.tsx` | `sectionHeader` style | `marginBottom: 10` → `Spacing.sm` | 4px grid uyumu |
+| `main/ProfileScreen.tsx` | `editActions` style | `marginTop: 10` → `Spacing.sm` | 4px grid uyumu |
+| `main/PrivacyScreen.tsx` | `handleSavePhone` | Başarı sonrası `setPhoneSaveSuccess(true)` + 2s timeout | PU-2 spec: yeşil onay ikonu |
+| `main/PrivacyScreen.tsx` | phoneSaveBtn | 3 state: spinner → yeşil checkmark (2s) → "Kaydet" | PU-2 spec uyumu |
+| `main/PrivacyScreen.tsx` | `phoneSaveBtnSuccess` style | `backgroundColor: Colors.secondary` eklendi | Yeşil success rengi |
+
+### Kabul Edilen Farklar (Değiştirilmedi)
+- `ProfileScreen.tsx` `paddingTop: 56`, `paddingBottom: 40` — safe area ofsetleri, token dışı kabul edilebilir.
+- `ProfileScreen.tsx` `padding: 12` (bioInput, modalInput) — 3×4px, named token yok; görsel olarak uyumlu.
+- `ProfileScreen.tsx` `paddingVertical: 14` (menuRow, logoutBtn, avatarOptionBtn) — 3.5 grid, kabul edilebilir.
+- Chip ikon adı: spec `map-marker-outline` (MaterialCommunityIcons) → `location-outline` (Ionicons) — semantik aynı, daha tutarlı ikon ailesi.
+
+### Tespit Edilen Açık Sorunlar (Sprint 8, Çözülmedi)
+- **AU1** (P3): AdminConfigPage — editable forum fiyatlandırma inputları
+- **AU2** (P3): AdminDashboardPage — loading skeleton yok
+- **AU3** (P3): AdminLoginPage — şifre show/hide toggle yok
+- **RU1** (P1): Forum arama ekranı — spec yazılmamış, developer bekliyor
+- **RU2** (P1): Upvote butonu — spec yazılmamış, developer bekliyor
+- **RU3** (P2): Onboarding flow ekranları spec'i — yazılmamış
+- **RU4** (P2): Danışman listesi & profil ekranı spec'i — yazılmamış
+
+## Sprint 8 — UX Görevleri (2026-05-12)
+
+### CU1 — Avatar Modal Basitleştirmesi (C2 — Developer sonrası doğrulama)
+- **Stakeholder kararı**: "Sadece galeriden yükleme" — URL input akışı kaldırıldı.
+- **Yeni akış**: Avatar'a dokun → galeri direkt açılır → seç → otomatik kaydet. Modal yok.
+- **UX notu**: Modal kaldırılınca "avatarOverlay" (kamera ikonu) tek CTA olarak kalıyor. İkon üzerindeki `activeOpacity` animasyonu korunmalı. Loading sırasında avatar alanında `ActivityIndicator` göster (önceki spec'e uygun).
+- **Developer implementasyonu**: `C2` görev olarak developer memory'de.
+
+### CU2 — İstatistik Kartları Tıklama Feedback'i (C3 — Developer sonrası doğrulama)
+- **Değişiklik**: `StatItem` → `TouchableOpacity` olacak (developer görevi C3).
+- **UX spec**: `activeOpacity={0.75}`, tap sonrası hafif scale animasyonu opsiyonel (MVP'de gerekli değil).
+- **Navigasyon hedefleri**: Konu + Yorum → Forum tab, Adım → Guide tab.
+- **Görsel ipucu**: Tıklanabilirliği göstermek için her stat kartının sağ alt köşesine küçük `chevron-forward` ikonu eklenebilir (P3, opsiyonel).
+
+## Design Audit — Mobile (2026-05-12, Sprint 9)
+
+### git diff main Taranan Dosyalar
+`ProfileScreen.tsx`, `PrivacyScreen.tsx`, `AppNavigator.tsx` (Sprint 8 — C1/C2/C3/C4 değişiklikleri).
+`CreateTopicScreen.tsx`, `ForumTopicDetailScreen.tsx`, `ForumTopicsScreen.tsx`, `GuideScreen.tsx` (T10-T13 token fix).
+
+### CU1 + CU2 Doğrulaması ✅
+
+| Görev | Durum | Detay |
+|-------|-------|-------|
+| CU1: Avatar modal kaldırıldı | ✅ | Galeri direkt açılıyor; `avatarModalVisible` state silindi |
+| CU2: StatItem → TouchableOpacity | ✅ | `activeOpacity={0.75}`, Konu/Yorum → Forum tab, Adım → Guide tab |
+| C4: About → React Native Modal | ✅ | `Alert.alert` kaldırıldı, `aboutVisible` state + Modal |
+
+### T10-T13 — ÇÖZÜLDÜ ✅ (Sprint 9)
+
+| Dosya | Satır | Değişiklik | Neden |
+|-------|-------|-----------|-------|
+| `main/CreateTopicScreen.tsx` | 158,161 | `color="#fff"` → `color={Colors.surface}` (2 adet) | Token tutarsızlığı |
+| `main/ForumTopicDetailScreen.tsx` | 133,135 | `color="#fff"` → `color={Colors.surface}` (2 adet) | Token tutarsızlığı |
+| `main/ForumTopicsScreen.tsx` | 149 | FAB `color="#fff"` → `color={Colors.surface}` | Token tutarsızlığı |
+| `main/GuideScreen.tsx` | 301,304,406 | `color="#fff"` → `color={Colors.surface}` (3 adet) | Token tutarsızlığı |
+
+### PrivacyScreen WCAG Düzeltmesi ✅
+
+| Dosya | Değişiklik | Neden |
+|-------|-----------|-------|
+| `main/PrivacyScreen.tsx` | `MinTapTarget` import eklendi | Eksikti |
+| `main/PrivacyScreen.tsx` | `phoneSaveBtn minHeight: 36` → `MinTapTarget` (44pt) | WCAG AA minimum 44×44pt |
+| `main/PrivacyScreen.tsx` | `phoneSaveBtn paddingVertical: 8` → `Spacing.sm` | Token uyumu |
+
+### Kabul Edilen İstisnalar (Değiştirilmedi)
+- `PrivacyScreen.tsx` `phoneInput paddingHorizontal: 10`, `paddingVertical: 6` — küçük inline input, kabul edilebilir.
+- `ProfileScreen.tsx` `avatarBox marginBottom: 12`, `badgeRow marginTop: 6` — 3×4px / 1.5×4px, görsel olarak uyumlu, kabul edilebilir.
+- `ProfileScreen.tsx` `avatarOverlay rgba(0,0,0,0.4)` — kasıtlı spec değeri.
+- `AppNavigator.tsx` — tamamen token uyumlu, değişiklik gerekmedi.
+
+### RU1–RU4 Spec Dosyaları — YAZILDI ✅
+
+| Kod | Öncelik | Dosya | Durum |
+|-----|---------|-------|-------|
+| RU1 | P1 | `designs/forum-search-spec.md` | ✅ Yazıldı |
+| RU2 | P1 | `designs/upvote-spec.md` | ✅ Yazıldı |
+| RU3 | P2 | `designs/onboarding-spec.md` | ✅ Yazıldı |
+| RU4 | P2 | `designs/consultant-spec.md` | ✅ Yazıldı |
+
+### Tespit Edilen Açık Sorunlar (Sprint 9 Sonrası)
+- **AU1** (P3): AdminConfigPage — editable forum fiyatlandırma inputları
+- **AU2** (P3): AdminDashboardPage — loading skeleton yok
+- **AU3** (P3): AdminLoginPage — şifre show/hide toggle yok
+- **RU1** (P1): `ForumSearchScreen` — spec hazır, developer implementasyonu bekliyor
+- **RU2** (P1): Upvote butonu — spec hazır, developer implementasyonu bekliyor
+- **RU3** (P2): Onboarding flow ekranları — spec hazır, developer implementasyonu bekliyor
+- **RU4** (P2): Danışman listesi & profil — spec hazır, developer implementasyonu bekliyor
+- **Onboarding backend**: `migrationTimeline` alanı `users` tablosuna eklenmeli (developer görevi, R4 genişlemesi)
+- **Consultant backend**: `targetCountryName` alanı consultant response'a eklenmeli
+
+### Spec Dosyası
+Tam audit detayları bu memory dosyasında. Spec dosyaları: `designs/forum-search-spec.md`, `designs/upvote-spec.md`, `designs/onboarding-spec.md`, `designs/consultant-spec.md`.
+
 ## User Research Notes
 <!-- Populate as user feedback comes in -->

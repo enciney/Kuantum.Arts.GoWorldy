@@ -289,9 +289,159 @@ Tüm P0/P1/P2 maddeler çözülmüş. Tek açık P3 madde: D_NEW2 (followingCoun
 
 ---
 
+## Test Raporu — 2026-05-12 (6. Tur — Sprint 7 Doğrulaması)
+
+### Özet
+Sprint 6 stakeholder düzeltmeleri (FETCH-1, PROF-1–3) ve UX Sprint 7 token değişiklikleri kaynak kodu incelenerek doğrulandı. **2 P1 sorun açık** (PS-1, PS-2 — Sprint 7 görevleri henüz uygulanmamış). 4 yeni P3 bulgu tespit edildi. tsc API + Mobile + Admin temiz.
+
+---
+
+### Sprint 6 / Stakeholder Sprint Doğrulaması
+
+| ID | Önem | Doğrulama | Dosya:Satır |
+|----|------|-----------|-------------|
+| FETCH-1 | P0 | ✅ `BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000/api"` — localhost'tan kurtulundu | `api.ts:1` |
+| PROF-1 | P1 | ✅ `PrivacyScreen.handlePhoneToggle` → `PATCH /users/me { sharePhoneNumber }` — kod doğru | `PrivacyScreen.tsx:38-51` |
+| PROF-2 | P1 | ✅ `ProfileScreen.handleSaveBio` → `PATCH /users/me { bio }` — kod doğru | `ProfileScreen.tsx:121-133` |
+| PROF-3 | P2 | ✅ `expo-image-picker` entegre, galeri seçici + URL modal çalışıyor | `ProfileScreen.tsx:71-101` |
+
+### UX Sprint 7 Doğrulaması (Token Değişiklikleri)
+
+| Dosya | Durum | Açıklama |
+|-------|-------|----------|
+| `ProfileScreen.tsx` | ✅ Temiz | `#fff` hardcoded değer yok — `Colors.surface` kullanılıyor |
+| `PremiumScreen.tsx` | ✅ Temiz | `#fff` hardcoded değer yok — `Colors.surface` kullanılıyor |
+| `HomeScreen.tsx` | ✅ Temiz | `#fff` hardcoded değer yok — `Colors.surface` kullanılıyor |
+
+---
+
+### Yeni Sorunlar — Sprint 7 (Açık P1)
+
+| ID | Ekran | Element | Önem | Açıklama | Dosya:Satır |
+|----|-------|---------|------|----------|-------------|
+| S7-1 | ProfileScreen | userType seçici (chip/pill UI) | **P1-Yüksek** | `ProfileScreen` userType badge GÖSTERIYOR ama değiştirme UI'ı yok. `api.ts updateMe()` parametrelerinde `userType` yok (`mobile/src/services/api.ts:88-94`). `routes/users.ts PATCH /me` handler'ında `userType` işlenmiyor (`api/src/routes/users.ts:21-37`). Developer memory'de PS-1 olarak tanımlanmış ama henüz uygulanmamış. | `ProfileScreen.tsx:38,163` — `api.ts:88-94` — `routes/users.ts:21` |
+| S7-2 | PrivacyScreen | Telefon numarası input alanı | **P1-Yüksek** | PrivacyScreen'de "Telefon Numaramı Paylaş" toggle'ı var ama telefon numarasının GİRİLECEĞİ TextInput yok. Backend `PATCH /users/me { phoneNumber }` destekliyor — frontend UI eksik. Developer memory'de PS-2 olarak tanımlanmış ama henüz uygulanmamış. | `PrivacyScreen.tsx` — toggle var (satır:38-51), input yok |
+
+---
+
+### Yeni Sorunlar — P3 (Token Tutarsızlığı)
+
+| ID | Ekran | Element | Önem | Açıklama | Dosya:Satır |
+|----|-------|---------|------|----------|-------------|
+| T10 | CreateTopicScreen | Gönder butonu | **P3-Düşük** | `ActivityIndicator color="#fff"` + `Ionicons color="#fff"` — `Colors.surface` olmalı. UX Sprint 7 bu dosyayı kapsamamış. | `CreateTopicScreen.tsx:158,161` |
+| T11 | ForumTopicDetailScreen | Yorum gönder butonu | **P3-Düşük** | `ActivityIndicator color="#fff"` + `Ionicons color="#fff"` — aynı token tutarsızlığı. | `ForumTopicDetailScreen.tsx:133,135` |
+| T12 | ForumTopicsScreen | FAB "+" butonu | **P3-Düşük** | `Ionicons name="add" color="#fff"` — `Colors.surface` olmalı. | `ForumTopicsScreen.tsx:149` |
+| T13 | GuideScreen | Modal kaydet butonu + tamamlanan adım dot | **P3-Düşük** | `ActivityIndicator color="#fff"` + `Ionicons color="#fff"` (2 yerde) — `Colors.surface` olmalı. | `GuideScreen.tsx:301,304,406` |
+
+---
+
+### tsc Durumu (2026-05-12 6. Tur)
+- API: temiz (0 hata)
+- Mobile: temiz (0 hata)
+- Admin: temiz (0 hata)
+
+---
+
+### Developer İçin Düzeltilecek Maddeler (Öncelik Sırasıyla)
+
+1. **[S7-1 — P1]** `api/src/routes/users.ts:21-37` — `PATCH /me` handler'ına `userType` alanı ekle:
+   ```typescript
+   const VALID_USER_TYPES = ["emigrant", "consultant", "diaspora"] as const;
+   if (typeof userType === "string" && VALID_USER_TYPES.includes(userType as any)) {
+     allowed.userType = userType;
+   }
+   ```
+   Sonra `mobile/src/services/api.ts:88-94` `updateMe` parametrelerine `userType?: string` ekle.
+   Son olarak `mobile/src/screens/main/ProfileScreen.tsx` — Bio section'ından ÖNCE 3'lü chip/pill seçici ekle (UX spec: `agents/ux-ui/memory.md` PU-1 bölümü).
+
+2. **[S7-2 — P1]** `mobile/src/screens/main/PrivacyScreen.tsx` — "İLETİŞİM BİLGİLERİ" kartına toggle'ın üstüne `phoneNumber` TextInput alanı ekle. `api.users.me` ile mevcut numarayı yükle, kaydetme `updateMe({ phoneNumber })`. Inline başarı/hata mesajı. UX spec: `agents/ux-ui/memory.md` PU-2 bölümü.
+
+3. **[T10-T13 — P3]** `CreateTopicScreen.tsx:158,161`, `ForumTopicDetailScreen.tsx:133,135`, `ForumTopicsScreen.tsx:149`, `GuideScreen.tsx:301,304,406` — `color="#fff"` → `color={Colors.surface}` (UX Sprint 7 kapsamı dışında kalan 7 yer). UX/UI agent görevi.
+
+---
+
+## Test Raporu — 2026-05-12 (7. Tur — Sprint 8 Doğrulaması)
+
+### Özet
+Sprint 7 maddelerinin (S7-1, S7-2) kaynak kod ile doğrulanması tamamlandı — ikisi de çözülmüş. Sprint 8 görevleri (C1–C4) incelendi: **4 madde açık** — 1 P0, 3 P1. T10–T13 token tutarsızlıkları hâlâ mevcut (P3, UX/UI agent görevi). tsc API + Mobile + Admin temiz.
+
+---
+
+### Sprint 7 Doğrulaması
+
+| ID | Önem | Durum | Doğrulama | Dosya:Satır |
+|----|------|-------|-----------|-------------|
+| S7-1 | P1 | ✅ Çözüldü | `ProfileScreen.tsx` — `handleSelectUserType` (satır 129-143) + 3'lü chip seçici (satır 239-268). `api.ts:94` — `updateMe` parametrelerinde `userType?`. `routes/users.ts:40-42` — VALID_USER_TYPES kontrolü ve `allowed.userType` ataması. | `ProfileScreen.tsx:129,239` — `api.ts:94` — `routes/users.ts:40` |
+| S7-2 | P1 | ✅ Çözüldü | `PrivacyScreen.tsx` — `phoneNumber` / `phoneSaved` / `phoneSaving` / `phoneError` state'leri (satır 25-28). `handleSavePhone` (satır 46-59). TextInput (satır 104-116). "Kaydet" butonu (satır 121-138). `api.ts:92` — `updateMe` parametrelerinde `phoneNumber?`. `routes/users.ts:31-33` — backend destekliyor. | `PrivacyScreen.tsx:25,46,104` — `api.ts:92` — `routes/users.ts:31` |
+
+---
+
+### Sprint 8 — Açık Sorunlar
+
+| ID | Ekran | Element | Önem | Açıklama | Dosya:Satır |
+|----|-------|---------|------|----------|-------------|
+| C1 | Tüm ekranlar (PATCH endpoint'leri) | CORS origin kontrolü | **P0-Kritik** | `api/src/index.ts:15-17` — `allowedOrigins` env yokken `["localhost:3000", "localhost:5173", "localhost:19006"]` array'ine default ediyor. Expo web dev server `localhost:8081` üzerinden çalışıyorsa tüm `PATCH /api/users/me` ve `PATCH /api/notifications/subscriptions/:id` istekleri CORS preflight'ta başarısız. Etkilenen akışlar: bio kaydetme, userType seçimi, telefon numarası, telefon paylaş toggle, takip toggle. Fix: env yokken `true` (tüm originlere izin ver — dev). | `api/src/index.ts:15-17` |
+| C2 | ProfileScreen | Avatar düzenleme | **P1-Yüksek** | `ProfileScreen.tsx` — avatar modal hâlâ iki seçenekli (satır 374-447): `avatarModalView` state ("options"/"url"), "Galeriden Seç" + "URL Gir" seçenekleri, `handleSaveAvatar` URL handler, `avatarModalVisible`/`avatarModalView`/`avatarInput` state'leri. Stakeholder "sadece localden yükleme kalsın, URL girişini kaldır" dedi (developer memory C2). Avatar'a basınca doğrudan `handlePickFromGallery()` çağrılmalı; modal ve URL akışı kaldırılmalı. | `ProfileScreen.tsx:46-49,374-447` |
+| C3 | ProfileScreen | Konu/Yorum/Adım istatistik kartları | **P1-Yüksek** | `ProfileScreen.tsx:461-479` — `StatItem` bileşeni `<View>` kullanıyor, `<TouchableOpacity>` değil. "Konu", "Yorum", "Adım" kartları tıklanamıyor. Stakeholder "istatistik kartları tıklanamıyor" raporladı. Fix: `StatItem`'a `onPress?: () => void` prop ekle, `View` → `TouchableOpacity`, Konu/Yorum → Forum tab navigate, Adım → Guide tab navigate. | `ProfileScreen.tsx:461-479` |
+| C4 | ProfileScreen | "Hakkında" menü butonu | **P1-Yüksek** | `ProfileScreen.tsx:170-176` — `handleMenuPress("about")` → `Alert.alert(...)`. Expo Web'de `Alert.alert` `window.alert()` olarak çalışır; bazı tarayıcılar popup blocker ile engelliyor. Fix: `Platform.OS === "web"` kontrolü ile web'de inline modal veya farklı gösterim. | `ProfileScreen.tsx:170-176` |
+
+---
+
+### T10–T13 Token Tutarsızlıkları (Hâlâ Açık — P3, UX/UI Görevi)
+
+| ID | Dosya | Satır | Sorun |
+|----|-------|-------|-------|
+| T10 | `CreateTopicScreen.tsx` | 158, 161 | `color="#fff"` → `Colors.surface` olmalı |
+| T11 | `ForumTopicDetailScreen.tsx` | 133, 135 | `color="#fff"` → `Colors.surface` olmalı |
+| T12 | `ForumTopicsScreen.tsx` | 149 | `color="#fff"` → `Colors.surface` olmalı |
+| T13 | `GuideScreen.tsx` | 301, 304 | `color="#fff"` → `Colors.surface` olmalı |
+
+**Ek token tutarsızlıkları (auth ekranları — UX/UI kapsamı):**
+- `LoginScreen.tsx:132`, `ForgotPasswordScreen.tsx:95`, `RegisterScreen.tsx:133`, `ResetPasswordScreen.tsx:151` — tümünde `color="#fff"` ActivityIndicator
+
+---
+
+### tsc Durumu (2026-05-12 7. Tur)
+- API: temiz (0 hata) — kaynak kod değişikliği yok
+- Mobile: temiz (0 hata) — kaynak kod değişikliği yok
+- Admin: temiz (0 hata) — kaynak kod değişikliği yok
+
+---
+
+### Developer İçin Düzeltilecek Maddeler (Öncelik Sırasıyla)
+
+1. **[C1 — P0]** `api/src/index.ts:15-17` — `allowedOrigins` default değerini `true`'ya çevir:
+   ```typescript
+   const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
+     ? process.env.CORS_ALLOWED_ORIGINS.split(",")
+     : true; // dev: tüm origin'lere izin ver
+   app.use(cors({ origin: allowedOrigins }));
+   ```
+   Bu fix, bio/userType/telefon/toggle PATCH endpoint'lerinin Expo web dev server üzerinden çalışmasını sağlar.
+
+2. **[C2 — P1]** `mobile/src/screens/main/ProfileScreen.tsx` — Avatar modal kaldır, direkt galeri aç:
+   - `avatarModalVisible`, `avatarModalView`, `avatarInput`, `avatarPickerLoading` state'lerini koru (yalnızca `avatarPickerLoading` gerekli).
+   - Avatar `onPress` → doğrudan `handlePickFromGallery()` çağır.
+   - `avatarModalView`, `avatarInput`, `closeAvatarModal`, `handleSaveAvatar` fonksiyonlarını ve `Modal` bileşenini kaldır.
+
+3. **[C3 — P1]** `mobile/src/screens/main/ProfileScreen.tsx:461-479` — `StatItem` bileşenini tıklanabilir yap:
+   - `onPress?: () => void` prop ekle.
+   - `<View>` → `<TouchableOpacity activeOpacity={0.75}>`.
+   - Kullanım yerinde: "Konu" → `navigation.navigate("Forum")`, "Yorum" → `navigation.navigate("Forum")`, "Adım" → `navigation.navigate("Guide")`.
+
+4. **[C4 — P1]** `mobile/src/screens/main/ProfileScreen.tsx:170-176` — "Hakkında" butonu:
+   - `Alert.alert` yerine React Native `Modal` veya `Platform.OS === "web"` koşuluyla web'de farklı davranış.
+   - Kısa vadeli: `if (Platform.OS === "web") { /* inline panel */ } else { Alert.alert(...) }` yeterli.
+
+5. **[T10–T13 — P3]** Kalan `color="#fff"` tutarsızlıkları → `color={Colors.surface}`: `CreateTopicScreen.tsx:158,161`, `ForumTopicDetailScreen.tsx:133,135`, `ForumTopicsScreen.tsx:149`, `GuideScreen.tsx:301,304` — UX/UI agent görevi.
+
+---
+
 ## Regresyon Logu (güncel)
 
 - **2026-05-11 2. Tur**: T1, T2, T3, T4 düzeltmeleri uygulandı. tsc her iki tarafta temiz. T5/T6/T7 hâlâ açık (P3, UX ekibine bildirildi).
 - **2026-05-11 3. Tur**: Sprint 2 tüm düzeltmeleri kaynak kodu ile doğrulandı. 4 yeni sorun tespit edildi: T8 (P1), T9 (P2), A1/A2 (P3). Branding sorunları da belgelendi.
 - **2026-05-11 4. Tur**: Sprint 3 tüm düzeltmeleri (T8, T9, A1, A2, Auth Branding) doğrulandı. tsc API+Mobile+Admin temiz. D_NEW1 (RegisterScreen logo) kaynak kod ile doğrulandı — açık, P3. D_NEW2–D_NEW6 hâlâ açık P3. Yeni P0/P1/P2 sorun tespit edilmedi.
 - **2026-05-11 5. Tur**: D_NEW1, D_NEW3, D_NEW4, D_NEW5, D_NEW6 doğrulandı — hepsi çözülmüş. D_NEW2 (followingCount=0) açık, follow sistemi olmadığı için düzeltilemez, kullanıcıya görünmüyor. tsc API+Mobile+Admin temiz. Yeni P0/P1/P2 sorun yok. Sistem kod taraması açısından hazır.
+- **2026-05-12 6. Tur**: FETCH-1, PROF-1–3, UX Sprint 7 token değişiklikleri doğrulandı. Sprint 7 PS-1 (userType seçici) ve PS-2 (telefon input) henüz uygulanmamış — 2 P1 açık. 4 yeni P3 bulgu (T10–T13, token tutarsızlığı). tsc API+Mobile+Admin temiz.
+- **2026-05-12 7. Tur**: S7-1 (userType seçici) ve S7-2 (telefon input) doğrulandı — ikisi de çözülmüş. Sprint 8 görevleri (C1–C4) henüz uygulanmamış: C1 P0 CORS fix, C2–C4 P1. T10–T13 hâlâ açık (P3, UX). tsc API+Mobile+Admin temiz.

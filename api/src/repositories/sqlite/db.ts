@@ -101,6 +101,13 @@ function initTables(db: DatabaseSync) {
       countryId TEXT NOT NULL REFERENCES forum_countries(id),
       PRIMARY KEY (userId, countryId)
     );
+
+    CREATE TABLE IF NOT EXISTS forum_topic_upvotes (
+      topicId TEXT NOT NULL REFERENCES forum_topics(id),
+      userId TEXT NOT NULL REFERENCES users(id),
+      createdAt TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (topicId, userId)
+    );
   `);
 
   db.exec(`
@@ -117,4 +124,6 @@ function initTables(db: DatabaseSync) {
   addColumnIfNotExists(db, "users", "avatarUrl", "TEXT");
   addColumnIfNotExists(db, "guide_steps", "blockingAnswer", "TEXT");
   addColumnIfNotExists(db, "forum_topics", "rejectionReason", "TEXT");
+  addColumnIfNotExists(db, "users", "onboardingCompleted", "INTEGER DEFAULT 0");
+  addColumnIfNotExists(db, "users", "targetCountryId", "TEXT");
 }

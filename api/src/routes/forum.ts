@@ -64,6 +64,21 @@ export function forumRoutes(repos: Repositories): Router {
     res.json(topic);
   });
 
+  router.get("/search", async (req, res) => {
+    const q = ((req.query.q as string) ?? "").trim();
+    if (q.length < 2) {
+      return res.status(400).json({ error: "q parametresi en az 2 karakter olmalı" });
+    }
+    const countryId = (req.query.countryId as string) || undefined;
+    res.json(await repos.forum.searchTopics(q, countryId));
+  });
+
+  router.post("/topics/:id/upvote", authMiddleware, async (req: AuthRequest, res) => {
+    const topicId = req.params.id as string;
+    const result = await repos.forum.upvoteTopic(topicId, req.userId!);
+    res.json(result);
+  });
+
   router.patch("/topics/:id/status", authMiddleware, requireRole("admin", "moderator"), async (req, res) => {
     const { status, reason } = req.body;
     await repos.forum.updateTopicStatus(req.params.id as string, status, reason);
