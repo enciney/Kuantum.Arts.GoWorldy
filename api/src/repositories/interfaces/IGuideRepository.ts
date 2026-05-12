@@ -7,6 +7,7 @@ export interface GuideStep {
   blockingAnswer?: string;
   options?: string[];
   faqUrl?: string;
+  stepType?: "checklist" | "assessment";
 }
 
 export interface UserGuideProgress {

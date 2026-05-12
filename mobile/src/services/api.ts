@@ -255,6 +255,7 @@ export const api = {
         blockingAnswer?: string;
         options?: string[];
         faqUrl?: string;
+        stepType?: "checklist" | "assessment";
       }[]>(`/guide/steps/${countryId}`, { token }),
     getProgress: (token: string) =>
       request<{ id: string; stepId: string; answer: string; completedAt: string }[]>(

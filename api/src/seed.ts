@@ -164,6 +164,133 @@ export async function seedDatabase() {
       step.description
     );
   }
+
+  // Set stepType, options, blockingAnswer for each step
+  const patchStep = db.prepare(
+    'UPDATE guide_steps SET stepType=?, options=?, blockingAnswer=?, faqUrl=? WHERE countryId=? AND "order"=?'
+  );
+
+  const patches: Array<{
+    countryId: string; order: number;
+    stepType: "checklist" | "assessment";
+    options: string[];
+    blockingAnswer?: string;
+    faqUrl?: string;
+  }> = [
+    // ── US ──
+    {
+      countryId: "us", order: 1, stepType: "checklist",
+      options: ["Evet", "Hayır"],
+      blockingAnswer: "Hayır",
+      faqUrl: "https://travel.state.gov/content/travel/en/passports.html",
+    },
+    {
+      countryId: "us", order: 2, stepType: "checklist",
+      options: ["Evet", "Hayır"],
+      blockingAnswer: "Hayır",
+    },
+    {
+      countryId: "us", order: 3, stepType: "assessment",
+      options: ["Turist (B-2)", "Öğrenci (F-1)", "Çalışma (H-1B)", "Göç Vizesi", "Diğer"],
+    },
+    {
+      countryId: "us", order: 4, stepType: "checklist",
+      options: ["Evet, hazır", "Hazırlanıyor", "Hayır"],
+      blockingAnswer: "Hayır",
+    },
+    {
+      countryId: "us", order: 5, stepType: "checklist",
+      options: ["Evet, aldım", "Randevu bekliyorum", "Hayır, almadım"],
+      blockingAnswer: "Hayır, almadım",
+    },
+    // ── DE ──
+    {
+      countryId: "de", order: 1, stepType: "assessment",
+      options: ["A1-A2 (Başlangıç)", "B1 (Orta)", "B2 (İyi)", "C1+ (İleri)", "Almanca bilmiyorum"],
+    },
+    {
+      countryId: "de", order: 2, stepType: "checklist",
+      options: ["Evet", "Hayır", "Henüz kontrol etmedim"],
+      blockingAnswer: "Hayır",
+    },
+    {
+      countryId: "de", order: 3, stepType: "checklist",
+      options: ["Evet, var", "Süreç devam ediyor", "Hayır"],
+      blockingAnswer: "Hayır",
+    },
+    {
+      countryId: "de", order: 4, stepType: "checklist",
+      options: ["Evet, hazır", "Başvuru aşamasında", "Hayır"],
+      blockingAnswer: "Hayır",
+    },
+    {
+      countryId: "de", order: 5, stepType: "checklist",
+      options: ["Evet, var", "Araştırıyorum", "Hayır"],
+      blockingAnswer: "Hayır",
+    },
+    // ── UK ──
+    {
+      countryId: "uk", order: 1, stepType: "assessment",
+      options: ["IELTS 6.0+", "IELTS 7.0+", "TOEFL 80+", "Diğer sertifika", "Sertifikam yok"],
+    },
+    {
+      countryId: "uk", order: 2, stepType: "checklist",
+      options: ["Evet, aldım", "Başvurusu devam ediyor", "Hayır"],
+      blockingAnswer: "Hayır",
+    },
+    {
+      countryId: "uk", order: 3, stepType: "checklist",
+      options: ["Evet, elimde var", "Bekliyorum", "Hayır"],
+      blockingAnswer: "Hayır",
+    },
+    {
+      countryId: "uk", order: 4, stepType: "checklist",
+      options: ["Evet, son 28 günden", "28 günden eski", "Henüz yok"],
+      blockingAnswer: "28 günden eski",
+    },
+    {
+      countryId: "uk", order: 5, stepType: "checklist",
+      options: ["Evet, yaptırdım", "Gerekli değil (6 aydan az kalış)", "Hayır"],
+      blockingAnswer: "Hayır",
+    },
+    // ── CA ──
+    {
+      countryId: "ca", order: 1, stepType: "checklist",
+      options: ["Evet, oluşturdum", "Oluşturma aşamasındayım", "Hayır"],
+      blockingAnswer: "Hayır",
+    },
+    {
+      countryId: "ca", order: 2, stepType: "checklist",
+      options: ["Evet, aldım", "Başvurdum, bekliyorum", "Hayır"],
+      blockingAnswer: "Hayır",
+    },
+    {
+      countryId: "ca", order: 3, stepType: "assessment",
+      options: ["CLB 5-6", "CLB 7-8", "CLB 9+", "Henüz sınava girmedim"],
+    },
+    {
+      countryId: "ca", order: 4, stepType: "checklist",
+      options: ["Evet, var", "Hazırlanıyorum", "Hayır"],
+      blockingAnswer: "Hayır",
+    },
+    {
+      countryId: "ca", order: 5, stepType: "checklist",
+      options: ["Evet, aldım", "Başvurdum", "Hayır"],
+      blockingAnswer: "Hayır",
+    },
+  ];
+
+  for (const p of patches) {
+    patchStep.run(
+      p.stepType,
+      JSON.stringify(p.options),
+      p.blockingAnswer ?? null,
+      p.faqUrl ?? null,
+      p.countryId,
+      p.order
+    );
+  }
+
   console.log("Guide steps seeded (US, DE, UK, CA)");
 
   // ---------- Sample notifications ----------
