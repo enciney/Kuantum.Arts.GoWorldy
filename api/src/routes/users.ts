@@ -47,6 +47,10 @@ export function userRoutes(repos: Repositories): Router {
       if (typeof targetCountryId === "string") {
         (allowed as any).targetCountryId = targetCountryId;
       }
+      const { activeGuideCountryId } = req.body;
+      if (typeof activeGuideCountryId === "string") {
+        (allowed as any).activeGuideCountryId = activeGuideCountryId;
+      }
       if (Object.keys(allowed).length === 0) {
         return res.status(400).json({ error: "Güncellenecek alan yok" });
       }

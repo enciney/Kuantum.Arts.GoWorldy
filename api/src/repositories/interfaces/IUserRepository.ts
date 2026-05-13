@@ -14,6 +14,7 @@ export interface User {
   avatarUrl?: string;
   onboardingCompleted?: boolean;
   targetCountryId?: string;
+  activeGuideCountryId?: string;
   createdAt: string;
 }
 

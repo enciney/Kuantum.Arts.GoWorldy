@@ -83,6 +83,7 @@ export const api = {
         userType?: "emigrant" | "consultant" | "diaspora";
         phoneNumber?: string;
         sharePhoneNumber?: boolean;
+        activeGuideCountryId?: string;
       }>("/users/me", { token }),
     updateMe: (
       data: {
@@ -94,6 +95,7 @@ export const api = {
         userType?: "emigrant" | "consultant" | "diaspora";
         onboardingCompleted?: boolean;
         targetCountryId?: string;
+        activeGuideCountryId?: string;
       },
       token: string
     ) =>
@@ -256,17 +258,27 @@ export const api = {
         options?: string[];
         faqUrl?: string;
         stepType?: "checklist" | "assessment";
+        isGlobal?: boolean;
       }[]>(`/guide/steps/${countryId}`, { token }),
     getProgress: (token: string) =>
       request<{ id: string; stepId: string; answer: string; completedAt: string }[]>(
         "/guide/progress",
         { token }
       ),
-    saveProgress: (stepId: string, answer: string, token: string) =>
+    saveProgress: (stepId: string, answer: string, countryId: string, token: string) =>
       request<{ id: string }>("/guide/progress", {
         method: "POST",
-        body: JSON.stringify({ stepId, answer }),
+        body: JSON.stringify({ stepId, answer, countryId }),
         token,
       }),
+    getHomeStats: (token: string) =>
+      request<{
+        countryId: string | null;
+        countryName: string;
+        completedSteps: number;
+        totalSteps: number;
+        completionPct: number;
+        countriesWithProgress: number;
+      }>("/guide/home-stats", { token }),
   },
 };

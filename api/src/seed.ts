@@ -34,6 +34,7 @@ export async function seedDatabase() {
 
   // ---------- Countries ----------
   const countries = [
+    { id: "global", name: "Genel", code: "XX" }, // virtual – global guide steps
     { id: "us", name: "United States", code: "US" },
     { id: "de", name: "Germany", code: "DE" },
     { id: "uk", name: "United Kingdom", code: "GB" },
@@ -291,7 +292,103 @@ export async function seedDatabase() {
     );
   }
 
-  console.log("Guide steps seeded (US, DE, UK, CA)");
+  // ── Global (ülkeden bağımsız) adımlar ────────────────────────────────────────
+  const insertGlobalStep = db.prepare(
+    `INSERT OR IGNORE INTO guide_steps
+      (id, countryId, "order", question, description, stepType, options, blockingAnswer, faqUrl, isGlobal)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
+  );
+
+  const globalSteps = [
+    // ── Değerlendirme ──────────────────────────────────────────────────────────
+    {
+      id: "global-assess-1",
+      order: 1,
+      stepType: "assessment",
+      question: "Yurt dışına çıkma amacınız nedir?",
+      description: "Genel seyahat profilinizi belirler.",
+      options: ["Çalışmak", "Eğitim", "Aile birleşimi", "Turizm / Seyahat", "Göç / Yerleşim"],
+      blockingAnswer: null,
+      faqUrl: null,
+    },
+    {
+      id: "global-assess-2",
+      order: 2,
+      stepType: "assessment",
+      question: "Daha önce yurt dışında yaşadınız mı?",
+      description: null,
+      options: ["Evet, 1 yıldan az", "Evet, 1-5 yıl", "Evet, 5 yıldan fazla", "Hayır, ilk defa"],
+      blockingAnswer: null,
+      faqUrl: null,
+    },
+    {
+      id: "global-assess-3",
+      order: 3,
+      stepType: "assessment",
+      question: "Ne zaman gitmeyi planlıyorsunuz?",
+      description: null,
+      options: ["1-3 ay içinde", "3-6 ay içinde", "6-12 ay içinde", "1 yıldan uzun süre sonra"],
+      blockingAnswer: null,
+      faqUrl: null,
+    },
+    // ── Kontrol Listesi ───────────────────────────────────────────────────────
+    {
+      id: "global-check-1",
+      order: 1,
+      stepType: "checklist",
+      question: "Geçerli bir pasaportunuz var mı?",
+      description: "Gitmek istediğiniz ülkeye kalış sürenizden en az 6 ay sonrasına kadar geçerli olmalı.",
+      options: ["Evet, geçerli", "Süresi dolmuş / yakında bitiyor", "Pasaportunuz yok"],
+      blockingAnswer: "Pasaportunuz yok",
+      faqUrl: "https://www.nvi.gov.tr/pasaport",
+    },
+    {
+      id: "global-check-2",
+      order: 2,
+      stepType: "checklist",
+      question: "Pasaportunuzda boş sayfa var mı?",
+      description: "Vize damgaları ve giriş-çıkış mühürleri için en az 2 boş sayfa gerekir.",
+      options: ["Evet, var", "Az kaldı (1-2 sayfa)", "Hayır, dolu"],
+      blockingAnswer: "Hayır, dolu",
+      faqUrl: null,
+    },
+    {
+      id: "global-check-3",
+      order: 3,
+      stepType: "checklist",
+      question: "Seyahat sigortanız hazır mı?",
+      description: "Çoğu vize başvurusu ve havayolu şirketi seyahat sigortası ister.",
+      options: ["Evet, aktif poliçem var", "Başvuracağım", "Hayır"],
+      blockingAnswer: "Hayır",
+      faqUrl: null,
+    },
+    {
+      id: "global-check-4",
+      order: 4,
+      stepType: "checklist",
+      question: "Biyometrik fotoğrafınız mevcut mu?",
+      description: "Çoğu vize başvurusu için son 6 ayda çekilmiş, mat arka planlı fotoğraf gerekir.",
+      options: ["Evet, hazır", "Çektireceğim", "Hayır"],
+      blockingAnswer: "Hayır",
+      faqUrl: null,
+    },
+  ];
+
+  for (const s of globalSteps) {
+    insertGlobalStep.run(
+      s.id,
+      "global",
+      s.order,
+      s.question,
+      s.description ?? null,
+      s.stepType,
+      s.options ? JSON.stringify(s.options) : null,
+      s.blockingAnswer ?? null,
+      s.faqUrl ?? null
+    );
+  }
+
+  console.log("Guide steps seeded (US, DE, UK, CA + global)");
 
   // ---------- Sample notifications ----------
   const notifCount = db.prepare("SELECT COUNT(*) as cnt FROM notifications WHERE userId = ?").get(adminId) as { cnt: number };

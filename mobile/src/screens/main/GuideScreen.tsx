@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ interface Step {
   options?: string[];
   faqUrl?: string;
   stepType?: "checklist" | "assessment";
+  isGlobal?: boolean;
 }
 
 interface Progress {
@@ -41,7 +42,7 @@ interface Country {
 
 type ActiveTab = "assessment" | "checklist";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const FLAG_MAP: Record<string, string> = {
   US: "🇺🇸", DE: "🇩🇪", GB: "🇬🇧", CA: "🇨🇦",
@@ -53,6 +54,8 @@ const COUNTRY_NAME_MAP: Record<string, string> = {
   AU: "Avustralya", NL: "Hollanda", FR: "Fransa", TR: "Türkiye",
 };
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function isBlockingAnswer(step: Step, answer: string): boolean {
   return !!(
     step.blockingAnswer &&
@@ -60,11 +63,6 @@ function isBlockingAnswer(step: Step, answer: string): boolean {
   );
 }
 
-/**
- * Returns how far the step-by-step reveal should go.
- * Assessment tab: never blocks, just stops at first unanswered.
- * Checklist tab: stops at first blocking answer.
- */
 function computeVisible(
   steps: Step[],
   completedMap: Map<string, Progress>,
@@ -84,54 +82,81 @@ function computeVisible(
 
 export function GuideScreen() {
   const { token } = useAuth();
+
+  // Ülke listesi
   const [countries, setCountries] = useState<Country[]>([]);
-  const [selectedCountryId, setSelectedCountryId] = useState<string>("");
+  // Şu an gözetlenen ülke (chip tıklamasıyla değişir)
+  const [viewCountryId, setViewCountryId] = useState<string>("");
+  // Aktif progression ülkesi (user profili)
+  const [activeCountryId, setActiveCountryId] = useState<string | null>(null);
+
   const [steps, setSteps] = useState<Step[]>([]);
   const [progress, setProgress] = useState<Progress[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+  const [editingStepId, setEditingStepId] = useState<string | null>(null);
+  const [settingActive, setSettingActive] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>("assessment");
   const scrollRef = useRef<ScrollView>(null);
 
+  // ── Ülkeler + kullanıcı profili ──────────────────────────────────────────────
   useEffect(() => {
     if (!token) return;
-    api.forum
-      .getCountries(token)
-      .then((data) => {
-        setCountries(data);
-        if (data.length > 0) setSelectedCountryId(data[0].id);
-      })
-      .catch((e: unknown) =>
-        setError(e instanceof Error ? e.message : "Ülkeler yüklenemedi.")
-      );
+    Promise.all([
+      api.forum.getCountries(token),
+      api.users.me(token),
+    ]).then(([countriesData, meData]) => {
+      // Sanal global ülkeyi chip listesinden çıkar
+      const real = countriesData.filter((c) => c.code !== "XX");
+      setCountries(real);
+      const savedActive = meData.activeGuideCountryId ?? null;
+      setActiveCountryId(savedActive);
+      setViewCountryId(savedActive ?? (real[0]?.id ?? ""));
+    }).catch((e: unknown) =>
+      setError(e instanceof Error ? e.message : "Yüklenemedi.")
+    );
   }, [token]);
 
-  const loadData = async () => {
-    if (!token || !selectedCountryId) return;
+  // ── Adımlar + ilerleme ───────────────────────────────────────────────────────
+  const loadData = useCallback(async () => {
+    if (!token || !viewCountryId) return;
     const [s, p] = await Promise.all([
-      api.guide.getSteps(selectedCountryId, token),
+      api.guide.getSteps(viewCountryId, token),
       api.guide.getProgress(token),
     ]);
     setSteps(s);
     setProgress(p);
-  };
+  }, [token, viewCountryId]);
 
   useEffect(() => {
-    if (!token || !selectedCountryId) return;
+    if (!token || !viewCountryId) return;
     setLoading(true);
     setError(null);
     loadData()
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Yüklenemedi."))
       .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, selectedCountryId]);
+  }, [token, viewCountryId, loadData]);
 
+  // ── Aktif ülke değiştir ──────────────────────────────────────────────────────
+  const handleSetActive = async () => {
+    if (!token || settingActive || viewCountryId === activeCountryId) return;
+    setSettingActive(true);
+    try {
+      await api.users.updateMe({ activeGuideCountryId: viewCountryId }, token);
+      setActiveCountryId(viewCountryId);
+    } finally {
+      setSettingActive(false);
+    }
+  };
+
+  // ── Cevap kaydet ─────────────────────────────────────────────────────────────
   const handleAnswer = async (step: Step, answer: string) => {
     if (!token || saving) return;
     setSaving(step.id);
     try {
-      await api.guide.saveProgress(step.id, answer, token);
+      await api.guide.saveProgress(step.id, answer, viewCountryId, token);
+      setEditingStepId(null);          // düzenleme modundan çık
       await loadData();
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
     } finally {
@@ -139,16 +164,24 @@ export function GuideScreen() {
     }
   };
 
+  // ── Hesaplamalar ─────────────────────────────────────────────────────────────
   const completedMap = new Map(progress.map((p) => [p.stepId, p]));
+  const isViewingActive = viewCountryId === activeCountryId;
 
   const assessmentSteps = steps.filter((s) => (s.stepType ?? "checklist") === "assessment");
-  const checklistSteps = steps.filter((s) => (s.stepType ?? "checklist") === "checklist");
+  const checklistSteps  = steps.filter((s) => (s.stepType ?? "checklist") === "checklist");
 
-  // Progress = only non-blocking completed checklist steps
-  const nonBlockingDone = checklistSteps.filter((s) => {
-    const prog = completedMap.get(s.id);
-    return prog && !isBlockingAnswer(s, prog.answer);
-  }).length;
+  // Progress: sadece aktif ülkeye ait, blocking olmayan tamamlananlar
+  const nonBlockingDone = isViewingActive
+    ? checklistSteps.filter((s) => {
+        const p = completedMap.get(s.id);
+        return p && !isBlockingAnswer(s, p.answer);
+      }).length
+    : checklistSteps.filter((s) => {
+        const p = completedMap.get(s.id);
+        return p && !isBlockingAnswer(s, p.answer);
+      }).length; // gözetleme modunda yine sayalım ama progress bar grileşir
+
   const totalChecklist = checklistSteps.length;
   const pct = totalChecklist > 0 ? Math.round((nonBlockingDone / totalChecklist) * 100) : 0;
 
@@ -159,14 +192,17 @@ export function GuideScreen() {
     !blocked &&
     activeSteps.every((s) => completedMap.has(s.id));
 
+  // Global adım sayısı (bilgi etiketi)
+  const globalCount = steps.filter((s) => s.isGlobal).length;
+
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Rehberim</Text>
         {activeTab === "checklist" && totalChecklist > 0 && (
-          <View style={styles.progressPill}>
-            <Text style={styles.progressPillText}>
+          <View style={[styles.progressPill, !isViewingActive && styles.progressPillMuted]}>
+            <Text style={[styles.progressPillText, !isViewingActive && styles.progressPillTextMuted]}>
               {nonBlockingDone}/{totalChecklist} · %{pct}
             </Text>
           </View>
@@ -179,27 +215,36 @@ export function GuideScreen() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.countryList}
       >
-        {countries.map((c) => (
-          <TouchableOpacity
-            key={c.id}
-            style={[
-              styles.countryChip,
-              selectedCountryId === c.id && styles.countryChipSelected,
-            ]}
-            onPress={() => setSelectedCountryId(c.id)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.countryFlag}>{FLAG_MAP[c.code] ?? "🌍"}</Text>
-            <Text
+        {countries.map((c) => {
+          const isActive   = c.id === activeCountryId;
+          const isViewing  = c.id === viewCountryId;
+          return (
+            <TouchableOpacity
+              key={c.id}
               style={[
-                styles.countryChipText,
-                selectedCountryId === c.id && styles.countryChipTextSelected,
+                styles.countryChip,
+                isViewing  && styles.countryChipViewing,
+                isActive   && styles.countryChipActive,
               ]}
+              onPress={() => setViewCountryId(c.id)}
+              activeOpacity={0.7}
             >
-              {COUNTRY_NAME_MAP[c.code] ?? c.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              {isActive && (
+                <Ionicons name="pin" size={11} color={Colors.surface} style={styles.pinIcon} />
+              )}
+              <Text style={styles.countryFlag}>{FLAG_MAP[c.code] ?? "🌍"}</Text>
+              <Text
+                style={[
+                  styles.countryChipText,
+                  isViewing && styles.countryChipTextViewing,
+                  isActive  && styles.countryChipTextActive,
+                ]}
+              >
+                {COUNTRY_NAME_MAP[c.code] ?? c.name}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
       {/* Tabs */}
@@ -214,12 +259,7 @@ export function GuideScreen() {
             size={15}
             color={activeTab === "assessment" ? Colors.primary : Colors.textSecondary}
           />
-          <Text
-            style={[
-              styles.tabBtnText,
-              activeTab === "assessment" && styles.tabBtnTextActive,
-            ]}
-          >
+          <Text style={[styles.tabBtnText, activeTab === "assessment" && styles.tabBtnTextActive]}>
             Değerlendirme
           </Text>
         </TouchableOpacity>
@@ -234,23 +274,12 @@ export function GuideScreen() {
             size={15}
             color={activeTab === "checklist" ? Colors.primary : Colors.textSecondary}
           />
-          <Text
-            style={[
-              styles.tabBtnText,
-              activeTab === "checklist" && styles.tabBtnTextActive,
-            ]}
-          >
+          <Text style={[styles.tabBtnText, activeTab === "checklist" && styles.tabBtnTextActive]}>
             Kontrol Listesi
           </Text>
           {totalChecklist > 0 && (
-            <View style={[
-              styles.tabBadge,
-              activeTab === "checklist" && styles.tabBadgeActive,
-            ]}>
-              <Text style={[
-                styles.tabBadgeText,
-                activeTab === "checklist" && styles.tabBadgeTextActive,
-              ]}>
+            <View style={[styles.tabBadge, activeTab === "checklist" && styles.tabBadgeActive]}>
+              <Text style={[styles.tabBadgeText, activeTab === "checklist" && styles.tabBadgeTextActive]}>
                 %{pct}
               </Text>
             </View>
@@ -265,8 +294,9 @@ export function GuideScreen() {
             <View
               style={[
                 styles.progressFill,
-                { width: `${pct}%` as `${number}%` },
+                !isViewingActive && styles.progressFillMuted,
                 blocked && styles.progressFillBlocked,
+                { width: `${pct}%` as `${number}%` },
               ]}
             />
           </View>
@@ -298,27 +328,89 @@ export function GuideScreen() {
           contentContainerStyle={styles.stepList}
           showsVerticalScrollIndicator={false}
         >
-          {/* Tab description */}
+          {/* Aktif olmayan ülke banner */}
+          {activeTab === "checklist" && !isViewingActive && (
+            <View style={styles.inactiveBanner}>
+              <View style={styles.inactiveBannerLeft}>
+                <Ionicons name="eye-outline" size={15} color={Colors.textSecondary} />
+                <Text style={styles.inactiveBannerText}>
+                  Sadece gözetliyorsunuz — ilerleme bu ülke için kaydedilmez.
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.activateBtn, settingActive && { opacity: 0.6 }]}
+                onPress={handleSetActive}
+                disabled={settingActive}
+                activeOpacity={0.75}
+              >
+                {settingActive ? (
+                  <ActivityIndicator size="small" color={Colors.surface} />
+                ) : (
+                  <>
+                    <Ionicons name="pin" size={13} color={Colors.surface} />
+                    <Text style={styles.activateBtnText}>Aktif Et</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Aktif ülke etiketi */}
+          {activeTab === "checklist" && isViewingActive && activeCountryId && (
+            <View style={styles.activeBanner}>
+              <Ionicons name="pin" size={13} color={Colors.primary} />
+              <Text style={styles.activeBannerText}>
+                Aktif rehber — ilerleme burada kaydedilir
+              </Text>
+            </View>
+          )}
+
+          {/* Global adım bilgisi */}
+          {globalCount > 0 && (
+            <View style={styles.globalBadgeRow}>
+              <View style={styles.globalBadge}>
+                <Ionicons name="globe-outline" size={11} color="#7C3AED" />
+                <Text style={styles.globalBadgeText}>
+                  {globalCount} ortak adım tüm ülkelere uygulanır
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Tab açıklama satırı */}
           <View style={styles.tabDesc}>
-            {activeTab === "assessment" ? (
-              <>
-                <Ionicons name="information-circle-outline" size={15} color={Colors.textSecondary} />
-                <Text style={styles.tabDescText}>
-                  Bu sorular vize sürecinizi kişiselleştirmek için kullanılır.
-                </Text>
-              </>
-            ) : (
-              <>
-                <Ionicons name="information-circle-outline" size={15} color={Colors.textSecondary} />
-                <Text style={styles.tabDescText}>
-                  Her adımı tamamladıkça ilerlemeniz kaydedilir.
-                </Text>
-              </>
-            )}
+            <Ionicons name="information-circle-outline" size={14} color={Colors.textMuted} />
+            <Text style={styles.tabDescText}>
+              {activeTab === "assessment"
+                ? "Bu sorular vize sürecinizi kişiselleştirmek için kullanılır."
+                : "Her adımı tamamladıkça ilerlemeniz kaydedilir."}
+            </Text>
           </View>
 
+          {/* Steps */}
           {activeSteps.slice(0, visibleUpTo + 1).map((step, idx) => {
             const prog = completedMap.get(step.id);
+            const isEditing = editingStepId === step.id;
+
+            // Tamamlanmış ama düzenleme modunda → cevap kartı gibi göster
+            if (prog && isEditing) {
+              return (
+                <ActiveStepCard
+                  key={step.id}
+                  step={step}
+                  index={idx}
+                  total={activeSteps.length}
+                  saving={saving === step.id}
+                  tab={activeTab}
+                  readonly={false}
+                  editMode
+                  previousAnswer={prog.answer}
+                  onCancel={() => setEditingStepId(null)}
+                  onAnswer={(ans) => handleAnswer(step, ans)}
+                />
+              );
+            }
+
             if (prog) {
               return (
                 <CompletedCard
@@ -327,9 +419,11 @@ export function GuideScreen() {
                   index={idx}
                   answer={prog.answer}
                   tab={activeTab}
+                  onEdit={() => setEditingStepId(step.id)}
                 />
               );
             }
+
             return (
               <ActiveStepCard
                 key={step.id}
@@ -338,6 +432,7 @@ export function GuideScreen() {
                 total={activeSteps.length}
                 saving={saving === step.id}
                 tab={activeTab}
+                readonly={activeTab === "checklist" && !isViewingActive}
                 onAnswer={(ans) => handleAnswer(step, ans)}
               />
             );
@@ -350,12 +445,9 @@ export function GuideScreen() {
               <Ionicons
                 name="checkmark-circle"
                 size={56}
-                color={activeTab === "assessment" ? Colors.primary : Colors.secondary}
+                color={activeTab === "assessment" ? "#7C3AED" : Colors.secondary}
               />
-              <Text style={[
-                styles.doneTitle,
-                activeTab === "assessment" && { color: Colors.primary },
-              ]}>
+              <Text style={[styles.doneTitle, activeTab === "assessment" && { color: "#7C3AED" }]}>
                 {activeTab === "assessment" ? "Profil Tamamlandı!" : "Tebrikler!"}
               </Text>
               <Text style={styles.doneSub}>
@@ -378,26 +470,37 @@ function CompletedCard({
   index,
   answer,
   tab,
+  onEdit,
 }: {
   step: Step;
   index: number;
   answer: string;
   tab: ActiveTab;
+  onEdit: () => void;
 }) {
   const blocking = tab === "checklist" && isBlockingAnswer(step, answer);
   return (
-    <View style={[styles.completedCard, blocking && styles.completedCardWarn]}>
+    <View style={[
+      styles.completedCard,
+      blocking && styles.completedCardWarn,
+      step.isGlobal && styles.completedCardGlobal,
+    ]}>
       <View style={[styles.badge, blocking ? styles.badgeWarn : styles.badgeDone]}>
-        {blocking ? (
-          <Ionicons name="alert" size={12} color={Colors.warning} />
-        ) : (
-          <Ionicons name="checkmark" size={13} color="#fff" />
-        )}
+        {blocking
+          ? <Ionicons name="alert" size={12} color={Colors.warning} />
+          : <Ionicons name="checkmark" size={13} color="#fff" />}
       </View>
       <View style={styles.cardBody}>
-        <Text style={styles.completedQuestion} numberOfLines={2}>
-          {step.question}
-        </Text>
+        <View style={styles.completedQuestionRow}>
+          <Text style={styles.completedQuestion} numberOfLines={2}>
+            {step.question}
+          </Text>
+          {step.isGlobal && (
+            <View style={styles.globalTag}>
+              <Ionicons name="globe-outline" size={10} color="#7C3AED" />
+            </View>
+          )}
+        </View>
         <View style={[styles.answerChip, blocking && styles.answerChipWarn]}>
           <Text
             style={[styles.answerChipText, blocking && styles.answerChipTextWarn]}
@@ -407,7 +510,15 @@ function CompletedCard({
           </Text>
         </View>
       </View>
-      <Text style={styles.stepNumSmall}>{index + 1}</Text>
+      {/* Düzenle butonu */}
+      <TouchableOpacity
+        onPress={onEdit}
+        style={styles.editBtn}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        activeOpacity={0.6}
+      >
+        <Ionicons name="pencil-outline" size={15} color={Colors.textMuted} />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -420,62 +531,97 @@ function ActiveStepCard({
   total,
   saving,
   tab,
+  readonly,
+  editMode = false,
+  previousAnswer,
   onAnswer,
+  onCancel,
 }: {
   step: Step;
   index: number;
   total: number;
   saving: boolean;
   tab: ActiveTab;
+  readonly: boolean;
+  editMode?: boolean;
+  previousAnswer?: string;
   onAnswer: (answer: string) => void;
+  onCancel?: () => void;
 }) {
-  const [tapped, setTapped] = useState<string | null>(null);
+  // Düzenleme modunda önceki cevabı seçili göster
+  const [tapped, setTapped] = useState<string | null>(editMode && previousAnswer ? previousAnswer : null);
   const options = step.options ?? [];
+  const isAssessment = tab === "assessment";
 
   const handleTap = (opt: string) => {
-    if (saving) return;
+    if (saving || readonly) return;
     setTapped(opt);
     onAnswer(opt);
   };
 
-  const isAssessment = tab === "assessment";
-  const accentColor = isAssessment ? Colors.primary : Colors.primary;
   const twoCol = options.length === 2;
 
   return (
-    <View style={[styles.activeCard, isAssessment && styles.activeCardAssessment]}>
+    <View style={[
+      styles.activeCard,
+      isAssessment && styles.activeCardAssessment,
+      readonly && styles.activeCardReadonly,
+      editMode && styles.activeCardEdit,
+    ]}>
       {/* Meta */}
       <View style={styles.activeMeta}>
         <View style={[styles.badge, isAssessment ? styles.badgeAssessment : undefined]}>
           <Text style={styles.badgeNum}>{index + 1}</Text>
         </View>
         <Text style={[styles.activeMetaText, isAssessment && styles.activeMetaTextAssessment]}>
-          {isAssessment ? "Değerlendirme" : "Adım"} {index + 1} / {total}
+          {editMode ? "Güncelle" : (isAssessment ? "Değerlendirme" : "Adım")} {index + 1} / {total}
         </Text>
+        {step.isGlobal && (
+          <View style={styles.globalTagInline}>
+            <Ionicons name="globe-outline" size={11} color="#7C3AED" />
+            <Text style={styles.globalTagText}>Ortak</Text>
+          </View>
+        )}
+        {/* Düzenleme modunda iptal butonu */}
+        {editMode && onCancel && (
+          <TouchableOpacity
+            onPress={onCancel}
+            style={styles.cancelEditBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.6}
+          >
+            <Ionicons name="close" size={18} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Question */}
       <Text style={styles.activeQuestion}>{step.question}</Text>
       {!!step.description && (
         <Text style={styles.activeDesc}>{step.description}</Text>
       )}
 
-      {/* Options */}
-      {options.length === 0 ? (
-        <View style={styles.noOptionsWrap}>
-          <Ionicons name="warning-outline" size={16} color={Colors.textMuted} />
-          <Text style={styles.noOptionsText}>
-            Bu adım için seçenekler henüz tanımlanmamış.
+      {readonly ? (
+        <View style={styles.readonlyNote}>
+          <Ionicons name="lock-closed-outline" size={14} color={Colors.textMuted} />
+          <Text style={styles.readonlyNoteText}>
+            Bu ülkeyi aktif edin ve cevap verin.
           </Text>
+        </View>
+      ) : options.length === 0 ? (
+        <View style={styles.noOptionsWrap}>
+          <Ionicons name="warning-outline" size={15} color={Colors.textMuted} />
+          <Text style={styles.noOptionsText}>Bu adım için seçenekler henüz tanımlanmamış.</Text>
         </View>
       ) : (
         <View style={[styles.optionsCol, twoCol && styles.optionsRow]}>
           {options.map((opt) => {
             const isSelected = tapped === opt;
-            const isLoading = isSelected && saving;
-            const isBlocking = !isAssessment &&
+            const isLoading  = isSelected && saving;
+            const isBlock = !isAssessment &&
               step.blockingAnswer &&
               opt.trim().toLowerCase() === step.blockingAnswer.trim().toLowerCase();
+            // Düzenleme modunda önceki cevap hafifçe vurgulanır
+            const isPrevious = editMode && opt === previousAnswer && !isSelected;
 
             return (
               <TouchableOpacity
@@ -483,7 +629,8 @@ function ActiveStepCard({
                 style={[
                   styles.optionBtn,
                   twoCol && styles.optionBtnHalf,
-                  isSelected && (isBlocking ? styles.optionBtnWarn : styles.optionBtnSelected),
+                  isPrevious && styles.optionBtnPrevious,
+                  isSelected && (isBlock ? styles.optionBtnWarn : styles.optionBtnSelected),
                   saving && !isSelected && styles.optionBtnDimmed,
                 ]}
                 onPress={() => handleTap(opt)}
@@ -493,16 +640,15 @@ function ActiveStepCard({
                 {isLoading ? (
                   <ActivityIndicator
                     size="small"
-                    color={isBlocking ? Colors.warning : Colors.surface}
+                    color={isBlock ? Colors.warning : Colors.surface}
                   />
                 ) : (
-                  <Text
-                    style={[
-                      styles.optionBtnText,
-                      isSelected && !isBlocking && styles.optionBtnTextSelected,
-                      isSelected && isBlocking && styles.optionBtnTextWarn,
-                    ]}
-                  >
+                  <Text style={[
+                    styles.optionBtnText,
+                    isPrevious && styles.optionBtnTextPrevious,
+                    isSelected && !isBlock && styles.optionBtnTextSelected,
+                    isSelected && isBlock  && styles.optionBtnTextWarn,
+                  ]}>
                     {opt}
                   </Text>
                 )}
@@ -547,10 +693,7 @@ function BlockerCard({ step }: { step: Step }) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
+  container: { flex: 1, backgroundColor: Colors.background },
 
   // Header
   header: {
@@ -561,26 +704,21 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: 12,
   },
-  title: {
-    ...Typography.h1,
-    color: Colors.textPrimary,
-  },
+  title: { ...Typography.h1, color: Colors.textPrimary },
   progressPill: {
     backgroundColor: Colors.primaryLight,
     borderRadius: Radius.full,
     paddingHorizontal: 12,
     paddingVertical: 5,
   },
-  progressPillText: {
-    ...Typography.small,
-    fontWeight: "600",
-    color: Colors.primary,
-  },
+  progressPillMuted: { backgroundColor: Colors.border },
+  progressPillText: { ...Typography.small, fontWeight: "600", color: Colors.primary },
+  progressPillTextMuted: { color: Colors.textMuted },
 
   // Country chips
   countryList: {
     paddingHorizontal: Spacing.md,
-    paddingBottom: 12,
+    paddingBottom: 10,
     gap: Spacing.sm,
   },
   countryChip: {
@@ -592,19 +730,22 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     paddingHorizontal: 14,
     paddingVertical: Spacing.sm,
-    gap: 6,
+    gap: 5,
     minHeight: MinTapTarget,
   },
-  countryChipSelected: {
+  countryChipViewing: {
     backgroundColor: Colors.primaryLight,
     borderColor: Colors.primary,
   },
-  countryFlag: { fontSize: 18 },
-  countryChipText: {
-    ...Typography.label,
-    color: Colors.textSecondary,
+  countryChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
-  countryChipTextSelected: { color: Colors.primary },
+  pinIcon: { marginRight: 1 },
+  countryFlag: { fontSize: 17 },
+  countryChipText: { ...Typography.label, color: Colors.textSecondary },
+  countryChipTextViewing: { color: Colors.primary },
+  countryChipTextActive: { color: Colors.surface, fontWeight: "600" },
 
   // Tabs
   tabBar: {
@@ -627,34 +768,18 @@ const styles = StyleSheet.create({
     borderRadius: Radius.sm,
     gap: 5,
   },
-  tabBtnActive: {
-    backgroundColor: Colors.primaryLight,
-  },
-  tabBtnText: {
-    ...Typography.label,
-    color: Colors.textSecondary,
-  },
-  tabBtnTextActive: {
-    color: Colors.primary,
-    fontWeight: "600",
-  },
+  tabBtnActive: { backgroundColor: Colors.primaryLight },
+  tabBtnText: { ...Typography.label, color: Colors.textSecondary },
+  tabBtnTextActive: { color: Colors.primary, fontWeight: "600" },
   tabBadge: {
     backgroundColor: Colors.border,
     borderRadius: Radius.full,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
-  tabBadgeActive: {
-    backgroundColor: Colors.primary,
-  },
-  tabBadgeText: {
-    ...Typography.small,
-    fontWeight: "700",
-    color: Colors.textSecondary,
-  },
-  tabBadgeTextActive: {
-    color: "#fff",
-  },
+  tabBadgeActive: { backgroundColor: Colors.primary },
+  tabBadgeText: { ...Typography.small, fontWeight: "700", color: Colors.textSecondary },
+  tabBadgeTextActive: { color: "#fff" },
 
   // Progress bar
   progressBarWrap: {
@@ -672,11 +797,93 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.secondary,
     borderRadius: Radius.full,
   },
-  progressFillBlocked: {
-    backgroundColor: Colors.warning,
+  progressFillMuted: { backgroundColor: Colors.textMuted },
+  progressFillBlocked: { backgroundColor: Colors.warning },
+
+  // Banners
+  inactiveBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  inactiveBannerLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+  },
+  inactiveBannerText: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    flex: 1,
+    lineHeight: 18,
+  },
+  activateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 4,
+    minHeight: 36,
+  },
+  activateBtnText: {
+    ...Typography.small,
+    fontWeight: "700",
+    color: Colors.surface,
+  },
+  activeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 4,
+  },
+  activeBannerText: {
+    ...Typography.caption,
+    fontWeight: "600",
+    color: Colors.primary,
   },
 
-  // Layout
+  // Global badge
+  globalBadgeRow: { flexDirection: "row", marginBottom: 2 },
+  globalBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F5F3FF",
+    borderRadius: Radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    gap: 4,
+  },
+  globalBadgeText: {
+    ...Typography.small,
+    color: "#7C3AED",
+    fontWeight: "500",
+  },
+
+  // Tab description
+  tabDesc: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 5,
+    paddingVertical: 4,
+  },
+  tabDescText: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+    flex: 1,
+    lineHeight: 17,
+  },
+
+  // Layout helpers
   center: {
     flex: 1,
     justifyContent: "center",
@@ -685,31 +892,12 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   errorText: { color: Colors.danger, fontSize: 15 },
-  emptyText: {
-    color: Colors.textSecondary,
-    fontSize: 15,
-    textAlign: "center",
-    marginTop: 8,
-  },
+  emptyText: { color: Colors.textSecondary, fontSize: 15, textAlign: "center", marginTop: 8 },
   scroll: { flex: 1 },
   stepList: {
     paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.xl,
     gap: Spacing.sm,
-  },
-
-  // Tab description
-  tabDesc: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 6,
-    paddingVertical: 6,
-  },
-  tabDescText: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    flex: 1,
-    lineHeight: 18,
   },
 
   // Badge
@@ -729,10 +917,33 @@ const styles = StyleSheet.create({
     borderColor: Colors.warning,
   },
   badgeAssessment: { backgroundColor: "#7C3AED" },
-  badgeNum: {
+  badgeNum: { ...Typography.small, fontWeight: "700", color: "#fff" },
+
+  // Global tag
+  globalTag: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#F5F3FF",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#DDD6FE",
+    flexShrink: 0,
+  },
+  globalTagInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F5F3FF",
+    borderRadius: Radius.full,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    gap: 3,
+  },
+  globalTagText: {
     ...Typography.small,
-    fontWeight: "700",
-    color: "#fff",
+    color: "#7C3AED",
+    fontWeight: "500",
   },
 
   // Completed card
@@ -747,19 +958,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     gap: 10,
   },
-  completedCardWarn: {
-    backgroundColor: Colors.warningLight,
-    borderColor: "#FDE68A",
+  completedCardWarn: { backgroundColor: Colors.warningLight, borderColor: "#FDE68A" },
+  completedCardGlobal: { borderLeftWidth: 3, borderLeftColor: "#7C3AED" },
+  completedQuestionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
   },
-  cardBody: {
-    flex: 1,
-    gap: 5,
-  },
+  cardBody: { flex: 1 },
   completedQuestion: {
     fontSize: 14,
     fontWeight: "500",
     color: Colors.textSecondary,
     lineHeight: 18,
+    flex: 1,
   },
   answerChip: {
     alignSelf: "flex-start",
@@ -770,11 +983,7 @@ const styles = StyleSheet.create({
     maxWidth: "90%",
   },
   answerChipWarn: { backgroundColor: "#FEF3C7" },
-  answerChipText: {
-    ...Typography.small,
-    fontWeight: "600",
-    color: "#065F46",
-  },
+  answerChipText: { ...Typography.small, fontWeight: "600", color: "#065F46" },
   answerChipTextWarn: { color: "#92400E" },
   stepNumSmall: {
     ...Typography.small,
@@ -782,8 +991,23 @@ const styles = StyleSheet.create({
     minWidth: 16,
     textAlign: "right",
   },
+  editBtn: {
+    padding: 6,
+    borderRadius: Radius.sm,
+    justifyContent: "center",
+    alignItems: "center",
+    flexShrink: 0,
+  },
+  cancelEditBtn: {
+    marginLeft: "auto",
+    padding: 4,
+    borderRadius: Radius.sm,
+    justifyContent: "center",
+    alignItems: "center",
+    flexShrink: 0,
+  },
 
-  // Active card
+  // Active step card
   activeCard: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
@@ -797,48 +1021,39 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
-  activeCardAssessment: {
-    borderColor: "#7C3AED",
-    shadowColor: "#7C3AED",
+  activeCardAssessment: { borderColor: "#7C3AED", shadowColor: "#7C3AED" },
+  activeCardReadonly: {
+    borderColor: Colors.borderStrong,
+    shadowOpacity: 0,
+    elevation: 0,
+    opacity: 0.75,
   },
-  activeMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  activeCardEdit: {
+    borderColor: "#F59E0B",
+    shadowColor: "#F59E0B",
+    shadowOpacity: 0.15,
   },
+  activeMeta: { flexDirection: "row", alignItems: "center", gap: 8 },
   activeMetaText: {
     ...Typography.small,
     fontWeight: "600",
     color: Colors.primary,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+    flex: 1,
   },
-  activeMetaTextAssessment: {
-    color: "#7C3AED",
-  },
+  activeMetaTextAssessment: { color: "#7C3AED" },
   activeQuestion: {
     fontSize: 17,
     fontWeight: "700",
     color: Colors.textPrimary,
     lineHeight: 24,
   },
-  activeDesc: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    lineHeight: 18,
-  },
+  activeDesc: { ...Typography.caption, color: Colors.textSecondary, lineHeight: 18 },
 
   // Options
-  optionsCol: {
-    flexDirection: "column",
-    gap: Spacing.sm,
-    marginTop: 4,
-  },
-  optionsRow: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-    marginTop: 4,
-  },
+  optionsCol: { flexDirection: "column", gap: Spacing.sm, marginTop: 4 },
+  optionsRow: { flexDirection: "row", gap: Spacing.sm, marginTop: 4 },
   optionBtn: {
     paddingVertical: 13,
     paddingHorizontal: Spacing.md,
@@ -851,35 +1066,28 @@ const styles = StyleSheet.create({
     minHeight: MinTapTarget,
   },
   optionBtnHalf: { flex: 1 },
-  optionBtnSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  optionBtnWarn: {
-    backgroundColor: Colors.warningLight,
-    borderColor: Colors.warning,
-  },
+  optionBtnSelected: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  optionBtnWarn: { backgroundColor: Colors.warningLight, borderColor: Colors.warning },
   optionBtnDimmed: { opacity: 0.4 },
-  optionBtnText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: Colors.textPrimary,
-    textAlign: "center",
+  optionBtnPrevious: {
+    borderColor: "#F59E0B",
+    backgroundColor: "#FFFBEB",
   },
+  optionBtnText: { fontSize: 15, fontWeight: "600", color: Colors.textPrimary, textAlign: "center" },
   optionBtnTextSelected: { color: Colors.surface },
   optionBtnTextWarn: { color: "#92400E" },
+  optionBtnTextPrevious: { color: "#92400E" },
 
-  noOptionsWrap: {
+  noOptionsWrap: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8 },
+  noOptionsText: { ...Typography.caption, color: Colors.textMuted, flex: 1 },
+
+  readonlyNote: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     paddingVertical: 8,
   },
-  noOptionsText: {
-    ...Typography.caption,
-    color: Colors.textMuted,
-    flex: 1,
-  },
+  readonlyNoteText: { ...Typography.caption, color: Colors.textMuted, flex: 1 },
 
   // Blocker card
   blockerCard: {
@@ -894,41 +1102,13 @@ const styles = StyleSheet.create({
   },
   blockerIconWrap: { paddingTop: 2, flexShrink: 0 },
   blockerBody: { flex: 1, gap: 6 },
-  blockerTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#92400E",
-  },
-  blockerText: {
-    ...Typography.caption,
-    color: "#78350F",
-    lineHeight: 19,
-  },
-  blockerLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 4,
-  },
-  blockerLinkText: {
-    ...Typography.caption,
-    fontWeight: "600",
-    color: Colors.primary,
-  },
+  blockerTitle: { fontSize: 15, fontWeight: "700", color: "#92400E" },
+  blockerText: { ...Typography.caption, color: "#78350F", lineHeight: 19 },
+  blockerLink: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
+  blockerLinkText: { ...Typography.caption, fontWeight: "600", color: Colors.primary },
 
   // Done card
-  doneCard: {
-    alignItems: "center",
-    paddingVertical: Spacing.xl,
-    gap: Spacing.sm,
-  },
-  doneTitle: {
-    ...Typography.h2,
-    color: Colors.secondary,
-  },
-  doneSub: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    textAlign: "center",
-  },
+  doneCard: { alignItems: "center", paddingVertical: Spacing.xl, gap: Spacing.sm },
+  doneTitle: { ...Typography.h2, color: Colors.secondary },
+  doneSub: { ...Typography.body, color: Colors.textSecondary, textAlign: "center" },
 });

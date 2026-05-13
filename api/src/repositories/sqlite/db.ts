@@ -129,4 +129,6 @@ function initTables(db: DatabaseSync) {
   addColumnIfNotExists(db, "guide_steps", "options", "TEXT");
   addColumnIfNotExists(db, "guide_steps", "faqUrl", "TEXT");
   addColumnIfNotExists(db, "guide_steps", "stepType", "TEXT DEFAULT 'checklist'");
+  addColumnIfNotExists(db, "guide_steps", "isGlobal", "INTEGER DEFAULT 0");
+  addColumnIfNotExists(db, "users", "activeGuideCountryId", "TEXT");
 }

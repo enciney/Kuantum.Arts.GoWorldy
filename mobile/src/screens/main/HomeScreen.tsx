@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
@@ -29,37 +29,45 @@ interface Activity {
 export function HomeScreen() {
   const { user, token } = useAuth();
   const navigation = useNavigation<HomeNav>();
-  const [stats, setStats] = useState({ countries: 0, completedSteps: 0, totalSteps: 0 });
+  const [homeStats, setHomeStats] = useState({
+    countryId: null as string | null,
+    countryName: "",
+    completedSteps: 0,
+    totalSteps: 0,
+    completionPct: 0,
+    countriesWithProgress: 0,
+  });
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadData = useCallback(async () => {
     if (!token) return;
-    (async () => {
-      try {
-        const [countries, progress, acts] = await Promise.all([
-          api.forum.getCountries(token).catch(() => [] as { id: string }[]),
-          api.guide.getProgress(token).catch(() => [] as { id: string }[]),
-          api.users.myActivity(token).catch(() => [] as Activity[]),
-        ]);
-        const firstId = (countries as { id: string }[])[0]?.id ?? "";
-        const steps = firstId
-          ? await api.guide.getSteps(firstId, token).catch(() => [] as { id: string }[])
-          : [];
-        setStats({
-          countries: (countries as { id: string }[]).length,
-          completedSteps: (progress as { id: string }[]).length,
-          totalSteps: (steps as { id: string }[]).length,
-        });
-        setActivities(acts as Activity[]);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    try {
+      const [guideStats, acts] = await Promise.all([
+        api.guide.getHomeStats(token).catch(() => ({
+          countryId: null,
+          countryName: "",
+          completedSteps: 0,
+          totalSteps: 0,
+          completionPct: 0,
+          countriesWithProgress: 0,
+        })),
+        api.users.myActivity(token).catch(() => [] as Activity[]),
+      ]);
+      setHomeStats(guideStats);
+      setActivities(acts as Activity[]);
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
 
-  const completionPct =
-    stats.totalSteps > 0 ? Math.round((stats.completedSteps / stats.totalSteps) * 100) : 0;
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
+  const completionPct = homeStats.completionPct;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
@@ -88,13 +96,13 @@ export function HomeScreen() {
         />
         <StatCard
           icon={<FontAwesome5 name="globe-americas" size={20} color={Colors.primary} />}
-          value={stats.countries.toString()}
+          value={homeStats.countriesWithProgress.toString()}
           label="Ülke"
-          onPress={() => navigation.getParent()?.navigate("Forum")}
+          onPress={() => navigation.getParent()?.navigate("Guide")}
         />
         <StatCard
           icon={<Ionicons name="checkmark-done" size={24} color={Colors.warning} />}
-          value={stats.completedSteps.toString()}
+          value={homeStats.completedSteps.toString()}
           label="Tamamlanan"
           onPress={() => navigation.getParent()?.navigate("Guide")}
         />
@@ -111,7 +119,8 @@ export function HomeScreen() {
           <Text style={styles.guideCardTitle}>Rehberime Devam Et</Text>
         </View>
         <Text style={styles.guideCardText}>
-          {stats.completedSteps} / {stats.totalSteps} adım tamamlandı
+          {homeStats.countryName ? `${homeStats.countryName} — ` : ""}
+          {homeStats.completedSteps} / {homeStats.totalSteps} adım tamamlandı
         </Text>
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: `${completionPct}%` }]} />
