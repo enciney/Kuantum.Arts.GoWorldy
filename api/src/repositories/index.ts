@@ -1,9 +1,8 @@
-import { config } from "../config";
 import { IUserRepository, IForumRepository, IGuideRepository, IPaymentProvider, INotificationRepository } from "./interfaces";
-import { SqliteUserRepository } from "./sqlite/SqliteUserRepository";
-import { SqliteForumRepository } from "./sqlite/SqliteForumRepository";
-import { SqliteGuideRepository } from "./sqlite/SqliteGuideRepository";
-import { SqliteNotificationRepository } from "./sqlite/SqliteNotificationRepository";
+import { MongoUserRepository } from "./mongodb/MongoUserRepository";
+import { MongoForumRepository } from "./mongodb/MongoForumRepository";
+import { MongoGuideRepository } from "./mongodb/MongoGuideRepository";
+import { MongoNotificationRepository } from "./mongodb/MongoNotificationRepository";
 import { StripePaymentProvider } from "./stripe/StripePaymentProvider";
 
 export interface Repositories {
@@ -15,18 +14,11 @@ export interface Repositories {
 }
 
 export function createRepositories(): Repositories {
-  const payment = new StripePaymentProvider();
-
-  if (config.db.provider === "mongodb") {
-    // TODO: MongoDB implementasyonları eklenecek
-    throw new Error("MongoDB provider henüz implement edilmedi. DB_PROVIDER=sqlite kullanın.");
-  }
-
   return {
-    users: new SqliteUserRepository(),
-    forum: new SqliteForumRepository(),
-    guide: new SqliteGuideRepository(),
-    payment,
-    notifications: new SqliteNotificationRepository(),
+    users: new MongoUserRepository(),
+    forum: new MongoForumRepository(),
+    guide: new MongoGuideRepository(),
+    payment: new StripePaymentProvider(),
+    notifications: new MongoNotificationRepository(),
   };
 }

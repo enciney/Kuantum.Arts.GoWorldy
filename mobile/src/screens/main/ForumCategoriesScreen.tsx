@@ -24,6 +24,7 @@ interface Category {
   countryId: string;
   name: string;
   parentId?: string;
+  topicCount?: number;
 }
 
 export function ForumCategoriesScreen({ countryId, countryName, onBack, onCategoryPress }: Props) {
@@ -84,7 +85,12 @@ export function ForumCategoriesScreen({ countryId, countryName, onBack, onCatego
               <View style={styles.iconBox}>
                 <Ionicons name="folder" size={22} color={Colors.primary} />
               </View>
-              <Text style={styles.rowText}>{item.name}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowText}>{item.name}</Text>
+                {item.topicCount != null && (
+                  <Text style={styles.topicCountText}>{item.topicCount} konu</Text>
+                )}
+              </View>
               <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
             </TouchableOpacity>
           )}
@@ -135,7 +141,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  rowText: { flex: 1, fontSize: 15, fontWeight: "500", color: Colors.textPrimary },
+  rowText: { fontSize: 15, fontWeight: "500", color: Colors.textPrimary },
+  topicCountText: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 40 },
   emptyTitle: { ...Typography.body, fontWeight: "600", color: Colors.textPrimary, marginTop: 12 },
   emptyText: { ...Typography.caption, color: Colors.textSecondary, textAlign: "center", marginTop: 6 },

@@ -2,6 +2,7 @@ export interface ForumCountry {
   id: string;
   name: string;
   code: string;
+  topicCount?: number;
 }
 
 export interface ForumCategory {
@@ -9,6 +10,7 @@ export interface ForumCategory {
   countryId: string;
   name: string;
   parentId?: string;
+  topicCount?: number;
 }
 
 export interface ForumTopic {

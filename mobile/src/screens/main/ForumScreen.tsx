@@ -22,6 +22,7 @@ interface Country {
   id: string;
   name: string;
   code: string;
+  topicCount?: number;
 }
 
 const FLAG_MAP: Record<string, string> = {
@@ -231,7 +232,9 @@ export function ForumScreen() {
             <Text style={styles.countryName}>{item.name}</Text>
             <View style={styles.cardFooter}>
               <Ionicons name="chatbubbles-outline" size={14} color={Colors.textSecondary} />
-              <Text style={styles.cardFooterText}>Forum'a git</Text>
+              <Text style={styles.cardFooterText}>
+                {item.topicCount != null ? `${item.topicCount} konu` : "Forum'a git"}
+              </Text>
             </View>
           </TouchableOpacity>
         )}

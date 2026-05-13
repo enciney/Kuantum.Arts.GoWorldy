@@ -13,7 +13,6 @@ export const config = {
   jwtExpiry: process.env.JWT_EXPIRY || "7d",
 
   db: {
-    provider: (process.env.DB_PROVIDER || "sqlite") as "sqlite" | "mongodb",
     connectionString: process.env.DB_CONNECTION_STRING || "",
   },
 

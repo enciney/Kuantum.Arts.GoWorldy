@@ -149,9 +149,9 @@ export const api = {
 
   forum: {
     getCountries: (token: string) =>
-      request<{ id: string; name: string; code: string }[]>("/forum/countries", { token }),
+      request<{ id: string; name: string; code: string; topicCount?: number }[]>("/forum/countries", { token }),
     getCategories: (countryId: string, token: string) =>
-      request<{ id: string; countryId: string; name: string; parentId?: string }[]>(
+      request<{ id: string; countryId: string; name: string; parentId?: string; topicCount?: number }[]>(
         `/forum/countries/${countryId}/categories`,
         { token }
       ),
