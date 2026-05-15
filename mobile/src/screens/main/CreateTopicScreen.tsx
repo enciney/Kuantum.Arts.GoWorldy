@@ -68,10 +68,10 @@ export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreate
     try {
       await api.forum.createTopic(categoryId, title.trim(), token);
       Alert.alert(
-        isStaff ? "Konu yayınlandı" : "Konu gönderildi",
+        isStaff ? "Konu yayınlandı ✓" : "Konunuz alındı",
         isStaff
           ? "Konunuz hemen yayına alındı."
-          : "Konunuz moderatör onayı bekliyor. Onaylandığında yayına alınacak.",
+          : "Konunuz onay sürecine alınmıştır. Kısa süre içinde size bildirim göndereceğiz.",
         [{ text: "Tamam", onPress: onCreated }]
       );
     } catch (e: unknown) {

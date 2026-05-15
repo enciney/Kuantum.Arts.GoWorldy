@@ -437,6 +437,118 @@ Sprint 7 maddelerinin (S7-1, S7-2) kaynak kod ile doğrulanması tamamlandı —
 
 ---
 
+---
+
+## Sprint 9 — Manuel Test Planı (2026-05-14)
+
+### N-T1: Ülke Aboneliği Bildirimi
+
+**Test senaryosu:** Kullanıcı bir ülkeyi takip ediyor, o ülkede yeni konu açılınca bildirim almalı.
+
+| Adım | Beklenen Sonuç |
+|------|---------------|
+| 1. U1 olarak giriş yap | OK |
+| 2. NotificationsScreen → Takip Ettiklerim → "Almanya" toggle ON | `PATCH /api/notifications/subscriptions/:countryId` 200 OK |
+| 3. Admin veya moderatör ile Almanya kategorisinde konu oluştur | Topic `status=approved` olarak oluşturuldu |
+| 4. U1'in bildirimlerini kontrol et | `GET /api/notifications` → `type: "topic_new"` bildirim görünmeli |
+| 5. Bildirimi tıkla | ForumScreen → topic-detail açılmalı |
+| 6. 9'dan fazla okunmamış bildirim oluştur | Home tab ikonunda "9+" badge görünmeli |
+| 7. Okunmamış sayıyı 9 veya altına indir | Exact sayı (1-9) görünmeli |
+
+**Kök neden doğrulama:**
+- `MongoNotificationRepository.notifyCountrySubscribers` çağrılıyor mu? → `console.log` ekleyerek doğrula veya DB'yi sorgula.
+- `forum.ts` `updateTopicStatus` handler'ında `notifyCountrySubscribers` tetikleniyor mu?
+
+---
+
+### N-T2: Konu Aboneliği Bildirimi
+
+**Test senaryosu:** Kullanıcı konuyu takip ediyor, konuya yeni yorum gelince bildirim almalı.
+
+| Adım | Beklenen Sonuç |
+|------|---------------|
+| 1. U1 olarak ForumTopicDetailScreen'i aç | Header'da çan ikonu görünmeli (outline, takip edilmiyor) |
+| 2. Çan ikonuna tıkla | İkon dolmuş (`notifications`), mavi arka plan, optimistic update |
+| 3. `GET /forum/topics/:id/subscribe` → `{ subscribed: true }` | Backend doğrulama |
+| 4. U2 olarak aynı konuya yorum yaz | U1 bildirim almalı: `type: "new_comment"` |
+| 5. Çan ikonuna tekrar tıkla (unsubscribe) | İkon outline'a döner |
+| 6. `GET /forum/topics/:id/subscribe` → `{ subscribed: false }` | Backend doğrulama |
+| 7. U2 tekrar yorum yaz | U1 bu sefer bildirim almamalı |
+
+---
+
+### N-T3: Admin Canlı Onay Paneli
+
+**Test senaryosu:** Admin sayfası yeni pending topic'leri gerçek zamanlı göstermeli.
+
+| Adım | Beklenen Sonuç |
+|------|---------------|
+| 1. Admin → TopicsPage aç | "● Canlı" yeşil chip görünmeli, mevcut pending listesi yüklenmeli |
+| 2. Normal user olarak yeni konu oluştur | Admin sayfası yenilenmeden yeni konu listenin başında belirmeli |
+| 3. "Onayla" butonuna tıkla | Konu listeden kaldırılmalı, sayaç azalmalı |
+| 4. İnternet bağlantısını kes / API'yi durdur | Chip "✕ Çevrimdışı" kırmızıya dönmeli |
+| 5. Bağlantıyı geri al | "○ Bağlanıyor" → "● Canlı" |
+
+**Kök neden doğrulama:**
+- `GET /api/admin/topics/stream?token=...` — curl ile SSE stream'i manuel test et:
+  ```bash
+  curl -N "http://localhost:3000/api/admin/topics/stream?token=ADMIN_TOKEN"
+  ```
+- Başka terminalden `POST /api/forum/topics` ile pending topic oluştur → SSE event geldi mi?
+
+---
+
+### N-T4: Badge Count Doğruluğu (9+ Kuralı)
+
+| Senaryo | Beklenen Badge |
+|---------|---------------|
+| 0 okunmamış | Badge görünmez |
+| 1–9 okunmamış | Exact sayı (1, 2, …, 9) |
+| 10+ okunmamış | "9+" yazısı |
+| Tüm bildirimleri okundu işaretle | Badge kaybolur |
+| App arka plandan öne gelince | `AppState` "active" → badge otomatik yenilenir |
+
+**Doğrulama metodu:**
+- `GET /api/notifications/unread-count` endpoint'i doğru sayı döndürüyor mu?
+- Birden fazla bildirim oluştur, unread-count API'sini sorgula.
+
+---
+
+### N-T5: Konu Onaylandığında/Reddedildiğinde Yazar Bildirimi
+
+| Adım | Beklenen Sonuç |
+|------|---------------|
+| 1. Normal user olarak konu oluştur (pending) | Topic created |
+| 2. Admin → TopicsPage → Onayla | Topic `status=approved` |
+| 3. Konu yazarının bildirimlerini kontrol et | `type: "topic_approved"`, mesaj: "konunuz yayınlandı" |
+| 4. Admin → başka topic → Reddet (sebep gir) | Topic `status=rejected` |
+| 5. Konu yazarının bildirimlerini kontrol et | `type: "topic_rejected"`, mesajda red sebebi görünmeli |
+
+---
+
+### N-T6: Konu Yazarına Otomatik Bildirim (Yorum Gelince)
+
+**Not:** Konu yazarı konuyu takip etmese bile, başkası yorum yapınca bildirim almalı.
+
+| Adım | Beklenen Sonuç |
+|------|---------------|
+| 1. U1 konu oluştur (approved olsun) | Topic created |
+| 2. U2 konuya yorum yap | U1'e bildirim gitmeli (`type: "new_comment"`) |
+| 3. U1 kendi konusuna yorum yap | Kendine bildirim gitmemeli |
+
+---
+
+### N-T7: Edge Case'ler
+
+| Case | Beklenen |
+|------|---------|
+| Takip edilen ülkede konu `status=pending` oluşunca | Bildirim GİTMEMELİ (sadece approved tetikler) |
+| Konu silinse / reddedilse, abonelere bildirim | Test et |
+| Aynı konuya iki kez subscribe | Duplicate subscription oluşmamalı (MongoDB unique index) |
+| Token süresi dolmuş SSE bağlantısı | 401 dönmeli, client graceful handle etmeli |
+
+---
+
 ## Regresyon Logu (güncel)
 
 - **2026-05-11 2. Tur**: T1, T2, T3, T4 düzeltmeleri uygulandı. tsc her iki tarafta temiz. T5/T6/T7 hâlâ açık (P3, UX ekibine bildirildi).

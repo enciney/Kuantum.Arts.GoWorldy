@@ -58,6 +58,7 @@ app.post("/api/payment/webhook", express.raw({ type: "application/json" }), asyn
 app.use(express.json({ limit: "5mb" }));
 
 seedDatabase();
+repos.premium.seedDefaultPlans().catch(console.error);
 
 app.use("/api/auth", authRoutes(repos));
 app.use("/api/forum", forumRoutes(repos));

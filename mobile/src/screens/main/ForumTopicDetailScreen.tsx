@@ -37,6 +37,8 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, onBack }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [reply, setReply] = useState("");
   const [posting, setPosting] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -48,9 +50,15 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, onBack }: Props) {
     }
   }, [topicId, token]);
 
+  // Load comments and subscription state
   useEffect(() => {
     load().finally(() => setLoading(false));
-  }, [load]);
+    if (token) {
+      api.notifications.isTopicSubscribed(topicId, token)
+        .then((r) => setSubscribed(r.subscribed))
+        .catch(() => {});
+    }
+  }, [load, topicId, token]);
 
   const handlePost = async () => {
     if (!reply.trim() || !token) return;
@@ -69,6 +77,24 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, onBack }: Props) {
     }
   };
 
+  const handleSubscribe = async () => {
+    if (!token || subscribing) return;
+    setSubscribing(true);
+    const next = !subscribed;
+    setSubscribed(next); // optimistic
+    try {
+      if (next) {
+        await api.notifications.subscribeToTopic(topicId, token);
+      } else {
+        await api.notifications.unsubscribeFromTopic(topicId, token);
+      }
+    } catch (_) {
+      setSubscribed(!next); // rollback
+    } finally {
+      setSubscribing(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -82,6 +108,22 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, onBack }: Props) {
         <Text style={styles.title} numberOfLines={2}>
           {topicTitle}
         </Text>
+        <TouchableOpacity
+          onPress={handleSubscribe}
+          style={[styles.subscribeBtn, subscribed && styles.subscribeBtnActive]}
+          activeOpacity={0.75}
+          disabled={subscribing}
+        >
+          {subscribing ? (
+            <ActivityIndicator size="small" color={subscribed ? Colors.surface : Colors.primary} />
+          ) : (
+            <Ionicons
+              name={subscribed ? "notifications" : "notifications-outline"}
+              size={18}
+              color={subscribed ? Colors.surface : Colors.primary}
+            />
+          )}
+        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -194,6 +236,21 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     flex: 1,
     paddingTop: 6,
+  },
+  subscribeBtn: {
+    width: MinTapTarget,
+    height: MinTapTarget,
+    borderRadius: Radius.full,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: Spacing.xs,
+    alignSelf: "center",
+  },
+  subscribeBtnActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   center: {
     flex: 1,

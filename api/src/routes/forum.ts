@@ -2,6 +2,7 @@ import { Router } from "express";
 import { Repositories } from "../repositories";
 import { authMiddleware, requireRole, AuthRequest } from "../middleware/auth";
 import { config } from "../config";
+import { broadcastPendingTopic } from "./admin";
 
 export function forumRoutes(repos: Repositories): Router {
   const router = Router();
@@ -54,13 +55,31 @@ export function forumRoutes(repos: Repositories): Router {
       }
     }
 
+    const status = isStaff ? "approved" : "pending";
     const topic = await repos.forum.createTopic({
       categoryId,
       title,
       authorId: req.userId!,
-      status: isStaff ? "approved" : "pending",
+      status,
       isPinned: false,
     });
+
+    if (status === "approved") {
+      // Staff created → notify country subscribers immediately
+      repos.notifications.notifyCountrySubscribers(categoryId, topic.id, title, req.userId!).catch(() => {});
+    } else {
+      // Normal user → broadcast to admin SSE + notify author that review started
+      broadcastPendingTopic({ type: "new_pending", topic });
+      repos.notifications.create({
+        userId: req.userId!,
+        type: "system",
+        title: "Konunuz alındı",
+        message: `"${title}" başlıklı konunuz moderatör incelemesine alındı. Onaylandığında size haber vereceğiz.`,
+        targetType: "forum_topic",
+        targetId: topic.id,
+      }).catch(() => {});
+    }
+
     res.json(topic);
   });
 
@@ -79,9 +98,38 @@ export function forumRoutes(repos: Repositories): Router {
     res.json(result);
   });
 
-  router.patch("/topics/:id/status", authMiddleware, requireRole("admin", "moderator"), async (req, res) => {
+  router.patch("/topics/:id/status", authMiddleware, requireRole("admin", "moderator"), async (req: AuthRequest, res) => {
+    const topicId = req.params.id as string;
     const { status, reason } = req.body;
-    await repos.forum.updateTopicStatus(req.params.id as string, status, reason);
+
+    // Fetch topic before updating for notification data
+    const topic = await repos.forum.getTopicById(topicId);
+
+    await repos.forum.updateTopicStatus(topicId, status, reason);
+
+    // Notify topic author of approval/rejection
+    if (topic) {
+      const type = status === "approved" ? "topic_approved" : "topic_rejected";
+      const notifTitle = status === "approved" ? "İlanınız onaylandı 🎉" : "İlanınız reddedildi";
+      const notifMsg = status === "approved"
+        ? `"${topic.title}" başlıklı ilanınız onaylanmıştır! Artık herkes görebilir.`
+        : `"${topic.title}" başlıklı ilanınız reddedilmiştir.${reason ? " Sebep: " + reason : ""} Detaylar için bildirimlerinizi kontrol edin.`;
+
+      repos.notifications.create({
+        userId: topic.authorId,
+        type,
+        title: notifTitle,
+        message: notifMsg,
+        targetType: "forum_topic",
+        targetId: topicId,
+      }).catch(() => {});
+
+      // If approved, also notify country subscribers
+      if (status === "approved") {
+        repos.notifications.notifyCountrySubscribers(topic.categoryId, topicId, topic.title, topic.authorId).catch(() => {});
+      }
+    }
+
     res.json({ ok: true });
   });
 
@@ -90,7 +138,52 @@ export function forumRoutes(repos: Repositories): Router {
   });
 
   router.post("/topics/:topicId/comments", authMiddleware, async (req: AuthRequest, res) => {
-    res.json(await repos.forum.createComment({ topicId: req.params.topicId as string, authorId: req.userId!, content: req.body.content }));
+    const topicId = req.params.topicId as string;
+    const comment = await repos.forum.createComment({
+      topicId,
+      authorId: req.userId!,
+      content: req.body.content,
+    });
+
+    // Notify topic subscribers + topic author (fire-and-forget)
+    const topic = await repos.forum.getTopicById(topicId).catch(() => null);
+    repos.notifications.notifyTopicSubscribers(
+      topicId,
+      topic?.title ?? "",
+      comment.authorDisplayName,
+      req.userId!
+    ).catch(() => {});
+
+    res.json(comment);
+  });
+
+  // ── Topic subscribe / unsubscribe ────────────────────────────────────────────
+
+  router.post("/topics/:id/subscribe", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      await repos.notifications.setTopicSubscription(req.userId!, req.params.id as string, true);
+      res.json({ ok: true, subscribed: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.delete("/topics/:id/subscribe", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      await repos.notifications.setTopicSubscription(req.userId!, req.params.id as string, false);
+      res.json({ ok: true, subscribed: false });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.get("/topics/:id/subscribe", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const subscribed = await repos.notifications.isTopicSubscribed(req.userId!, req.params.id as string);
+      res.json({ subscribed });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
   });
 
   return router;

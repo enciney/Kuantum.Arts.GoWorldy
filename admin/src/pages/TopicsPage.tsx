@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../AuthContext";
 import { api, Topic } from "../api";
+
+const BASE = "http://localhost:3000/api";
 
 export default function TopicsPage() {
   const { token } = useAuth();
@@ -8,11 +10,13 @@ export default function TopicsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState<string | null>(null);
+  const [liveStatus, setLiveStatus] = useState<"connecting" | "live" | "offline">("connecting");
   const [rejectModal, setRejectModal] = useState<{ open: boolean; topicId: string; reason: string }>({
     open: false,
     topicId: "",
     reason: "",
   });
+  const esRef = useRef<EventSource | null>(null);
 
   const load = async () => {
     if (!token) return;
@@ -26,6 +30,40 @@ export default function TopicsPage() {
       setLoading(false);
     }
   };
+
+  // SSE real-time connection
+  useEffect(() => {
+    if (!token) return;
+
+    const es = new EventSource(`${BASE}/admin/topics/stream?token=${encodeURIComponent(token)}`);
+    esRef.current = es;
+    setLiveStatus("connecting");
+
+    es.onopen = () => setLiveStatus("live");
+    es.onerror = () => setLiveStatus("offline");
+
+    es.onmessage = (e) => {
+      try {
+        const payload = JSON.parse(e.data) as { type: string; topic?: Topic; topics?: Topic[] };
+        if (payload.type === "init" && payload.topics) {
+          setTopics(payload.topics);
+          setLoading(false);
+          setLiveStatus("live");
+        } else if (payload.type === "new_pending" && payload.topic) {
+          setTopics((prev) => {
+            if (prev.find((t) => t.id === payload.topic!.id)) return prev;
+            return [payload.topic!, ...prev];
+          });
+        } else if (payload.type === "removed") {
+          // Topic was approved/rejected from another session
+          const topicId = (payload as unknown as { topicId: string }).topicId;
+          if (topicId) setTopics((prev) => prev.filter((t) => t.id !== topicId));
+        }
+      } catch (_) {}
+    };
+
+    return () => { es.close(); esRef.current = null; };
+  }, [token]);
 
   useEffect(() => { load(); }, [token]);
 
@@ -53,6 +91,9 @@ export default function TopicsPage() {
       <div style={css.header}>
         <h2 style={css.heading}>Konu Onay Kuyruğu</h2>
         <span style={css.badge}>{topics.length} bekleyen</span>
+        <span style={{ ...css.liveChip, background: liveStatus === "live" ? "#D1FAE5" : liveStatus === "connecting" ? "#FEF9C3" : "#FEE2E2", color: liveStatus === "live" ? "#065F46" : liveStatus === "connecting" ? "#92400E" : "#991B1B" }}>
+          {liveStatus === "live" ? "● Canlı" : liveStatus === "connecting" ? "○ Bağlanıyor" : "✕ Çevrimdışı"}
+        </span>
         <button onClick={load} style={css.refreshBtn}>Yenile</button>
       </div>
 
@@ -149,6 +190,7 @@ const css: Record<string, React.CSSProperties> = {
     padding: "3px 10px",
     borderRadius: 20,
   },
+  liveChip: { fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 20 },
   refreshBtn: { background: "#E2E8F0", color: "#374151", marginLeft: "auto" },
   error: { background: "#FEF2F2", color: "#DC2626", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 16 },
   loading: { color: "#64748B", padding: 32, textAlign: "center" },

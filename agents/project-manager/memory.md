@@ -192,6 +192,44 @@ Benzer platformlar incelendi: InterNations, Expat.com, Lawfully, MigraConnect, E
 | Gerçek zamanlı vize başvuru takibi | Yüksek teknik karmaşıklık, MVP dışı |
 | AI destekli chatbot | Önce platform stabilitesi, sonra AI katmanı |
 
+## Sprint 8 — TAMAMLANDI ✅ (2026-05-12)
+
+C1/C2/C3/C4 tamamlandı. Profil sayfası tam çalışır hale getirildi.
+
+## Sprint 9 — AKTİF (2026-05-14)
+
+### Konu: Bildirim Sistemi Entegrasyonu
+
+Stakeholder iki ana kategori bildirim istedi:
+1. **Ülke bildirimleri**: Takip edilen ülkede yeni konu açılınca bildirim
+2. **Konu bildirimleri**: Takip edilen konuya yeni yorum gelince bildirim
+
+Ek: Admin panelinde topic onayı için gerçek zamanlı (SSE) çalışan sayfa.
+
+### Sprint 9 Görev Tablosu
+
+| Kod | Öncelik | Görev | Sahip | Durum |
+|-----|---------|-------|-------|-------|
+| N1 | **P0** | DB: `userTopicSubscriptions` koleksiyonu + index | Developer | ⏳ |
+| N2 | **P0** | INotificationRepository + MongoNotificationRepository genişlet (unreadCount, topic sub, fan-out) | Developer | ⏳ |
+| N3 | **P0** | Notification trigger: yeni konu (status=approved) → ülke abonelerine bildirim | Developer | ⏳ |
+| N4 | **P0** | Notification trigger: yeni yorum → konu abonelerine + konu yazarına bildirim | Developer | ⏳ |
+| N5 | **P0** | Notification trigger: konu onaylandı/reddedildi → konu yazarına bildirim | Developer | ⏳ |
+| N6 | **P1** | `GET /notifications/unread-count` endpoint | Developer | ⏳ |
+| N7 | **P1** | Topic subscribe/unsubscribe endpoints: `POST/DELETE /forum/topics/:id/subscribe` | Developer | ⏳ |
+| N8 | **P1** | Admin SSE stream: `GET /api/admin/topics/stream` real-time pending topic events | Developer | ⏳ |
+| N9 | **P1** | Admin TopicsPage SSE entegrasyonu — otomatik liste güncelleme | Developer | ⏳ |
+| N10 | **P1** | Mobile: bildirim çanı badge (9+ format) AppNavigator + HomeScreen | Developer + UX-UI | ⏳ |
+| N11 | **P1** | Mobile: ForumTopicDetailScreen'e "Konuyu Takip Et" butonu | Developer + UX-UI | ⏳ |
+| N12 | **P2** | Mobile api.ts: unreadCount, topicSubscribe, topic bildirim tipi güncellemesi | Developer | ⏳ |
+| T-N1 | **P1** | Tester: Bildirim sistemi tam manuel test planı | Tester | ⏳ |
+
+### Kök Neden / Mimari Kararlar (Sprint 9)
+- **Fan-out stratejisi**: Abonelere bildirim oluşturma sync yapılıyor (MVP) — prod'da queue kullanılabilir.
+- **Topic bildirim tipi**: `topic_new` ve `comment_reply` yeni tipler ekleniyor.
+- **Admin SSE**: Express SSE (long-lived GET) ile basit push; `EventSource` client tarafında.
+- **Badge**: `GET /notifications/unread-count` her app focus'ta çağrılacak, 9'dan büyükse "9+" gösterilecek.
+
 ## Sprint 8 — AKTİF (2026-05-12)
 
 Stakeholder 9 sorun raporladı. Kök neden: CORS + 3 bağımsız UI bug.
@@ -212,6 +250,29 @@ Stakeholder 9 sorun raporladı. Kök neden: CORS + 3 bağımsız UI bug.
 
 ### Stakeholder Kararı (2026-05-12)
 - Avatar: URL girişi kaldırıldı — sadece cihaz galerisi (stakeholder "sadece localden" istedi).
+
+## Sprint 10 — BEKLEYEN (2026-05-15)
+
+### Konu: Premium Özellik Sahipliği + Forum Konu Açma Fix
+
+Stakeholder 4 sorun bildirdi. Bir sonraki sprintte fix edilecek.
+
+### Sprint 10 Görev Tablosu
+
+| Kod | Öncelik | Görev | Sahip | Durum |
+|-----|---------|-------|-------|-------|
+| P10-1 | **P0** | Premium özellik tekrar satın alma engeli: `userFeatures` koleksiyonu + sahiplik kontrolü — "Zaten sahipsiniz, X tarihe kadar geçerli" mesajı | Developer | ⏳ |
+| P10-2 | **P1** | PremiumScreen özellik kartları: geçerlilik süresi gün/saat formatında göster (örn. "3 gün 4 saat kaldı") | Developer + UX-UI | ⏳ |
+| P10-3 | **P1** | CreateTopicScreen: kullanıcı `credits_topic` özelliğine sahipse "Konu açma ücretlidir" infobox'ını gösterme | Developer | ⏳ |
+| P10-4 | **P0** | CreateTopicScreen "Onayla ve Gönder" butonu çalışmıyor — root cause araştır (`CreditGateModal.onDeduct` → `doCreate` akışı, API 402 dönüşü, token/categoryId eksikliği) | Developer | ⏳ |
+| P10-5 | **P0** | ForumTopicsScreen FAB: özellik yoksa CreditGateModal açılıyor ama "Satın Al" flow'u Premium sayfasına doğru yönlendirmiyor — `onNavigatePremium` bağlantısını doğrula | Developer | ⏳ |
+
+### Kök Neden Notları (PM analizi)
+
+- **P10-1/P10-2**: `credits_topic`, `credits_reply`, `credits_message` özellik satın almaları şu an sınırsız tekrarlanabiliyor. DB'de `userFeatures { userId, featureType, purchasedAt, expiresAt }` koleksiyonu eklenerek `POST /payment/spend-credit` öncesi kontrol yapılmalı.
+- **P10-3**: `CreateTopicScreen` → `isStaff` kontrolü var ama "özellik sahibi" kontrolü yok. `userFeatures` koleksiyonu hazır olunca bu kontrol trivial olacak.
+- **P10-4**: `doCreate()` doğrudan `api.forum.createTopic(categoryId, title, token)` çağırıyor. `token` veya `categoryId` boş gelmiyor mu? CreditGateModal'ın `onDeduct` prop'u `doCreate` fonksiyonunu reference etmeli. Olası bug: `gateVisible` state'i modal açılmadan önce kapanıyor olabilir.
+- **P10-5**: `ForumTopicsScreen`'de `onNavigatePremium` prop'u `ForumScreen`'den geçiriliyor (`navigateToPremium`). CreditGateModal `onBuy` callback'i doğru çalışıyor mu kontrol edilmeli.
 
 ## Open Questions
 - **Push notifications**: Firebase FCM mi, Expo Notifications mı? (Karar verilmedi)

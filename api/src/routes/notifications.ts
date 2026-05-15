@@ -14,6 +14,15 @@ export function notificationRoutes(repos: Repositories): Router {
     }
   });
 
+  router.get("/unread-count", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const count = await repos.notifications.getUnreadCount(req.userId!);
+      res.json({ count });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   router.patch("/:id/read", authMiddleware, async (req: AuthRequest, res) => {
     try {
       await repos.notifications.markRead(req.params.id as string, req.userId!);
@@ -31,6 +40,8 @@ export function notificationRoutes(repos: Repositories): Router {
       res.status(500).json({ error: e.message });
     }
   });
+
+  // ── Country subscriptions ────────────────────────────────────────────────────
 
   router.get("/subscriptions", authMiddleware, async (req: AuthRequest, res) => {
     try {
@@ -53,6 +64,17 @@ export function notificationRoutes(repos: Repositories): Router {
         subscribed
       );
       res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── Topic subscriptions ──────────────────────────────────────────────────────
+
+  router.get("/topic-subscriptions", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const subs = await repos.notifications.getTopicSubscriptions(req.userId!);
+      res.json(subs);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }

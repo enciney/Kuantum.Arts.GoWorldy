@@ -11,7 +11,10 @@ import {
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
+import { CreditGateModal } from "../../components/CreditGateModal";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
+
+const TOPIC_COST = 50;
 
 interface Topic {
   id: string;
@@ -35,6 +38,7 @@ interface Props {
   onBack: () => void;
   onTopicPress: (topicId: string, topicTitle: string) => void;
   onCreateTopic: () => void;
+  onNavigatePremium?: () => void;
 }
 
 export function ForumTopicsScreen({
@@ -43,6 +47,7 @@ export function ForumTopicsScreen({
   onBack,
   onTopicPress,
   onCreateTopic,
+  onNavigatePremium,
 }: Props) {
   const { token, user } = useAuth();
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -50,13 +55,19 @@ export function ForumTopicsScreen({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [userCredits, setUserCredits] = useState(0);
+  const [gateVisible, setGateVisible] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
     try {
       setError(null);
-      const data = await api.forum.getTopics(categoryId, token);
-      setTopics(data);
+      const [topicsData, meData] = await Promise.all([
+        api.forum.getTopics(categoryId, token),
+        api.users.me(token),
+      ]);
+      setTopics(topicsData);
+      setUserCredits(meData.credits);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Yüklenemedi.");
     }
@@ -65,6 +76,16 @@ export function ForumTopicsScreen({
   useEffect(() => {
     load().finally(() => setLoading(false));
   }, [load]);
+
+  const isStaff = user?.role === "admin" || user?.role === "moderator";
+
+  const handleFabPress = () => {
+    if (isStaff || userCredits >= TOPIC_COST) {
+      onCreateTopic();
+    } else {
+      setGateVisible(true);
+    }
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -145,9 +166,20 @@ export function ForumTopicsScreen({
         />
       )}
 
-      <TouchableOpacity style={styles.fab} onPress={onCreateTopic}>
+      <TouchableOpacity style={styles.fab} onPress={handleFabPress}>
         <Ionicons name="add" size={28} color={Colors.surface} />
       </TouchableOpacity>
+
+      <CreditGateModal
+        visible={gateVisible}
+        actionLabel="Yeni konu açma"
+        cost={TOPIC_COST}
+        userCredits={userCredits}
+        deducting={false}
+        onDeduct={() => { setGateVisible(false); onCreateTopic(); }}
+        onBuy={() => { setGateVisible(false); onNavigatePremium?.(); }}
+        onClose={() => setGateVisible(false)}
+      />
     </View>
   );
 }

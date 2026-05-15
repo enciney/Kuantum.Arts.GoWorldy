@@ -60,6 +60,7 @@ export interface IForumRepository {
   // Topics
   searchTopics(query: string, countryId?: string): Promise<ForumSearchResult[]>;
   getTopics(categoryId: string): Promise<ForumTopic[]>;
+  getTopicById(id: string): Promise<ForumTopic | null>;
   getPendingTopics(limit: number, offset: number): Promise<ForumTopic[]>;
   createTopic(data: Omit<ForumTopic, "id" | "createdAt" | "commentCount">): Promise<ForumTopic>;
   updateTopicStatus(id: string, status: ForumTopic["status"], reason?: string): Promise<void>;

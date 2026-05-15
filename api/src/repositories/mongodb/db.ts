@@ -14,6 +14,8 @@ export const COLL = {
   USER_GUIDE_PROGRESS:      "userGuideProgress",
   NOTIFICATIONS:            "notifications",
   USER_COUNTRY_SUBSCRIPTIONS: "userCountrySubscriptions",
+  USER_TOPIC_SUBSCRIPTIONS: "userTopicSubscriptions",
+  PREMIUM_PLANS:            "premiumPlans",
 } as const;
 
 // ── Document schemas ─────────────────────────────────────────────────────────
@@ -114,6 +116,22 @@ export interface UserCountrySubscriptionDoc {
   countryId: string;
 }
 
+export interface UserTopicSubscriptionDoc {
+  userId: string;
+  topicId: string;
+}
+
+export interface PremiumPlanDoc {
+  _id: string;
+  name: string;
+  description: string;
+  price: number;
+  durationDays: number;
+  features: string[];
+  isActive: boolean;
+  createdAt: string;
+}
+
 // ── Collections return type ──────────────────────────────────────────────────
 
 export interface AppCollections {
@@ -127,6 +145,8 @@ export interface AppCollections {
   userGuideProgress:        Collection<UserGuideProgressDoc>;
   notifications:            Collection<NotificationDoc>;
   userCountrySubscriptions: Collection<UserCountrySubscriptionDoc>;
+  userTopicSubscriptions:   Collection<UserTopicSubscriptionDoc>;
+  premiumPlans:             Collection<PremiumPlanDoc>;
 }
 
 // ── Connection ───────────────────────────────────────────────────────────────
@@ -157,6 +177,8 @@ export async function getCollections(): Promise<AppCollections> {
     userGuideProgress:        d.collection<UserGuideProgressDoc>(COLL.USER_GUIDE_PROGRESS),
     notifications:            d.collection<NotificationDoc>(COLL.NOTIFICATIONS),
     userCountrySubscriptions: d.collection<UserCountrySubscriptionDoc>(COLL.USER_COUNTRY_SUBSCRIPTIONS),
+    userTopicSubscriptions:   d.collection<UserTopicSubscriptionDoc>(COLL.USER_TOPIC_SUBSCRIPTIONS),
+    premiumPlans:             d.collection<PremiumPlanDoc>(COLL.PREMIUM_PLANS),
   };
 }
 
@@ -175,6 +197,10 @@ async function ensureIndexes(d: Db): Promise<void> {
   await d.collection(COLL.USER_GUIDE_PROGRESS).createIndex({ userId: 1, stepId: 1 }, { unique: true });
   await d.collection(COLL.NOTIFICATIONS).createIndex({ userId: 1, createdAt: -1 });
   await d.collection(COLL.USER_COUNTRY_SUBSCRIPTIONS).createIndex({ userId: 1, countryId: 1 }, { unique: true });
+  await d.collection(COLL.USER_TOPIC_SUBSCRIPTIONS).createIndex({ userId: 1, topicId: 1 }, { unique: true });
+  await d.collection(COLL.USER_TOPIC_SUBSCRIPTIONS).createIndex({ topicId: 1 });
+  await d.collection(COLL.PREMIUM_PLANS).createIndex({ isActive: 1 });
+  await d.collection(COLL.PREMIUM_PLANS).createIndex({ price: 1 });
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

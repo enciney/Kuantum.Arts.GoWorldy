@@ -470,5 +470,47 @@ Tüm `mobile/src/` ve `admin/src/` değişiklikleri incelendi. Stakeholder Sprin
 ### Spec Dosyası
 Tam audit detayları bu memory dosyasında. Spec dosyaları: `designs/forum-search-spec.md`, `designs/upvote-spec.md`, `designs/onboarding-spec.md`, `designs/consultant-spec.md`.
 
+## Sprint 9 — Bildirim Sistemi UX (2026-05-14)
+
+### Bildirim Badge — Tasarım Kararları ✅
+
+**Badge kuralları (stakeholder onaylı):**
+- `count <= 9` → sayı göster (1, 2, ... 9)
+- `count > 9` → "9+" yaz (max genişlik korunur, taşma olmaz)
+- `count <= 0` → badge hiç görünmez
+
+**Badge token'ları:**
+- Arka plan: `Colors.danger` (#EF4444)
+- Metin: beyaz (#fff), `fontSize: 10`, `fontWeight: "700"`
+- Boyut: `minWidth: 18`, `height: 18`, `borderRadius: 9`
+- Pozisyon: tab ikonunun `top: -4`, `right: -8` köşesi
+- Padding: `paddingHorizontal: 4` (9+ için genişler)
+
+**Uygulama yeri:** Home tab ikonunun üst sağ köşesi (`AppNavigator.tsx` `BadgeDot` bileşeni)
+
+**Güncelleme zamanı:** `AppState` `active` event'inde (uygulama öne gelince) otomatik yenileme.
+
+### Konu Takip Butonu — Tasarım Kararları ✅
+
+**Yer:** `ForumTopicDetailScreen` header'ının sağ ucu — geri buton ve başlığın yanında.
+
+**Durumlar:**
+- Takip edilmiyor: çerçeveli daire, `notifications-outline` ikon, `Colors.primary` renk
+- Takip ediliyor: dolu daire, `notifications` ikon, `Colors.surface` ikon, `Colors.primary` arka plan
+- Yüklenirken: `ActivityIndicator` ikon yerine, `subscribing` flag'i
+
+**Etkileşim:** Optimistic update — hemen state değişir, API başarısız olursa geri döner (Alert yok, sessiz rollback).
+
+**Boyut:** `MinTapTarget` (44×44pt, WCAG uyumlu), `borderRadius: Radius.full`
+
+### Admin Canlı Panel — Tasarım Kararları ✅
+
+**Live status chip:**
+- Canlı: yeşil arka plan `#D1FAE5`, `#065F46` metin, "● Canlı"
+- Bağlanıyor: sarı `#FEF9C3`, `#92400E` metin, "○ Bağlanıyor"
+- Çevrimdışı: kırmızı `#FEE2E2`, `#991B1B` metin, "✕ Çevrimdışı"
+
+**Davranış:** Yeni konu gelince liste başına eklenir, sayaç güncellenir. Kullanıcı refresh yapmak zorunda değil.
+
 ## User Research Notes
 <!-- Populate as user feedback comes in -->

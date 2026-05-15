@@ -3,6 +3,12 @@ import { Repositories } from "../repositories";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
 import { config } from "../config";
 
+const ACTION_COSTS: Record<string, number> = {
+  credits_topic:   50,
+  credits_reply:   50,
+  credits_message: 50,
+};
+
 const CREDIT_PACKAGES = [
   { id: "credits_50", name: "50 Kredi", credits: 50, priceTL: 50 },
   { id: "credits_100", name: "100 Kredi (Ekstra %10)", credits: 100, priceTL: 90 },
@@ -30,6 +36,42 @@ export function paymentRoutes(repos: Repositories): Router {
 
   router.get("/packages", (_req, res) => {
     res.json({ credits: CREDIT_PACKAGES, premium: PREMIUM_PACKAGES });
+  });
+
+  // Spend credits for an action (credits_topic / credits_reply / credits_message)
+  router.post("/spend-credit", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const { actionType } = req.body;
+      const cost = ACTION_COSTS[actionType];
+      if (cost == null) {
+        return res.status(400).json({ error: `Geçersiz aksiyon türü: ${actionType}` });
+      }
+      const deducted = await repos.users.deductCredits(req.userId!, cost);
+      if (!deducted) {
+        const user = await repos.users.findById(req.userId!);
+        return res.status(402).json({
+          error: "Yetersiz kredi.",
+          code: "INSUFFICIENT_CREDITS",
+          required: cost,
+          balance: user?.credits ?? 0,
+        });
+      }
+      const user = await repos.users.findById(req.userId!);
+      res.json({ ok: true, credits: user?.credits ?? 0 });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Dev/test endpoint — adds 50 credits instantly without Stripe
+  router.post("/topup/mock", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      await repos.users.addCredits(req.userId!, 50);
+      const user = await repos.users.findById(req.userId!);
+      res.json({ ok: true, credits: user?.credits ?? 0 });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
   });
 
   router.post("/checkout", authMiddleware, async (req: AuthRequest, res) => {

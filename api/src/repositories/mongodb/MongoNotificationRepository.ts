@@ -1,6 +1,11 @@
 import crypto from "crypto";
 import { getCollections, toDoc } from "./db";
-import { INotificationRepository, Notification, CountrySubscription } from "../interfaces";
+import {
+  INotificationRepository,
+  Notification,
+  CountrySubscription,
+  TopicSubscription,
+} from "../interfaces";
 
 export class MongoNotificationRepository implements INotificationRepository {
   async getForUser(userId: string, limit = 50): Promise<Notification[]> {
@@ -26,6 +31,13 @@ export class MongoNotificationRepository implements INotificationRepository {
     await notifications.insertOne(doc);
     return toDoc<Notification>(doc);
   }
+
+  async getUnreadCount(userId: string): Promise<number> {
+    const { notifications } = await getCollections();
+    return notifications.countDocuments({ userId, read: false });
+  }
+
+  // ── Country subscriptions ────────────────────────────────────────────────────
 
   async getSubscriptions(userId: string): Promise<CountrySubscription[]> {
     const { countries: countriesCol, userCountrySubscriptions } = await getCollections();
@@ -53,5 +65,130 @@ export class MongoNotificationRepository implements INotificationRepository {
     } else {
       await userCountrySubscriptions.deleteOne({ userId, countryId });
     }
+  }
+
+  // ── Topic subscriptions ──────────────────────────────────────────────────────
+
+  async getTopicSubscriptions(userId: string): Promise<TopicSubscription[]> {
+    const { userTopicSubscriptions, forumTopics } = await getCollections();
+    const subs = await userTopicSubscriptions.find({ userId }).toArray();
+    return Promise.all(
+      subs.map(async (s) => {
+        const topic = await forumTopics.findOne({ _id: s.topicId }, { projection: { title: 1 } });
+        return {
+          topicId: s.topicId,
+          topicTitle: topic?.title ?? "",
+          subscribed: true,
+        };
+      })
+    );
+  }
+
+  async setTopicSubscription(userId: string, topicId: string, subscribed: boolean): Promise<void> {
+    const { userTopicSubscriptions } = await getCollections();
+    if (subscribed) {
+      await userTopicSubscriptions.updateOne(
+        { userId, topicId },
+        { $setOnInsert: { userId, topicId } },
+        { upsert: true }
+      );
+    } else {
+      await userTopicSubscriptions.deleteOne({ userId, topicId });
+    }
+  }
+
+  async isTopicSubscribed(userId: string, topicId: string): Promise<boolean> {
+    const { userTopicSubscriptions } = await getCollections();
+    const doc = await userTopicSubscriptions.findOne({ userId, topicId });
+    return doc !== null;
+  }
+
+  async getTopicSubscriberIds(topicId: string): Promise<string[]> {
+    const { userTopicSubscriptions } = await getCollections();
+    const docs = await userTopicSubscriptions.find({ topicId }).toArray();
+    return docs.map((d) => d.userId);
+  }
+
+  // ── Fan-out helpers ──────────────────────────────────────────────────────────
+
+  async notifyCountrySubscribers(
+    countryId: string,
+    topicId: string,
+    topicTitle: string,
+    authorId: string
+  ): Promise<void> {
+    const { userCountrySubscriptions, forumCategories, forumTopics } = await getCollections();
+
+    // Resolve countryId from topic's category if not provided directly
+    let resolvedCountryId = countryId;
+    if (!resolvedCountryId) {
+      const topic = await forumTopics.findOne({ _id: topicId });
+      if (topic) {
+        const cat = await forumCategories.findOne({ _id: topic.categoryId });
+        resolvedCountryId = cat?.countryId ?? "";
+      }
+    }
+
+    if (!resolvedCountryId) return;
+
+    const subs = await userCountrySubscriptions.find({ countryId: resolvedCountryId }).toArray();
+    const recipients = subs.map((s) => s.userId).filter((uid) => uid !== authorId);
+
+    if (!recipients.length) return;
+
+    const { notifications } = await getCollections();
+    const now = new Date().toISOString();
+    const docs = recipients.map((userId) => ({
+      _id: crypto.randomUUID(),
+      userId,
+      type: "topic_new" as const,
+      title: "Takip ettiğin ülkede yeni konu",
+      message: topicTitle,
+      targetType: "forum_topic" as const,
+      targetId: topicId,
+      read: false,
+      createdAt: now,
+    }));
+
+    if (docs.length) await notifications.insertMany(docs);
+  }
+
+  async notifyTopicSubscribers(
+    topicId: string,
+    topicTitle: string,
+    commenterName: string,
+    commentAuthorId: string
+  ): Promise<void> {
+    const { userTopicSubscriptions, forumTopics } = await getCollections();
+
+    const topic = await forumTopics.findOne({ _id: topicId });
+    const authorId = topic?.authorId ?? null;
+
+    const subs = await userTopicSubscriptions.find({ topicId }).toArray();
+    const subIds = new Set(subs.map((s) => s.userId));
+
+    // Also notify topic author if they didn't write this comment
+    if (authorId && authorId !== commentAuthorId) {
+      subIds.add(authorId);
+    }
+
+    const recipients = [...subIds].filter((uid) => uid !== commentAuthorId);
+    if (!recipients.length) return;
+
+    const { notifications } = await getCollections();
+    const now = new Date().toISOString();
+    const docs = recipients.map((userId) => ({
+      _id: crypto.randomUUID(),
+      userId,
+      type: "new_comment" as const,
+      title: "Takip ettiğin konuya yeni yorum",
+      message: `${commenterName}: ${topicTitle}`,
+      targetType: "forum_topic" as const,
+      targetId: topicId,
+      read: false,
+      createdAt: now,
+    }));
+
+    if (docs.length) await notifications.insertMany(docs);
   }
 }

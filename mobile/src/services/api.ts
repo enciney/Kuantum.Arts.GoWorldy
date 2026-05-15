@@ -204,13 +204,26 @@ export const api = {
         body: JSON.stringify(params),
         token,
       }),
+
+    mockTopup: (token: string) =>
+      request<{ ok: boolean; credits: number }>("/payment/topup/mock", {
+        method: "POST",
+        token,
+      }),
+
+    spendCredit: (actionType: string, token: string) =>
+      request<{ ok: boolean; credits: number }>("/payment/spend-credit", {
+        method: "POST",
+        body: JSON.stringify({ actionType }),
+        token,
+      }),
   },
 
   notifications: {
     getAll: (token: string) =>
       request<{
         id: string;
-        type: "topic_approved" | "topic_rejected" | "comment_reply" | "system";
+        type: "topic_approved" | "topic_rejected" | "comment_reply" | "system" | "topic_new" | "new_comment";
         title: string;
         message: string;
         targetType?: "forum_topic" | null;
@@ -218,6 +231,9 @@ export const api = {
         read: boolean;
         createdAt: string;
       }[]>("/notifications", { token }),
+
+    getUnreadCount: (token: string) =>
+      request<{ count: number }>("/notifications/unread-count", { token }),
 
     markRead: (id: string, token: string) =>
       request<{ ok: boolean }>(`/notifications/${id}/read`, {
@@ -245,6 +261,27 @@ export const api = {
         body: JSON.stringify({ subscribed }),
         token,
       }),
+
+    getTopicSubscriptions: (token: string) =>
+      request<{ topicId: string; topicTitle: string; subscribed: boolean }[]>(
+        "/notifications/topic-subscriptions",
+        { token }
+      ),
+
+    subscribeToTopic: (topicId: string, token: string) =>
+      request<{ ok: boolean; subscribed: boolean }>(`/forum/topics/${topicId}/subscribe`, {
+        method: "POST",
+        token,
+      }),
+
+    unsubscribeFromTopic: (topicId: string, token: string) =>
+      request<{ ok: boolean; subscribed: boolean }>(`/forum/topics/${topicId}/subscribe`, {
+        method: "DELETE",
+        token,
+      }),
+
+    isTopicSubscribed: (topicId: string, token: string) =>
+      request<{ subscribed: boolean }>(`/forum/topics/${topicId}/subscribe`, { token }),
   },
 
   guide: {

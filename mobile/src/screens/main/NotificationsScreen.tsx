@@ -15,7 +15,7 @@ import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 
-type NotifType = "topic_approved" | "topic_rejected" | "comment_reply" | "system";
+type NotifType = "topic_approved" | "topic_rejected" | "comment_reply" | "system" | "topic_new" | "new_comment";
 
 interface Notif {
   id: string;
@@ -224,6 +224,8 @@ const ICON_MAP: Record<NotifType, { name: React.ComponentProps<typeof Ionicons>[
   topic_rejected: { name: "close-circle", color: Colors.danger },
   comment_reply: { name: "chatbubble", color: Colors.primary },
   system: { name: "megaphone", color: Colors.warning },
+  topic_new: { name: "document-text", color: Colors.primary },
+  new_comment: { name: "chatbubble-ellipses", color: Colors.primary },
 };
 
 function NotifRow({

@@ -80,6 +80,14 @@ export class MongoForumRepository implements IForumRepository {
     return attachCommentCounts(forumComments, topics);
   }
 
+  async getTopicById(id: string): Promise<ForumTopic | null> {
+    const { forumTopics, forumComments } = await getCollections();
+    const topic = await forumTopics.findOne({ _id: id });
+    if (!topic) return null;
+    const count = await forumComments.countDocuments({ topicId: id });
+    return { ...toDoc<ForumTopic>(topic), commentCount: count };
+  }
+
   async getPendingTopics(limit: number, offset: number): Promise<ForumTopic[]> {
     const { forumTopics, forumComments } = await getCollections();
     const topics = await forumTopics.find({ status: "pending" }).sort({ createdAt: 1 }).skip(offset).limit(limit).toArray();

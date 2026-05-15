@@ -1,14 +1,15 @@
-import React from "react";
-import { NavigationContainer } from "@react-navigation/native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { NavigationContainer, useNavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { AppState, AppStateStatus, View, ActivityIndicator, StyleSheet, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "../theme";
 
 import { useAuth } from "../context/AuthContext";
+import { api } from "../services/api";
 import { LoginScreen } from "../screens/auth/LoginScreen";
 import { RegisterScreen } from "../screens/auth/RegisterScreen";
 import { ForgotPasswordScreen } from "../screens/auth/ForgotPasswordScreen";
@@ -120,9 +121,60 @@ const TAB_ICONS: Record<keyof MainTabParamList, { active: IconName; inactive: Ic
   Profile: { active: "person", inactive: "person-outline" },
 };
 
+function BadgeDot({ count }: { count: number }) {
+  if (count <= 0) return null;
+  const label = count > 9 ? "9+" : String(count);
+  return (
+    <View style={badgeStyles.wrap}>
+      <Text style={badgeStyles.text}>{label}</Text>
+    </View>
+  );
+}
+
+const badgeStyles = StyleSheet.create({
+  wrap: {
+    position: "absolute",
+    top: -4,
+    right: -8,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: Colors.danger ?? "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  text: { color: "#fff", fontSize: 10, fontWeight: "700", lineHeight: 12 },
+});
+
+function useUnreadCount(token: string | null): number {
+  const [count, setCount] = useState(0);
+
+  const refresh = useCallback(async () => {
+    if (!token) return;
+    try {
+      const { count: c } = await api.notifications.getUnreadCount(token);
+      setCount(c);
+    } catch (_) {}
+  }, [token]);
+
+  // Fetch on mount and when app comes to foreground
+  useEffect(() => {
+    refresh();
+    const sub = AppState.addEventListener("change", (state: AppStateStatus) => {
+      if (state === "active") refresh();
+    });
+    return () => sub.remove();
+  }, [refresh]);
+
+  return count;
+}
+
 function MainTabs() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = 52 + insets.bottom;
+  const { token } = useAuth();
+  const unreadCount = useUnreadCount(token);
 
   return (
     <MainTab.Navigator
@@ -141,11 +193,14 @@ function MainTabs() {
         tabBarIcon: ({ focused, color, size }) => {
           const icons = TAB_ICONS[route.name as keyof MainTabParamList];
           return (
-            <Ionicons
-              name={focused ? icons.active : icons.inactive}
-              size={size}
-              color={color}
-            />
+            <View>
+              <Ionicons
+                name={focused ? icons.active : icons.inactive}
+                size={size}
+                color={color}
+              />
+              {route.name === "Home" && <BadgeDot count={unreadCount} />}
+            </View>
           );
         },
       })}

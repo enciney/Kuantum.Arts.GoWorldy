@@ -122,6 +122,40 @@ Client ID'ler [Google Cloud Console](https://console.cloud.google.com/apis/crede
 - GuideScreen koşullu adım akışı önceki sprintlerde tamamlanmıştı (computeStepStates, locked/disqualified).
 - tsc: temiz (API + Mobile).
 
+## Sprint 10 — Bekleyen Bug Listesi (2026-05-15)
+
+Stakeholder testi sırasında tespit edilen 4 sorun. Bir sonraki sprint'te fix edilecek.
+
+### P10-1 — Premium özellik tekrar satın alınabiliyor (P0)
+- **Dosyalar**: `api/src/repositories/mongodb/db.ts`, `api/src/routes/payment.ts`
+- **Sorun**: `POST /payment/spend-credit` her çağrıda kredi düşüyor, özelliğin zaten var olup olmadığını kontrol etmiyor.
+- **Fix**: `userFeatures` MongoDB koleksiyonu oluştur: `{ userId, featureType, purchasedAt, expiresAt }`. `spend-credit` endpoint'i önce bu koleksiyonu kontrol etmeli — özellik geçerliyse 409 dön (`code: "ALREADY_OWNED"`).
+- **Süre mantığı**: `credits_topic`/`credits_reply`/`credits_message` için 30 günlük `expiresAt` ata (değiştirilebilir).
+
+### P10-2 — PremiumScreen özellik geçerlilik göstergesi yok (P1)
+- **Dosya**: `mobile/src/screens/main/PremiumScreen.tsx`
+- **Sorun**: Satın alınan özelliğin kartı hâlâ "50 kr" gösteriyor, "X gün Y saat kaldı" veya "Zaten sahipsiniz" göstermiyor.
+- **Fix**: `GET /payment/my-features` endpoint'i ekle (userId'ye göre aktif `userFeatures` kayıtlarını döndür). PremiumScreen mount'ta bu endpoint'i çağırsın. Aktif özellik varsa kart üzerinde yeşil badge + "X gün Y saat kaldı" göster, satın alma butonu disabled olsun.
+
+### P10-3 — CreateTopicScreen hatalı infobox (P1)
+- **Dosya**: `mobile/src/screens/main/CreateTopicScreen.tsx`
+- **Sorun**: Kullanıcı `credits_topic` özelliğini satın almış olsa dahi "Konu açma ücretlidir" sarı infobox görünüyor.
+- **Fix**: `useEffect` içinde `/payment/my-features` çağrısına `credits_topic` varlığını kontrol et. Varsa `hasCreditTopicFeature = true` set et, infobox'ı gizle, `gateVisible` hiç gösterilmesin.
+
+### P10-4 — "Onayla ve Gönder" çalışmıyor (P0)
+- **Dosya**: `mobile/src/screens/main/CreateTopicScreen.tsx`
+- **Sorun**: Butona basılınca hiçbir şey olmuyor. Olası sebepler:
+  1. `CreditGateModal.onDeduct` → `doCreate` referansı kopmuş olabilir (stale closure)
+  2. `categoryId` prop boş string olarak geliyor olabilir
+  3. `token` null olabilir
+  4. `doCreate` içindeki `api.forum.createTopic` çağrısı network hatası alıyor ve `catch` bloğuna düşüyor ama hata mesajı görünmüyor
+- **Debug adımları**: `doCreate` başına `console.log({ token, categoryId, title })` ekle → Expo loglarını kontrol et. API'ya istek gidip gitmediğini network tab'da doğrula.
+
+### P10-5 — FAB "Özellik Yok" popup yönlendirme sorunu (P0)
+- **Dosya**: `mobile/src/screens/main/ForumTopicsScreen.tsx`
+- **Sorun**: Kullanıcının yeterli kredisi yoksa `CreditGateModal` açılıyor ama "Premium'a Geç" butonuna basılınca Premium sayfasına gidilmiyor.
+- **Fix**: `ForumTopicsScreen` props'una `onNavigatePremium?: () => void` eklendi (Sprint 9'da yapıldı). `ForumScreen`'deki `navigateToPremium` fonksiyonunun `navigation.navigate("Home", { screen: "Premium" })` çağrısının çalıştığını test et. Navigator stack'inde "Premium" screen name'inin doğru olduğunu doğrula (`AppNavigator.tsx`).
+
 ## Buton Audit — Çalışmayan İş Kalemleri (PM tarafından tespit edildi, 2026-05-11)
 
 ### B1 — ProfileScreen: Avatar Düzenleme Butonu
@@ -686,6 +720,30 @@ C1 fix'i sonrası aşağıdaki akışları test et; her biri `PATCH /api/users/m
 - **[R4]** `IUserRepository.User`'a `onboardingCompleted?: boolean` ve `targetCountryId?: string` eklendi. `db.ts`'e idempotent migrasyon kolonu eklendi. `routes/users.ts` PATCH `/me` handler'ı bu alanları kabul ediyor. Mobile `api.users.updateMe` tip tanımı güncellendi.
 - **[R5]** `GET /api/users/consultants` (userType=consultant filtreli, şifre hariç) ve `GET /api/users/consultants/:id` endpoint'leri `routes/users.ts`'e eklendi. Mobile `api.users.consultants()` ve `api.users.consultant(id)` metodları eklendi.
 - tsc: API + Mobile — hepsi temiz.
+
+## Sprint 9 — Bildirim Sistemi (2026-05-14)
+
+### Uygulanan Değişiklikler ✅
+
+**Backend:**
+- `db.ts`: `USER_TOPIC_SUBSCRIPTIONS` koleksiyonu + unique index (`userId, topicId`) eklendi.
+- `IForumRepository`: `getTopicById(id)` metodu eklendi; `MongoForumRepository`'de implement edildi.
+- `INotificationRepository`: `getUnreadCount`, `getTopicSubscriptions`, `setTopicSubscription`, `isTopicSubscribed`, `getTopicSubscriberIds`, `notifyCountrySubscribers`, `notifyTopicSubscribers` eklendi. Yeni tipler: `topic_new`, `new_comment`.
+- `MongoNotificationRepository`: Tüm yeni metodlar implement edildi (fan-out dahil).
+- `routes/notifications.ts`: `GET /unread-count`, `GET /topic-subscriptions` endpoint'leri eklendi.
+- `routes/forum.ts`: `POST/DELETE/GET /topics/:id/subscribe` endpoint'leri eklendi. Notification trigger'ları eklendi: `createTopic` (approved) → `notifyCountrySubscribers`; `createComment` → `notifyTopicSubscribers`; `updateTopicStatus` → yazar bildirimi + country fan-out.
+- `routes/admin.ts`: `broadcastPendingTopic()` SSE fan-out fonksiyonu + `GET /topics/stream` SSE endpoint (query param `?token=` auth).
+
+**Admin Frontend:**
+- `TopicsPage.tsx`: SSE `EventSource` entegrasyonu — real-time pending topic listesi, live status chip ("● Canlı" / "○ Bağlanıyor" / "✕ Çevrimdışı").
+
+**Mobile:**
+- `api.ts`: `notifications.getUnreadCount`, `getTopicSubscriptions`, `subscribeToTopic`, `unsubscribeFromTopic`, `isTopicSubscribed` metodları eklendi. Notification type'ına `topic_new` ve `new_comment` eklendi.
+- `AppNavigator.tsx`: `useUnreadCount` hook (AppState "active" event'inde otomatik yenileme), `BadgeDot` bileşeni (9+ kuralı, danger rengi), Home tab ikonuna badge eklendi.
+- `ForumTopicDetailScreen.tsx`: Header sağ üstüne "Konuyu Takip Et" çan butonu eklendi (optimistic toggle, WCAG uyumlu).
+- `NotificationsScreen.tsx`: `NotifType`'a `topic_new` ve `new_comment` eklendi; `ICON_MAP`'e yeni tipler için ikonlar eklendi.
+
+**tsc:** API + Mobile — temiz. Admin node_modules mevcut olmadığından tsc çalıştırılamadı (syntax doğru).
 
 ## Open TODOs (güncellendi — 2026-05-12)
 - Push notifications (Expo Notifications + topic abone olunca tetikleme). (P2)

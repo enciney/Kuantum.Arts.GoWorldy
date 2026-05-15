@@ -170,6 +170,7 @@ export function ForumScreen() {
             categoryName: view.categoryName,
           })
         }
+        onNavigatePremium={navigateToPremium}
       />
     );
   }

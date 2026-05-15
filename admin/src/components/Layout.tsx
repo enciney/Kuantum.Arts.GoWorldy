@@ -6,6 +6,7 @@ const NAV: { to: string; label: string }[] = [
   { to: "/", label: "Dashboard" },
   { to: "/topics", label: "Konu Onayı" },
   { to: "/users", label: "Kullanıcılar" },
+  { to: "/premium", label: "Premium" },
   { to: "/config", label: "Ayarlar" },
 ];
 
