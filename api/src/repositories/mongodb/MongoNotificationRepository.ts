@@ -19,6 +19,12 @@ export class MongoNotificationRepository implements INotificationRepository {
     await notifications.updateOne({ _id: id, userId }, { $set: { read: true } });
   }
 
+  async markReadOwned(id: string, userId: string): Promise<boolean> {
+    const { notifications } = await getCollections();
+    const result = await notifications.updateOne({ _id: id, userId }, { $set: { read: true } });
+    return result.matchedCount > 0;
+  }
+
   async markAllRead(userId: string): Promise<void> {
     const { notifications } = await getCollections();
     await notifications.updateMany({ userId }, { $set: { read: true } });

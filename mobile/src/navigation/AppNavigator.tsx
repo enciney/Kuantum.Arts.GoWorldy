@@ -233,8 +233,10 @@ const linking = {
         path: "guide/:countryId",
         parse: { countryId: (id: string) => id },
       },
+      // NAV-05/06: goworldy://topic/:id → Forum tab açılır, openTopicId ile topic detail gösterilir
+      // goworldy://forum/topic/:id da desteklenir (eski format)
       Forum: {
-        path: "forum/topic/:openTopicId",
+        path: "topic/:openTopicId",
         parse: { openTopicId: (id: string) => id },
       },
       Profile: "profile",

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { api, AuthUser } from "../services/api";
+import { api, ApiError, AuthUser, setOn401Handler } from "../services/api";
 
 interface AuthState {
   user: AuthUser | null;
@@ -18,6 +18,8 @@ interface AuthContextValue extends AuthState {
     userType?: "emigrant" | "consultant" | "diaspora"
   ) => Promise<void>;
   logout: () => Promise<void>;
+  /** Süresi dolmuş / geçersiz JWT nedeniyle otomatik çıkış yapar. */
+  logoutOnUnauthorized: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -39,11 +41,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.getItem(USER_KEY),
       ]);
       if (token && userJson) {
-        setState({ user: JSON.parse(userJson), token, isLoading: false });
+        // L-09: Token expire kontrolü — restore sırasında JWT payload'dan exp okur
+        const isExpired = (() => {
+          try {
+            const payload = JSON.parse(atob(token.split(".")[1]));
+            if (!payload.exp) return false;
+            return Date.now() / 1000 > payload.exp;
+          } catch {
+            return false; // parse hatası → güvenli tarafta kal, API 401 ile handle eder
+          }
+        })();
+
+        if (isExpired) {
+          // Süresi dolmuş token — temizle, login ekranı göster
+          await Promise.all([
+            AsyncStorage.removeItem(TOKEN_KEY),
+            AsyncStorage.removeItem(USER_KEY),
+          ]);
+          setState({ user: null, token: null, isLoading: false });
+        } else {
+          setState({ user: JSON.parse(userJson), token, isLoading: false });
+        }
       } else {
         setState((s) => ({ ...s, isLoading: false }));
       }
     })();
+  }, []);
+
+  // SEC-01: Süresi dolmuş JWT → API 401 döndüğünde otomatik logout
+  useEffect(() => {
+    setOn401Handler(async () => {
+      await Promise.all([
+        AsyncStorage.removeItem(TOKEN_KEY),
+        AsyncStorage.removeItem(USER_KEY),
+      ]);
+      setState({ user: null, token: null, isLoading: false });
+    });
   }, []);
 
   const persist = async (user: AuthUser, token: string) => {
@@ -82,8 +115,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ user: null, token: null, isLoading: false });
   };
 
+  /**
+   * SEC-01: Süresi dolmuş veya geçersiz JWT geldiğinde (401) çağrılır.
+   * State'i temizler → navigator LoginScreen'e yönlendirir.
+   */
+  const logoutOnUnauthorized = async () => {
+    await Promise.all([
+      AsyncStorage.removeItem(TOKEN_KEY),
+      AsyncStorage.removeItem(USER_KEY),
+    ]);
+    setState({ user: null, token: null, isLoading: false });
+  };
+
   return (
-    <AuthContext.Provider value={{ ...state, login, loginWithGoogle, register, logout }}>
+    <AuthContext.Provider value={{ ...state, login, loginWithGoogle, register, logout, logoutOnUnauthorized }}>
       {children}
     </AuthContext.Provider>
   );

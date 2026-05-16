@@ -24,9 +24,16 @@ export function ForgotPasswordScreen({ onNavigateLogin, onNavigateReset }: Props
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const isValidEmail = (value: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
   const handleSubmit = async () => {
     if (!email) {
       setError("E-posta adresi zorunludur.");
+      return;
+    }
+    if (!isValidEmail(email)) {
+      setError("Geçerli bir e-posta adresi girin.");
       return;
     }
     setError(null);

@@ -11,13 +11,14 @@ GoWorldy is a Turkish-language emigration guide platform.
 
 ## Agents
 
-Three specialized agents live in `agents/`. Each has a `README.md` (instructions) and a `memory.md` (accumulated context). Read the relevant agent file before acting in that agent's domain.
+Four specialized agents live in `agents/`. Each has a `README.md` (instructions) and a `memory.md` (accumulated context). Read the relevant agent file before acting in that agent's domain.
 
 | Agent | Folder | Domain |
 |-------|--------|--------|
 | Developer | `agents/developer/` | All code: API, mobile app, admin dashboard |
 | Project Manager | `agents/project-manager/` | Planning, status, priorities, roadmap |
 | UX/UI | `agents/ux-ui/` | Screen specs, design system, component design |
+| DevOps | `agents/devops/` | CI/CD pipelines, deployment, infra, secrets, monitoring |
 
 ---
 
@@ -29,6 +30,7 @@ Prefix your request with the agent name:
 developer: login ekranını yap
 pm: durum raporu ver
 uxui: forum ekranı için layout spec yaz
+devops: CI/CD pipeline'ı kur
 ```
 
 Or use natural language — context determines which agent is active:

@@ -16,9 +16,17 @@ import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 
 type Props = {
   onNavigateLogin: () => void;
+  onNavigateForgot?: () => void;
 };
 
-export function ResetPasswordScreen({ onNavigateLogin }: Props) {
+function parseResetError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : "";
+  if (/jwt expired|token expired/i.test(msg)) return "Sıfırlama kodunun süresi dolmuş.";
+  if (/invalid token|jwt malformed/i.test(msg)) return "Geçersiz sıfırlama kodu.";
+  return msg || "Sıfırlama başarısız.";
+}
+
+export function ResetPasswordScreen({ onNavigateLogin, onNavigateForgot }: Props) {
   const [token, setToken] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -46,7 +54,7 @@ export function ResetPasswordScreen({ onNavigateLogin }: Props) {
       await api.auth.resetPassword(token.trim(), password);
       setDone(true);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Sıfırlama başarısız.");
+      setError(parseResetError(e));
     } finally {
       setLoading(false);
     }
@@ -85,10 +93,17 @@ export function ResetPasswordScreen({ onNavigateLogin }: Props) {
         </Text>
 
         {error && (
-          <View style={styles.errorBox}>
-            <Ionicons name="alert-circle" size={18} color={Colors.danger} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
+          <>
+            <View style={styles.errorBox}>
+              <Ionicons name="alert-circle" size={18} color={Colors.danger} />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+            {onNavigateForgot && (
+              <TouchableOpacity onPress={onNavigateForgot} style={styles.retryLink}>
+                <Text style={styles.retryLinkText}>Yeni kod iste →</Text>
+              </TouchableOpacity>
+            )}
+          </>
         )}
 
         <Text style={styles.label}>Sıfırlama Kodu</Text>
@@ -222,6 +237,8 @@ const styles = StyleSheet.create({
   btnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
   link: { alignItems: "center", paddingVertical: Spacing.md, marginTop: Spacing.xs },
   linkText: { ...Typography.label, color: Colors.primary },
+  retryLink: { alignItems: "flex-start", marginBottom: Spacing.md },
+  retryLinkText: { ...Typography.caption, color: Colors.primary, fontWeight: "600" },
   successContainer: {
     flex: 1,
     backgroundColor: Colors.background,

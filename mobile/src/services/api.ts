@@ -1,5 +1,17 @@
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000/api";
 
+export class ApiError extends Error {
+  constructor(message: string, public status?: number) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+let on401Handler: (() => void) | null = null;
+export function setOn401Handler(handler: () => void) {
+  on401Handler = handler;
+}
+
 async function request<T>(
   path: string,
   options: RequestInit & { token?: string } = {}
@@ -13,7 +25,10 @@ async function request<T>(
 
   const res = await fetch(`${BASE_URL}${path}`, { ...fetchOptions, headers });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Request failed");
+  if (!res.ok) {
+    if (res.status === 401 && on401Handler) on401Handler();
+    throw new ApiError(data.error || "Request failed", res.status);
+  }
   return data as T;
 }
 
@@ -155,9 +170,9 @@ export const api = {
         `/forum/countries/${countryId}/categories`,
         { token }
       ),
-    getTopics: (categoryId: string, token: string) =>
-      request<{ id: string; title: string; authorId: string; isPinned: boolean; status: string; createdAt: string; commentCount: number }[]>(
-        `/forum/categories/${categoryId}/topics`,
+    getTopics: (categoryId: string, token: string, page = 1, limit = 20) =>
+      request<{ data: { id: string; title: string; authorId: string; isPinned: boolean; status: string; createdAt: string; commentCount: number; upvotes: number; hasUpvoted: boolean }[]; total: number; page: number; totalPages: number }>(
+        `/forum/categories/${categoryId}/topics?page=${page}&limit=${limit}`,
         { token }
       ),
     getComments: (topicId: string, token: string) =>
@@ -171,10 +186,10 @@ export const api = {
         body: JSON.stringify({ content }),
         token,
       }),
-    createTopic: (categoryId: string, title: string, token: string) =>
+    createTopic: (categoryId: string, title: string, token: string, content?: string) =>
       request<{ id: string; status: string }>("/forum/topics", {
         method: "POST",
-        body: JSON.stringify({ categoryId, title }),
+        body: JSON.stringify({ categoryId, title, ...(content ? { content } : {}) }),
         token,
       }),
     search: (q: string, countryId?: string) => {
@@ -205,25 +220,18 @@ export const api = {
         token,
       }),
 
-    mockTopup: (token: string) =>
-      request<{ ok: boolean; credits: number }>("/payment/topup/mock", {
-        method: "POST",
-        token,
-      }),
-
-    spendCredit: (actionType: string, token: string) =>
-      request<{ ok: boolean; credits: number }>("/payment/spend-credit", {
-        method: "POST",
-        body: JSON.stringify({ actionType }),
-        token,
-      }),
+    myFeatures: (token: string) =>
+      request<{ id: string; userId: string; featureType: string; purchasedAt: string; expiresAt: string | null }[]>(
+        "/payment/my-features",
+        { token }
+      ),
   },
 
   notifications: {
     getAll: (token: string) =>
       request<{
         id: string;
-        type: "topic_approved" | "topic_rejected" | "comment_reply" | "system" | "topic_new" | "new_comment";
+        type: "topic_approved" | "topic_rejected" | "comment_reply" | "system";
         title: string;
         message: string;
         targetType?: "forum_topic" | null;
@@ -231,9 +239,6 @@ export const api = {
         read: boolean;
         createdAt: string;
       }[]>("/notifications", { token }),
-
-    getUnreadCount: (token: string) =>
-      request<{ count: number }>("/notifications/unread-count", { token }),
 
     markRead: (id: string, token: string) =>
       request<{ ok: boolean }>(`/notifications/${id}/read`, {
@@ -262,26 +267,8 @@ export const api = {
         token,
       }),
 
-    getTopicSubscriptions: (token: string) =>
-      request<{ topicId: string; topicTitle: string; subscribed: boolean }[]>(
-        "/notifications/topic-subscriptions",
-        { token }
-      ),
-
-    subscribeToTopic: (topicId: string, token: string) =>
-      request<{ ok: boolean; subscribed: boolean }>(`/forum/topics/${topicId}/subscribe`, {
-        method: "POST",
-        token,
-      }),
-
-    unsubscribeFromTopic: (topicId: string, token: string) =>
-      request<{ ok: boolean; subscribed: boolean }>(`/forum/topics/${topicId}/subscribe`, {
-        method: "DELETE",
-        token,
-      }),
-
-    isTopicSubscribed: (topicId: string, token: string) =>
-      request<{ subscribed: boolean }>(`/forum/topics/${topicId}/subscribe`, { token }),
+    getUnreadCount: (token: string) =>
+      request<{ count: number }>("/notifications/unread-count", { token }),
   },
 
   guide: {

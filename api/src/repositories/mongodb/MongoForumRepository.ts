@@ -74,10 +74,19 @@ export class MongoForumRepository implements IForumRepository {
 
   // ── Topics ─────────────────────────────────────────────────────────────────
 
-  async getTopics(categoryId: string): Promise<ForumTopic[]> {
+  async getTopics(categoryId: string, options?: { onlyApproved?: boolean; page?: number; limit?: number }): Promise<{ data: ForumTopic[]; total: number; page: number; totalPages: number }> {
     const { forumTopics, forumComments } = await getCollections();
-    const topics = await forumTopics.find({ categoryId }).sort({ isPinned: -1, createdAt: -1 }).toArray();
-    return attachCommentCounts(forumComments, topics);
+    const filter: Record<string, unknown> = { categoryId };
+    if (options?.onlyApproved) filter.status = "approved";
+    const page = Math.max(1, options?.page ?? 1);
+    const limit = Math.min(100, Math.max(1, options?.limit ?? 20));
+    const skip = (page - 1) * limit;
+    const [topics, total] = await Promise.all([
+      forumTopics.find(filter).sort({ isPinned: -1, createdAt: -1 }).skip(skip).limit(limit).toArray(),
+      forumTopics.countDocuments(filter),
+    ]);
+    const data = await attachCommentCounts(forumComments, topics);
+    return { data, total, page, totalPages: Math.ceil(total / limit) };
   }
 
   async getTopicById(id: string): Promise<ForumTopic | null> {
@@ -121,7 +130,9 @@ export class MongoForumRepository implements IForumRepository {
 
   async searchTopics(query: string, countryId?: string): Promise<ForumSearchResult[]> {
     const { forumTopics, forumComments, forumCategories, countries: countriesCol, forumTopicUpvotes } = await getCollections();
-    const re = new RegExp(query, "i");
+    // SEC-04: Regex özel karakterlerini escape et — NoSQL injection önleme
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(escaped, "i");
 
     let catIds: string[] | undefined;
     if (countryId) {

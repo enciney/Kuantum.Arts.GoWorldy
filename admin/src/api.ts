@@ -22,7 +22,8 @@ export const api = {
   admin: {
     dashboard: (token: string) =>
       req<{ stats: DashboardStats }>("/admin/dashboard", {}, token).then((r) => r.stats),
-    users: (token: string) => req<User[]>("/admin/users", {}, token),
+    users: (token: string, search?: string) =>
+      req<User[]>(`/admin/users${search ? `?search=${encodeURIComponent(search)}` : ""}`, {}, token),
     updateUserRole: (id: string, role: string, token: string) =>
       req(`/admin/users/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) }, token),
     pendingTopics: (token: string) => req<Topic[]>("/admin/forum/pending", {}, token),

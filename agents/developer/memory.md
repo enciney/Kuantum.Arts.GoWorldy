@@ -745,7 +745,49 @@ C1 fix'i sonrası aşağıdaki akışları test et; her biri `PATCH /api/users/m
 
 **tsc:** API + Mobile — temiz. Admin node_modules mevcut olmadığından tsc çalıştırılamadı (syntax doğru).
 
-## Open TODOs (güncellendi — 2026-05-12)
+## Sprint 1 — Tester P0 Bug Fix (2026-05-16)
+
+### SEC-06 — passwordHash Sızıntısı
+- **Dosya**: `api/src/routes/users.ts`
+- **Bulgı**: Zaten fix'liydi. GET /me (satır 12), PATCH /me (satır 60), GET /consultants (satır 146), GET /consultants/:id (satır 159) — hepsi `{ passwordHash, ...safe }` pattern kullanıyor.
+- **Aksiyon**: Değişiklik gerekmedi.
+
+### CR-07 — Kredi Eksi Düşülmemeli
+- **Dosya**: `api/src/repositories/mongodb/MongoUserRepository.ts`
+- **Bulgı**: Zaten fix'liydi. `deductCredits` metodu `{ credits: { $gte: amount } }` koşulu ile atomik MongoDB `updateOne` yapıyor — yetersiz kredide 0 document değiştirilir, `modifiedCount === 0` → `false` döner.
+- **Aksiyon**: Değişiklik gerekmedi.
+
+### CR-03 — Atomik Kredi İşlemi (Forum Topic)
+- **Dosya**: `api/src/routes/forum.ts`
+- **Sorun**: `deductCredits` başarılıysa kredi düşülüyordu, ama `createTopic` exception atarsa kredi geri verilmiyordu.
+- **Fix**: `createTopic` çağrısını `try-catch`'e aldım. Hata durumunda premium değilse `addCredits(userId, TOPIC_COST)` ile refund yapılıyor, 500 dönülüyor.
+
+### P10-4 — CreateTopicScreen "Onayla ve Gönder"
+- **Dosya**: `mobile/src/screens/main/CreateTopicScreen.tsx`
+- **Bulgı**: Kod incelemesinde bug yok — `CreditGateModal.onDeduct={doCreate}` doğru bağlı, `doCreate` içinde `categoryId`/`title`/`token` doğru geçiliyor, `gateVisible` sıralaması (setGateVisible(false) → setSubmitting(true)) doğru. Memory'deki P10-4 açıklaması network hatasına ya da boş `categoryId` prop'una işaret ediyor — caller (ForumScreen) tarafında kontrol edilmeli.
+- **Aksiyon**: Değişiklik gerekmedi.
+
+### P10-5 — ForumTopicsScreen FAB → Premium Navigate
+- **Dosya**: `mobile/src/screens/main/ForumTopicsScreen.tsx`
+- **Bulgı**: Kod doğru — `CreditGateModal.onBuy` → `setGateVisible(false); onNavigatePremium?.()`. `onNavigatePremium` prop tanımlı. Navigator'da "Premium" stack name doğru.
+- **Aksiyon**: Değişiklik gerekmedi.
+
+### AD-02 + SEC-03 — Admin Endpoint Koruması
+- **Dosya**: `api/src/routes/admin.ts` + `api/src/middleware/auth.ts`
+- **Bulgı**: Tüm admin endpoint'lerinde `requireRole(...)` var. `/topics/stream` endpoint'i kendi içinde manuel JWT doğrulama + role check yapıyor (EventSource custom header gönderemiyor — query param ile token alınıyor). `requireRole` middleware doğru implement edilmiş.
+- **Aksiyon**: Değişiklik gerekmedi.
+
+### SEC-01 — Süresi Dolmuş JWT Yönetimi
+- **Dosya**: `mobile/src/services/api.ts`, `mobile/src/context/AuthContext.tsx`
+- **Sorun**: API 401 dönünce `Error` throw ediyordu ama 401'i normal hata gibi işliyordu. `AuthContext` 401'i intercept etmiyordu.
+- **Fix**:
+  1. `api.ts`'e `ApiError` class'ı eklendi (status code taşıyor).
+  2. `api.ts`'e `setOn401Handler` + `_on401` global callback mekanizması eklendi. Token içeren request'ler 401 dönünce `_on401?.()` tetikleniyor.
+  3. `AuthContext`'te `useEffect` ile `setOn401Handler` set ediliyor — AsyncStorage temizlenir, state null'a çekilir → navigator otomatik LoginScreen'e yönlendirir.
+  4. `AuthContextValue`'ye `logoutOnUnauthorized` metodu eklendi.
+- **tsc**: API temiz, Mobile temiz.
+
+## Open TODOs (güncellendi — 2026-05-16)
 - Push notifications (Expo Notifications + topic abone olunca tetikleme). (P2)
 - S3/Cloudinary avatar yükleme — şu an base64 data URL (büyük veri). (P3)
 - followingCount `/users/me/stats` hardcoded 0 — follow sistemi yok. (P3)
@@ -753,3 +795,105 @@ C1 fix'i sonrası aşağıdaki akışları test et; her biri `PATCH /api/users/m
 - Admin Reddet sebep modalı mevcut ama `rejectionReason` kullanıcıya bildirim olarak ulaşmıyor. (P3)
 - Onboarding flow UI (mobile): `onboardingCompleted` backend'de hazır, mobil ekran yok. (P2)
 - SqliteUserRepository: `onboardingCompleted` INTEGER→boolean dönüşümü `toUser`'da yapılmalı (şu an raw integer dönüyor). (minor bug)
+- P10-4 kök sebebi hâlâ tam doğrulanamadı — ForumScreen'den `categoryId` prop'u boş geçiyor olabilir; canlı test ile doğrulanmalı.
+
+## Sprint 2 (Test Bulgulari -- P1) -- 2026-05-16
+
+### 1. Forum Topic content Alani (Sprint 1'den tasindi)
+- **Bulgu**: `routes/forum.ts` POST /topics -> `body.content` alinmiyordu. `IForumRepository.ForumTopic` interface'inde `content` alani yoktu.
+- **Aksiyon (FIX)**:
+  - `IForumRepository.ts`: `ForumTopic` interface'ine `content?: string` eklendi.
+  - `IForumRepository.ts`: `getTopics` metoduna `options?: { onlyApproved?: boolean }` parametresi eklendi.
+  - `routes/forum.ts`: `const { categoryId, title, content } = req.body;` ve `createTopic` cagrisina `content` eklendi.
+  - `MongoForumRepository.createTopic`: `data` spread ile content otomatik yaziliyor (zaten generic).
+
+### 2. A-15/A-16/A-17: Reset Password Token Dogrulamalari
+- **Bulgu**: ZATEN DOGRUYDU. `routes/auth.ts` POST /reset-password icinde `jwt.verify` try-catch mevcut, gecersiz/suresi dolmus token icin 401 donuyor, `purpose !== 'reset'` kontrolu var.
+- **Aksiyon**: Degisiklik gerekmedi.
+
+### 3. F-04: GET Topics -- Sadece Approved Konular
+- **Bulgu**: `MongoForumRepository.getTopics` status filtresi uygulamiyordu -- pending/rejected konular da listeleniyor olabilirdi.
+- **Aksiyon (FIX)**:
+  - `IForumRepository.ts`: `getTopics(categoryId, options?)` imzasi guncellendi.
+  - `MongoForumRepository.getTopics`: `options?.onlyApproved` varsa `filter.status = 'approved'` ekleniyor.
+  - `routes/forum.ts` GET /categories/:categoryId/topics: `{ onlyApproved: true }` parametresiyle cagriliyor.
+
+### 4. F-16/F-17: Upvote Toggle
+- **Bulgu**: ZATEN DOGRUYDU. `MongoForumRepository.upvoteTopic` -- mevcut upvote varsa delete, yoksa insert; toggle davranisi tam dogru.
+- **Aksiyon**: Degisiklik gerekmedi.
+
+### 5. NO-03/NO-05/NO-06: Notification Guvenligi
+- **Bulgu**: GET /, GET /unread-count, PATCH /read-all -- userId filtreli, guvenli. PATCH /:id/read -> `markRead(id, userId)` userId kosuluyla calisiyor ama eslesme yoksa 200 donuyordu (403 yerine).
+- **Aksiyon (FIX)**:
+  - `INotificationRepository.ts`: `markReadOwned(id, userId): Promise<boolean>` metodu eklendi.
+  - `MongoNotificationRepository.ts`: `markReadOwned` -- updateOne `matchedCount > 0` ise true doner.
+  - `routes/notifications.ts` PATCH /:id/read: `markReadOwned` kullaniliyor; `false` donerse 403 yaniti.
+
+### 6. G-06/G-07: Guide Progress
+- **Bulgu**: ZATEN DOGRUYDU. `MongoGuideRepository.saveProgress` -- `findOneAndUpdate` ile `upsert: true` -> ayni stepId tekrar gelince uzerine yazar. `resetAllChecklistProgress` metodu mevcut, `routes/guide.ts` POST /progress'te farkli ulke icin otomatik cagriliyor.
+- **Aksiyon**: Degisiklik gerekmedi.
+
+### 7. PM-09/PM-10: Stripe Webhook Guvenligi
+- **Bulgu**: ZATEN DOGRUYDU. `api/src/index.ts:36-56` -- webhook endpoint tam olarak dogru implement edilmis: `express.raw()` ile raw body, `stripe.webhooks.constructEvent` imza dogrulamasi, gecersiz imzada 400, `checkout.session.completed` event'inde `isPremium=true` + `premiumUntil` set, kredi ekleme.
+- **Aksiyon**: Degisiklik gerekmedi.
+
+### tsc Sonuclari
+- `api`: Temiz (0 hata)
+- `mobile`: Temiz (0 hata)
+
+## UX/UI Sprint 3+4 Audit — Developer Görevleri (2026-05-16)
+
+UX/UI agent'ı Sprint 3 ve Sprint 4 kapsamındaki ekranları audit etti. Aşağıdaki görevler developer implementasyonu bekliyor.
+
+| Kod | Öncelik | Dosya | Görev |
+|-----|---------|-------|-------|
+| SP34-D1 | **P2** | `mobile/src/screens/main/GuideScreen.tsx` | `activateBtn` `minHeight: 36` → `MinTapTarget` (44pt WCAG) |
+| SP34-D2 | **P2** | `mobile/src/screens/main/ForumTopicsScreen.tsx` | FlatList'e `onEndReached` + `onEndReachedThreshold={0.3}` + `ListFooterComponent` (ActivityIndicator) — pagination için API'ye `?page=` parametresi ekle |
+| SP34-D3 | **P2** | `mobile/src/navigation/AppNavigator.tsx` | Deep link intent korunması: giriş yapılmamış kullanıcı `goworldy://forum/topic/:id` açınca → login sonrası otomatik topic'e navigate. `pendingDeepLink` state + `AuthContext.login()` sonrası navigate. |
+| SP34-D4 | **P2** | `mobile/src/screens/main/PremiumScreen.tsx` | `activePremiumCard`: `premiumUntil` - şu an < 24 saat kaldıysa `backgroundColor: Colors.warning` (amber), normal durumda `Colors.secondary` (yeşil) |
+| SP34-D5 | **P3** | `mobile/src/services/api.ts` | `request()` fonksiyonuna 429 özel handling: `if (res.status === 429) throw new ApiError("Çok fazla istek gönderildi. Lütfen bir dakika bekleyin.", 429)` |
+| SP34-D6 | **P3** | `mobile/src/screens/main/CreateTopicScreen.tsx` | `btnText: color: "#fff"` → `color: Colors.surface` (token tutarlılığı) |
+| SP34-D7 | **P3** | `mobile/src/screens/main/GuideScreen.tsx` | `badgeNum color: "#fff"` → `Colors.surface`, `tabBadgeTextActive color: "#fff"` → `Colors.surface` |
+| SP34-D8 | **P3** | `admin/src/pages/UsersPage.tsx` | `searchInput` CSS: `border: "1px solid #E2E8F0"`, `borderRadius: 8`, `outline: "none"` ekle |
+| SP34-D9 | **P3** | `mobile/src/screens/main/ForumTopicsScreen.tsx` | CT-08 Pending badge: `statusPending` view'ına küçük `lock-closed` Ionicons ikon ekle |
+
+**Deep Link UX Spec (SP34-D3 detay):**
+```
+// AppNavigator.tsx
+const [pendingUrl, setPendingUrl] = useState<string | null>(null);
+// isLoading false + user null iken gelen URL'yi kaydet
+// user state true'ya geçince pendingUrl var mı bak → navigate
+// LoginScreen'de banner göster: "Bu içeriği görüntülemek için giriş yapmanız gerekiyor."
+//   (Colors.primaryLight bg, Colors.primary text, information-circle ikon)
+```
+
+**429 UX Spec (SP34-D5 detay):**
+- Ekran seviyesinde `ApiError.status === 429` ise özel inline errorBox + 60 saniyelik geri sayım
+- Timer sıfırlanınca retry butonu aktif hale gelir
+- P3 — backend'de rate limiting aktif mi onaylanmadan implement edilmeyebilir
+
+## Sprint 3 (P2) — 2026-05-16
+
+- **S3-1 / L-09** FIX UYGULAND: `AuthContext.tsx` — token restore sırasında JWT payload'dan `exp` alanı okunuyor. Süresi dolmuşsa AsyncStorage temizlenir, user=null ile login ekranı gösterilir. 401 handler (on API response) zaten Sprint 1'de eklenmişti.
+- **S3-2 / U-09** ZATEN DOĞRUYDU: `routes/users.ts` PATCH /me — sadece `displayName`, `bio`, `phoneNumber`, `sharePhoneNumber`, `avatarUrl`, `userType`, `onboardingCompleted`, `targetCountryId`, `activeGuideCountryId` whitelist'te. `role`, `credits`, `isPremium`, `premiumUntil` hiçbir zaman set edilmiyor.
+- **S3-3 / NO-07/08/09** ZATEN DOĞRUYDU: `routes/notifications.ts` — GET/PATCH /subscriptions, GET /topic-subscriptions mevcut. `MongoNotificationRepository` — `setSubscription`, `setTopicSubscription` implement edilmiş.
+- **S3-4 / N-10** ZATEN DOĞRUYDU: `AppNavigator.tsx` — `BadgeDot` bileşeni, `useUnreadCount` hook (AppState listener), Home tab badge (count>0 sayı, >9 "9+") zaten implement edilmişti.
+- **S3-5 / G-03** ZATEN DOĞRUYDU: `GuideScreen.tsx` — `blockingAnswer` alanı Step interface'de mevcut, `computeVisible` blocker mantığı implementli, `BlockerCard` gösteriliyor. API guide.ts `getSteps` blockingAnswer döndürüyor.
+- **S3-6 / FT-05/F-05** FIX UYGULAND: `IForumRepository.getTopics` imzası paginated response döndürecek şekilde güncellendi `{ data, total, page, totalPages }`. `MongoForumRepository.getTopics` skip/limit uyguluyor. `routes/forum.ts` `?page=&limit=` query parametre alıyor (varsayılan page=1, limit=20). `mobile/src/services/api.ts` `getTopics` paginated response tipi. `ForumTopicsScreen` — "Daha fazla yükle" butonu + append mantığı eklendi.
+- **S3-7 / CT-08** ZATEN DOĞRUYDU: `routes/forum.ts` PATCH /topics/:id/status — topic yazarına `topic_approved`/`topic_rejected` bildirimi zaten gönderiliyor. Onayda country subscribers da notify ediliyor.
+
+## Sprint 4 (P3) — 2026-05-16
+
+- **S4-1 / NAV-05/06** FIX UYGULAND: `AppNavigator.tsx` linking config — `Forum` tab artık `path: "topic/:openTopicId"` ile eşleşiyor. `goworldy://topic/:id` açıldığında Forum tab'ı `openTopicId` parametresiyle açılıyor.
+- **S4-2 / SEC-04** FIX UYGULAND: `routes/forum.ts` search — `typeof q !== 'string'` kontrolü + `$`/`{` ile başlıyorsa 400. `MongoForumRepository.searchTopics` — regex özel karakterleri escape ediliyor. `MongoUserRepository.search` — aynı regex escape uygulandı.
+- **S4-3 / SEC-07** FIX UYGULAND: `express-rate-limit@8.5.2` pnpm ile kuruldu. `api/src/index.ts` — auth endpoint'leri (login/register/forgot-password) 10 istek/dakika; genel API 100 istek/dakika. Standart headers (Retry-After vb.) eklendi.
+- **S4-4 / SEC-08** ZATEN DOĞRUYDU: `api/src/index.ts` — `CORS_ALLOWED_ORIGINS` env varsa parse, yoksa `true`. Sprint 8'de zaten doğru şekilde implementlenmişti.
+- **S4-5 / AD-08/09** FIX UYGULAND: `admin/src/api.ts` — `users(token, search?)` imzası güncellendi, `?search=` query parametresi API'ye gönderiliyor. `admin/src/pages/UsersPage.tsx` — arama input'u keystrokes'ta API'ye istek atıyor (>=2 karakter ise server-side, yoksa tüm liste).
+- **S4-6 / AD-10/11** ZATEN DOĞRUYDU: `routes/admin.ts` PATCH /users/:id/role — `{ role }` alıyor, `config.roles` ile validasyon, geçersiz rol için 400. Admin UsersPage — role dropdown select çalışıyor.
+- **S4-7 / P10-1** FIX UYGULAND: `IUserFeatureRepository.ts` oluşturuldu. `MongoUserFeatureRepository.ts` oluşturuldu. `db.ts` — `USER_FEATURES` koleksiyonu + index'ler eklendi. `repositories/index.ts` — `userFeatures` wire edildi. `routes/payment.ts` — `POST /spend-credit` öncesinde `hasFeature` kontrolü (zaten sahipse 409 `ALREADY_OWNED`); başarılıysa 30 günlük `expiresAt` ile `addFeature`. `GET /my-features` endpoint eklendi. `index.ts` webhook — premium satın alınca `userFeatures`'a da kayıt ekleniyor.
+- **S4-8 / P10-2** FIX UYGULAND: `PremiumScreen.tsx` — `formatTimeRemaining(expiresAt)` helper export edildi (>24h: "X gün Y saat", <24h: "X saat Y dakika", geçmiş: "Süresi doldu"). `activePremiumCard` artık tarih string'i yerine formatTimeRemaining çıktısını gösteriyor. `mobile/src/services/api.ts` — `payment.myFeatures(token)` metodu eklendi.
+
+**tsc sonuçları (2026-05-16):**
+- API: Yalnızca pre-existing TS2688 hataları (npm/pnpm hoist çakışması) — kod seviyesinde hata yok.
+- Mobile: Temiz (0 hata).
+- Admin: Temiz (0 hata).

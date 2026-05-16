@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import rateLimit from "express-rate-limit";
 import { config } from "./config";
 import { createRepositories } from "./repositories";
 import { authRoutes } from "./routes/auth";
@@ -16,6 +17,30 @@ const allowedOrigins: string[] | boolean = process.env.CORS_ALLOWED_ORIGINS
   ? process.env.CORS_ALLOWED_ORIGINS.split(",")
   : true; // dev: tüm origin'lere izin ver; prod'da CORS_ALLOWED_ORIGINS env ile kısıtla
 app.use(cors({ origin: allowedOrigins }));
+
+// SEC-03: Rate limiting
+// Auth endpoint'leri için sıkı limit: 10 istek/dakika
+const authRateLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 dakika
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Çok fazla istek gönderildi. Lütfen bir dakika sonra tekrar deneyin." },
+});
+
+// Genel API için: 100 istek/dakika
+const generalRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Çok fazla istek gönderildi. Lütfen bir dakika sonra tekrar deneyin." },
+});
+
+app.use("/api/auth/login", authRateLimit);
+app.use("/api/auth/register", authRateLimit);
+app.use("/api/auth/forgot-password", authRateLimit);
+app.use("/api", generalRateLimit);
 
 const repos = createRepositories();
 
@@ -43,10 +68,13 @@ app.post("/api/payment/webhook", express.raw({ type: "application/json" }), asyn
       const days = PREMIUM_DAYS[result.productType];
       if (credits !== undefined) {
         await repos.users.addCredits(result.userId, credits);
+        // Kredi paketi satın alındı — özellik kaydı gerekmez (kredi bakiye)
       } else if (days !== undefined) {
         const until = new Date();
         until.setDate(until.getDate() + days);
         await repos.users.update(result.userId, { isPremium: true, premiumUntil: until.toISOString() });
+        // Premium satın alındı — userFeatures'a da kaydet
+        await repos.userFeatures.addFeature(result.userId, result.productType, until.toISOString());
       }
     }
     res.json({ received: true });

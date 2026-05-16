@@ -25,26 +25,36 @@ export default function UsersPage() {
 
   useEffect(() => {
     if (!token) return;
+    setLoading(true);
     api.admin
-      .users(token)
+      .users(token, search || undefined)
       .then((data) => {
         setUsers(data);
         setFiltered(data);
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Yüklenemedi."))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const handleSearch = (q: string) => {
     setSearch(q);
-    const lower = q.toLowerCase();
-    setFiltered(
-      users.filter(
-        (u) =>
-          u.displayName.toLowerCase().includes(lower) ||
-          u.email.toLowerCase().includes(lower)
-      )
-    );
+    if (!token) return;
+    // Debounce-free: API'ya gönder (q >= 2 karakter ise) veya hepsini yükle
+    api.admin
+      .users(token, q.length >= 2 ? q : undefined)
+      .then((data) => setFiltered(data))
+      .catch(() => {
+        // Fallback: client-side filtre
+        const lower = q.toLowerCase();
+        setFiltered(
+          users.filter(
+            (u) =>
+              u.displayName.toLowerCase().includes(lower) ||
+              u.email.toLowerCase().includes(lower)
+          )
+        );
+      });
   };
 
   const handleRoleChange = async (id: string, role: Role) => {

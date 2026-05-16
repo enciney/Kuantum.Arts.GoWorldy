@@ -16,6 +16,7 @@ export const COLL = {
   USER_COUNTRY_SUBSCRIPTIONS: "userCountrySubscriptions",
   USER_TOPIC_SUBSCRIPTIONS: "userTopicSubscriptions",
   PREMIUM_PLANS:            "premiumPlans",
+  USER_FEATURES:            "userFeatures",
 } as const;
 
 // ── Document schemas ─────────────────────────────────────────────────────────
@@ -132,6 +133,14 @@ export interface PremiumPlanDoc {
   createdAt: string;
 }
 
+export interface UserFeatureDoc {
+  _id: string;
+  userId: string;
+  featureType: string;
+  purchasedAt: string;
+  expiresAt: string | null;
+}
+
 // ── Collections return type ──────────────────────────────────────────────────
 
 export interface AppCollections {
@@ -147,6 +156,7 @@ export interface AppCollections {
   userCountrySubscriptions: Collection<UserCountrySubscriptionDoc>;
   userTopicSubscriptions:   Collection<UserTopicSubscriptionDoc>;
   premiumPlans:             Collection<PremiumPlanDoc>;
+  userFeatures:             Collection<UserFeatureDoc>;
 }
 
 // ── Connection ───────────────────────────────────────────────────────────────
@@ -179,6 +189,7 @@ export async function getCollections(): Promise<AppCollections> {
     userCountrySubscriptions: d.collection<UserCountrySubscriptionDoc>(COLL.USER_COUNTRY_SUBSCRIPTIONS),
     userTopicSubscriptions:   d.collection<UserTopicSubscriptionDoc>(COLL.USER_TOPIC_SUBSCRIPTIONS),
     premiumPlans:             d.collection<PremiumPlanDoc>(COLL.PREMIUM_PLANS),
+    userFeatures:             d.collection<UserFeatureDoc>(COLL.USER_FEATURES),
   };
 }
 
@@ -201,6 +212,8 @@ async function ensureIndexes(d: Db): Promise<void> {
   await d.collection(COLL.USER_TOPIC_SUBSCRIPTIONS).createIndex({ topicId: 1 });
   await d.collection(COLL.PREMIUM_PLANS).createIndex({ isActive: 1 });
   await d.collection(COLL.PREMIUM_PLANS).createIndex({ price: 1 });
+  await d.collection(COLL.USER_FEATURES).createIndex({ userId: 1, featureType: 1 });
+  await d.collection(COLL.USER_FEATURES).createIndex({ expiresAt: 1 });
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

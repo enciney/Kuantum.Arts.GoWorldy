@@ -15,7 +15,7 @@ import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 
-type NotifType = "topic_approved" | "topic_rejected" | "comment_reply" | "system" | "topic_new" | "new_comment";
+type NotifType = "topic_approved" | "topic_rejected" | "comment_reply" | "system";
 
 interface Notif {
   id: string;
@@ -79,14 +79,14 @@ export function NotificationsScreen() {
 
   const markAllRead = async () => {
     if (!token) return;
-    await api.notifications.markAllRead(token).catch(() => {});
+    await api.notifications.markAllRead(token).catch((e) => console.warn("notification read error:", e));
     setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
   const handleNotifPress = async (notif: Notif) => {
     if (!token) return;
     if (!notif.read) {
-      await api.notifications.markRead(notif.id, token).catch(() => {});
+      await api.notifications.markRead(notif.id, token).catch((e) => console.warn("notification read error:", e));
       setNotifs((prev) =>
         prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
       );
@@ -224,8 +224,6 @@ const ICON_MAP: Record<NotifType, { name: React.ComponentProps<typeof Ionicons>[
   topic_rejected: { name: "close-circle", color: Colors.danger },
   comment_reply: { name: "chatbubble", color: Colors.primary },
   system: { name: "megaphone", color: Colors.warning },
-  topic_new: { name: "document-text", color: Colors.primary },
-  new_comment: { name: "chatbubble-ellipses", color: Colors.primary },
 };
 
 function NotifRow({

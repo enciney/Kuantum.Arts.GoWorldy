@@ -4,3 +4,4 @@ export { IGuideRepository, GuideStep, UserGuideProgress, GuideStats, UserGuideHo
 export { IPaymentProvider } from "./IPaymentProvider";
 export { INotificationRepository, Notification, CountrySubscription, TopicSubscription } from "./INotificationRepository";
 export { IPremiumRepository, PremiumPlan } from "./IPremiumRepository";
+export { IUserFeatureRepository, UserFeature } from "./IUserFeatureRepository";

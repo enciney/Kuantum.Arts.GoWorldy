@@ -24,11 +24,13 @@ export function forumRoutes(repos: Repositories): Router {
   });
 
   router.get("/categories/:categoryId/topics", async (req, res) => {
-    res.json(await repos.forum.getTopics(req.params.categoryId));
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+    res.json(await repos.forum.getTopics(req.params.categoryId, { onlyApproved: true, page, limit }));
   });
 
   router.post("/topics", authMiddleware, async (req: AuthRequest, res) => {
-    const { categoryId, title } = req.body;
+    const { categoryId, title, content } = req.body;
     if (!categoryId || !title) {
       return res.status(400).json({ error: "categoryId ve title zorunlu" });
     }
@@ -56,13 +58,27 @@ export function forumRoutes(repos: Repositories): Router {
     }
 
     const status = isStaff ? "approved" : "pending";
-    const topic = await repos.forum.createTopic({
-      categoryId,
-      title,
-      authorId: req.userId!,
-      status,
-      isPinned: false,
-    });
+    let topic;
+    try {
+      topic = await repos.forum.createTopic({
+        categoryId,
+        title,
+        content,
+        authorId: req.userId!,
+        status,
+        isPinned: false,
+      });
+    } catch (createErr: any) {
+      // Atomik işlem: konu oluşturma başarısız olursa krediyi geri ver
+      if (!isStaff) {
+        const user2 = await repos.users.findById(req.userId!);
+        const hasPremium2 = user2?.isPremium && (!user2.premiumUntil || new Date(user2.premiumUntil) > new Date());
+        if (!hasPremium2) {
+          await repos.users.addCredits(req.userId!, config.forum.createTopicCost);
+        }
+      }
+      return res.status(500).json({ error: createErr.message || "Konu oluşturulamadı." });
+    }
 
     if (status === "approved") {
       // Staff created → notify country subscribers immediately
@@ -84,11 +100,19 @@ export function forumRoutes(repos: Repositories): Router {
   });
 
   router.get("/search", async (req, res) => {
-    const q = ((req.query.q as string) ?? "").trim();
+    // SEC-04: NoSQL injection koruması — typeof kontrolü + regex özel karakterlerini escape et
+    if (typeof req.query.q !== "string") {
+      return res.status(400).json({ error: "q parametresi string olmalı" });
+    }
+    const q = req.query.q.trim();
     if (q.length < 2) {
       return res.status(400).json({ error: "q parametresi en az 2 karakter olmalı" });
     }
-    const countryId = (req.query.countryId as string) || undefined;
+    // MongoDB $where / operator injection engellemek için $ ile başlayan string reddet
+    if (q.startsWith("$") || q.startsWith("{")) {
+      return res.status(400).json({ error: "Geçersiz arama terimi" });
+    }
+    const countryId = typeof req.query.countryId === "string" ? req.query.countryId : undefined;
     res.json(await repos.forum.searchTopics(q, countryId));
   });
 

@@ -17,6 +17,7 @@ export interface ForumTopic {
   id: string;
   categoryId: string;
   title: string;
+  content?: string;
   authorId: string;
   isPinned: boolean;
   status: "pending" | "approved" | "rejected";
@@ -59,7 +60,7 @@ export interface IForumRepository {
 
   // Topics
   searchTopics(query: string, countryId?: string): Promise<ForumSearchResult[]>;
-  getTopics(categoryId: string): Promise<ForumTopic[]>;
+  getTopics(categoryId: string, options?: { onlyApproved?: boolean; page?: number; limit?: number }): Promise<{ data: ForumTopic[]; total: number; page: number; totalPages: number }>;
   getTopicById(id: string): Promise<ForumTopic | null>;
   getPendingTopics(limit: number, offset: number): Promise<ForumTopic[]>;
   createTopic(data: Omit<ForumTopic, "id" | "createdAt" | "commentCount">): Promise<ForumTopic>;

@@ -512,5 +512,466 @@ Tam audit detayları bu memory dosyasında. Spec dosyaları: `designs/forum-sear
 
 **Davranış:** Yeni konu gelince liste başına eklenir, sayaç güncellenir. Kullanıcı refresh yapmak zorunda değil.
 
+## Design Audit — Sprint 1 (Test Bulguları, 2026-05-16)
+
+Tester agent'ın P0 akış bulgularına dayanarak 5 ekran UX açısından incelendi.
+
+---
+
+### 1. CreditGateModal — CR Senaryo Grubu
+
+| Test | Durum | Detay |
+|------|-------|-------|
+| CG-01: Maliyet + bakiye gösterimi | ✅ Uyumlu | `cost` prop + `userCredits` prop balanceRow'da gösteriliyor. Miktar bold, maliyet amber (`Colors.warning`). |
+| CG-04: Yetersiz kredi mesajı | ✅ Uyumlu | `!canAfford` → `insufficientNote` view: "Bu işlem için yeterli kredin yok." + amber ikon. `balanceAmount` rengi `Colors.danger`'a geçiyor. |
+| CG-05: isPremium=true kontrolü | ⚠️ İyileştirme gerekli | Modal bileşeni kendisi `isPremium` prop almıyor. Kontrol çağıran ekranlara bırakılmış: `ForumTopicsScreen` `handleFabPress()` → staff kontrolü var ama premium kontrolü yok. `CreateTopicScreen` → aynı durum. Premium kullanıcı için modal açılmamalı — bu kontrolü bileşen seviyesine taşımak ya da çağıran ekranlarda `user.isPremium` koşuluna göre gate'i skip etmek gerekiyor. |
+| CG-06: Farklı işlem maliyetleri | ✅ Uyumlu | `cost` prop olarak geliyor, statik değil. `TOPIC_COST = 50` sabit `CreateTopicScreen`'de, `ForumTopicsScreen`'de. `PremiumScreen`'de `CREDIT_COST = 50` ile tek kullanımlık kreditler için ayrı sabit. |
+
+**Açık sorun (CG-05):** `ForumTopicsScreen.handleFabPress()` yalnızca `isStaff || userCredits >= TOPIC_COST` kontrolü yapıyor. `user.isPremium === true` iken bile gate açılabilir (kredi yoksa). Premium kullanıcı için FAB direkt `onCreateTopic()` çağırmalı, modal açılmamalı.
+
+**Spec (CG-05 fix):**
+```
+handleFabPress:
+  if (isStaff || isPremium || userCredits >= TOPIC_COST) → onCreateTopic()
+  else → setGateVisible(true)
+```
+`user` nesnesine `isPremium` alanı eklenmesi gerekiyor (Developer görevi).
+
+---
+
+### 2. CreateTopicScreen — CT Senaryo Grubu
+
+| Test | Durum | Detay |
+|------|-------|-------|
+| CT-05: Boş başlık hatası | ⚠️ İyileştirme gerekli | `validateTitle()` çalışıyor ama `Alert.alert("Eksik", ...)` kullanıyor. Input alanı kırmızı border / inline hata mesajı yok — auth ekranlarındaki `errorBox` standartına uymuyor. Alert flow'u keser. |
+| CT-06: Boş içerik hatası | ❌ Kritik sorun | `CreateTopicScreen` yalnızca `title` alanına sahip — `body/content` alanı hiç yok. Konu içeriği (açıklama metni) form'da eksik. |
+| CT-07: Kategori seçilmeden gönder | ✅ Uyumlu | `categoryId` prop ile dışarıdan geliyor — ekran zaten seçili kategoriyle açılıyor. Boş kategori durumu bileşen seviyesinde oluşamaz. |
+| CT-08: "Onay bekliyor" feedback'i | ✅ Uyumlu | Başarılı oluşturma → `Alert.alert("Konunuz alındı", "Konunuz onay sürecine alınmıştır...")`. Mesaj açık, bilgilendirici. |
+
+**Açık sorunlar:**
+- **CT-05 (P1):** `validateTitle()` → `Alert` yerine inline `titleError` state + input'un altında kırmızı metin + input `borderColor: Colors.danger` olmalı. Diğer form ekranlarıyla tutarlılık.
+- **CT-06 (P0):** Konu içeriği (body) input alanı mevcut değil. Kullanıcı yalnızca başlık girebiliyor. Forum konularının bir gövde/içerik alanına ihtiyacı var. Bu hem UX hem backend kapsam sorunudur — developer ile koordine edilmeli.
+
+**Hardcoded değerler:**
+- `infoBoxStaff`: `backgroundColor: "#ECFDF5"`, `borderColor: "#A7F3D0"` → sırasıyla `Colors.secondaryLight` ve `Colors.secondary` (opaklıklı) kullanılabilir.
+- `infoTitle`: `color: "#92400E"`, `infoText`: `color: "#78350F"` → `Colors.warning`'ın koyu tonları; token sisteminde karşılığı yok, P3 kabul edilebilir.
+- `btnText`: `color: "#fff"` → `Colors.surface` olmalı (Sprint 9'da diğer ekranlarda düzeltilmişti, bu dosyada kaçmış).
+
+---
+
+### 3. PremiumScreen — PR Senaryo Grubu
+
+| Test | Durum | Detay |
+|------|-------|-------|
+| PR-01: Plan listesi formatı | ✅ Uyumlu | `premiumCard`: başlık ("Aylık Premium"), fiyat ("250 TL / ay"), 4 özellik satırı (`Feature` bileşeni). Görsel hiyerarşi net. |
+| PR-05: isPremium=true → "Aktif Premium" gösterimi | ❌ Kritik sorun | `PremiumScreen` `isPremium` state'i almıyor veya göstermiyor. Kullanıcı zaten premium olsa bile aynı satın alma UI'ı gösteriliyor. Bitiş tarihi yok. |
+| PR-07: Başarılı Stripe dönüşü sonrası UI güncelleme | ✅ Uyumlu | `Linking.addEventListener("url")` → `goworldy://payment/success` → `refreshCredits()` çağrısı var. Kredi bakiyesi güncelleniyor. Ancak premium durumu güncellemiyor (PR-05 ile bağlantılı). |
+
+**Açık sorunlar:**
+- **PR-05 (P0):** Kullanıcı `isPremium === true` iken: Premium kart "EN AVANTAJLI" badge ile alım için gösterilmemeli. Bunun yerine: "Aktif Premium" başlığı, bitiş tarihi, "Premium üyesiniz" mesajı gösterilmeli. Satın alma butonu disable veya gizli olmalı.
+- **PR-07 kısmi:** `goworldy://payment/success` dönüşünde `refreshCredits()` çalışıyor ancak premium durumunu (`isPremium`, `premiumExpiresAt`) yenilemiyor. `api.users.me()` yanıtında bu alanlar dönüyor olmalı; UI'da da kullanılmalı.
+
+**Token uyumu:**
+- `balanceBtn: minHeight: MinTapTarget - 8` → 36px, WCAG minimum 44pt altında. ⚠️ `MinTapTarget` olmalı.
+- `premiumCard: padding: 20` → `Spacing.lg` (24) değil ama 5×4px = kabul edilebilir.
+- `sectionTitle: fontSize: 17, marginBottom: 12` → Typography ve Spacing tokenı yok; P3.
+- `premiumCta: paddingVertical: 12` → `Spacing.md` (16) değil; P3.
+
+---
+
+### 4. ForumTopicsScreen FAB — FT Senaryo Grubu
+
+| Kontrol | Durum | Detay |
+|---------|-------|-------|
+| FAB görünürlüğü | ✅ Uyumlu | `position: absolute, bottom: 24, right: 24` — standart FAB konumu. |
+| FAB boyutu | ✅ Uyumlu | `width: 56, height: 56, borderRadius: 28` — Material Design FAB standardı, WCAG'ın çok üzerinde (44pt min). |
+| activeOpacity | ⚠️ İyileştirme gerekli | FAB `TouchableOpacity` üzerinde `activeOpacity` prop'u belirtilmemiş. Varsayılan `0.2` — çok soluk. `activeOpacity={0.85}` olmalı (büyük renkli FAB için hafif baskı yeterli). |
+| Gölge/elevation | ✅ Uyumlu | iOS shadow + Android elevation (6) mevcut. FAB yeterince öne çıkıyor. |
+| Premium yönlendirme | ⚠️ İyileştirme gerekli | CG-05 ile aynı sorun: `isStaff` veya yeterli kredi yoksa gate açılıyor ama `isPremium` kontrolü yok. Premium kullanıcılar gereksiz gate görüyor. |
+
+---
+
+### 5. SEC-06 Etkileri — ProfileScreen Kullanıcı Bilgileri
+
+| Alan | Durum | Detay |
+|------|-------|-------|
+| Avatar gösterimi | ✅ Uyumlu | `avatarUrl` → `<Image source={{ uri: avatarUrl }}>`, yoksa initials fallback. Güvenlik fix'i sonrası base64 validasyonu API'de ise UI'da değişiklik gerekmez. |
+| displayName | ✅ Uyumlu | `user?.displayName` direkt gösteriliyor. |
+| bio | ✅ Uyumlu | `/users/me` → `u.bio` ile yükleniyor. Düzenleme akışı çalışıyor. |
+| SEC-06 UI etkisi | ✅ Uyumlu | Avatar yükleme `api.users.updateMe({ avatarUrl: dataUrl })` → backend validasyonu geçmezse `Alert.alert("Hata", ...)` gösteriliyor. UI tarafında ek değişiklik gerekmez; güvenlik validasyonu API katmanında. |
+
+---
+
+### Özet Tablosu
+
+| Ekran | Senaryo | Durum |
+|-------|---------|-------|
+| CreditGateModal | CG-01 Maliyet + bakiye | ✅ |
+| CreditGateModal | CG-04 Yetersiz kredi mesajı | ✅ |
+| CreditGateModal | CG-05 isPremium bypass | ⚠️ |
+| CreditGateModal | CG-06 Dinamik maliyet prop | ✅ |
+| CreateTopicScreen | CT-05 Boş başlık → inline hata | ⚠️ |
+| CreateTopicScreen | CT-06 Body/içerik alanı eksik | ❌ |
+| CreateTopicScreen | CT-07 Kategori zorunluluğu | ✅ |
+| CreateTopicScreen | CT-08 "Onay bekliyor" feedback | ✅ |
+| PremiumScreen | PR-01 Plan formatı | ✅ |
+| PremiumScreen | PR-05 isPremium aktif gösterimi | ❌ |
+| PremiumScreen | PR-07 Stripe dönüşü UI güncelleme | ✅ (kısmi) |
+| ForumTopicsScreen | FAB görünürlük + boyut | ✅ |
+| ForumTopicsScreen | FAB activeOpacity | ⚠️ |
+| ForumTopicsScreen | FAB premium bypass | ⚠️ |
+| ProfileScreen | SEC-06 avatar/displayName/bio | ✅ |
+
+### Öncelikli Düzeltmeler (Developer Görevi)
+
+| Kod | Öncelik | Görev |
+|-----|---------|-------|
+| DA1 | **P0** | `PremiumScreen`: `isPremium` + `premiumExpiresAt` alanlarını `/users/me`'den al, "Aktif Premium" UI'ı göster |
+| DA2 | **P0** | `CreateTopicScreen`: `body` (içerik) TextInput alanı ekle — başlık + içerik zorunlu |
+| DA3 | **P1** | `ForumTopicsScreen` + `CreateTopicScreen`: `handleFabPress`/`handleConfirm` içinde `isPremium` kontrolü ekle (gate'i skip et) |
+| DA4 | **P1** | `CreateTopicScreen`: `Alert` tabanlı doğrulama → inline `titleError` state + kırmızı border |
+| DA5 | **P2** | `ForumTopicsScreen` FAB: `activeOpacity={0.85}` ekle |
+| DA6 | **P2** | `PremiumScreen` `balanceBtn`: `minHeight: MinTapTarget - 8` → `MinTapTarget` (WCAG) |
+| DA7 | **P3** | `CreateTopicScreen` `btnText`: `color: "#fff"` → `color: Colors.surface` |
+
+## Design Audit — Sprint 2 (Test Bulguları P1, 2026-05-16)
+
+Tester agent'ın Sprint 2 güvenlik + işlevsellik bulgularına dayanarak 6 ekran UX açısından incelendi.
+
+---
+
+### 1. ResetPasswordScreen — Token Hata UX
+
+| Kontrol | Durum | Detay |
+|---------|-------|-------|
+| Inline errorBox (A-16/A-17) | ✅ Uyumlu | `error` state → `errorBox` stili: `dangerLight` arka plan + `alert-circle` ikon. Alert kullanılmıyor. |
+| Süresi dolmuş / geçersiz token | ⚠️ İyileştirme gerekli | Backend 400/401 döndüğünde hata mesajı görünüyor ama mesaj içeriği backend'den ham geliyor (`e.message`). "Token süresi dolmuş" ve "Geçersiz token" (A-16/A-17) için kullanıcı dostu Türkçe mesaj map'i yok. |
+| "Yeni sıfırlama maili iste" linki | ❌ Kritik sorun | Token hata durumunda ForgotPasswordScreen'e yönlendiren inline link yok. Ekranda yalnızca "Giriş ekranına dön" linki var — kullanıcı hata aldığında süreci nasıl başlatacağını bilemiyor. |
+| MinTapTarget uyumu | ✅ Uyumlu | `inputRow minHeight: MinTapTarget`, `showBtn minWidth/Height: MinTapTarget`, `btn minHeight: MinTapTarget`. |
+
+**Kritik eksiklik (A-16/A-17):** Token hata durumunda kullanıcıya ForgotPasswordScreen'e kısa yol sunulmuyor. Spec gereği:
+- Hata mesajının altında: "Kodunuzun süresi mi doldu? Yeni kod iste →" şeklinde tıklanabilir link
+- Backend hata mesajlarına Türkçe map: `{ "Token expired": "Kodunuzun süresi dolmuş.", "Invalid token": "Geçersiz sıfırlama kodu." }`
+
+---
+
+### 2. ForumTopicsScreen — Upvote Butonu UX
+
+| Kontrol | Durum | Detay |
+|---------|-------|-------|
+| Upvote butonu her satırda | ❌ Kritik sorun | `TopicRow` bileşeninde upvote butonu hiç yok. Spec (upvote-spec.md) `[↑ 12]` butonunu `TopicRow` sağına eklemesi gerektiğini söylüyor. Mevcut kod: yalnızca tarih ve yorum sayısı gösteriliyor. |
+| Aktif/pasif state | ❌ Kritik sorun | Upvote UI hiç implement edilmemiş. `hasUpvoted` prop veya state yok. |
+| Optimistic update / sayaç | ❌ Kritik sorun | `upvotes` alanı `Topic` interface'inde tanımlı değil. Sayaç artıp azalmıyor. |
+| Spec uyumu | ❌ Kritik sorun | `designs/upvote-spec.md` spec'i yazılmış (Sprint 9) ama developer henüz implement etmemiş. F-16/F-17 tamamen açık. |
+| "Popüler" filtresi bağlantısı | ⚠️ İyileştirme gerekli | Spec'te upvote ikincil sıralama kriteri olarak öneriliyor. MVP'de `commentCount` öncelikli — bu kabul edilebilir. |
+
+**Tüm upvote UX'i implement edilmemiş. Developer görevi (bkz. RU2 spec: `designs/upvote-spec.md`).**
+
+---
+
+### 3. ForumTopicDetailScreen — Upvote UX
+
+| Kontrol | Durum | Detay |
+|---------|-------|-------|
+| Konu detayında upvote butonu | ❌ Kritik sorun | Detay ekranında upvote butonu yok. Spec header veya konu kartına eklenmesini öneriyor; mevcut header'da yalnızca bildirim (subscribe) butonu var. |
+| Toggle davranışı (aktif/pasif) | ❌ Kritik sorun | Implement edilmemiş. |
+| MinTapTarget (44×44pt) | ⚠️ İyileştirme gerekli | Upvote butonu olmadığı için kontrol edilemiyor. Spec `hitSlop={{ top:8, bottom:8, left:12, right:12 }}` ile MinTapTarget karşılanmasını söylüyor — developer implement ederken uygulamalı. |
+| Subscribe butonu MinTapTarget | ✅ Uyumlu | `subscribeBtn: width: MinTapTarget, height: MinTapTarget` — mevcut subscribe butonu WCAG uyumlu. |
+
+---
+
+### 4. NotificationsScreen — Güvenlik Sonrası UX
+
+| Kontrol | Durum | Detay |
+|---------|-------|-------|
+| NO-03: Sadece kendi bildirimleri | ✅ Uyumlu | `api.notifications.getAll(token)` auth token ile çağrılıyor. Backend sadece kullanıcının bildirimleri dönüyor — UI'da "başkasının bildirimi" edge case'i oluşamaz. |
+| NO-05: 403 hata UI'ı | ⚠️ İyileştirme gerekli | `handleNotifPress` içinde `api.notifications.markRead()` çağrısı `.catch(() => {})` ile silent fail yapıyor. 403 döndüğünde (başka kullanıcı bildirimi, teorik) kullanıcıya hiçbir geri bildirim yok. Ancak NO-03 gereği bu durum pratikte oluşmamalı. Yine de sessiz hata yerine `console.warn` en azından eklenebilir. |
+| Okunmamış badge optimistic | ✅ Uyumlu | `handleNotifPress` → `markRead` API çağrısından önce `setNotifs` ile state güncelleniyor (optimistic). `markAllRead` da aynı pattern. |
+| Akış tab okunmamış badge | ✅ Uyumlu | `!notif.read && <View style={styles.dot}/>` — kırmızı dot + `notifUnread` sol border stili. |
+| Feed boş state | ✅ Uyumlu | "Henüz bildirim yok" + açıklayıcı alt metin. |
+
+---
+
+### 5. ForgotPasswordScreen — "Kodum var" Akışı UX
+
+| Kontrol | Durum | Detay |
+|---------|-------|-------|
+| "Kodum var, şifreyi sıfırla" → navigate | ✅ Uyumlu | `submitted === true` → `onNavigateReset()` callback ile `ResetPasswordScreen`'e geçiş. Buton belirgin, CTA net. |
+| Kayıtsız email hata mesajı | ⚠️ İyileştirme gerekli | `handleSubmit` → `catch` → `setError(e.message)`. Backend hata mesajı ham İngilizce gelebilir. Türkçe fallback yok: "Bu e-posta adresiyle kayıtlı hesap bulunamadı." gibi kullanıcı dostu mesaj gerekli. |
+| Inline errorBox | ✅ Uyumlu | `errorBox` stili: `dangerLight` arka plan + `alert-circle` ikon. Alert kullanılmıyor. |
+| Email format doğrulaması | ⚠️ İyileştirme gerekli | `handleSubmit` yalnızca boşluk kontrolü yapıyor (`!email`). Email format kontrolü yok — geçersiz format API'ye kadar gidiyor. Client-side `email.includes("@")` veya regex eklenmeli. |
+
+---
+
+### 6. GuideScreen — Guide Progress UX
+
+| Kontrol | Durum | Detay |
+|---------|-------|-------|
+| G-07: Farklı ülkeye geçince progress sıfırlanıyor mu? | ✅ Uyumlu | `viewCountryId` değişince `loadData()` yeniden çağrılıyor. `progress` state tüm ülke adımlarını içeriyor — farklı ülke chip'ine basınca o ülkenin adımları ve ilerleme yüklenip gösteriliyor. Gözetleme ülkesi için `inactiveBanner` + grileşmiş progress bar gösteriliyor (renk `Colors.textMuted`). |
+| Ülke değiştirme UI'ı | ✅ Uyumlu | Yatay scroll'lı chip listesi. Aktif ülke: `Colors.primary` dolu chip + pin ikonu. Gözetlenen ülke: `primaryLight` arka plan + `primary` border. Seçilmemiş: `surface` + `borderStrong`. |
+| "Aktif Et" butonu (non-active ülke) | ✅ Uyumlu | `inactiveBanner` içinde "Aktif Et" butonu mevcut. `handleSetActive()` ile API çağrısı yapılıyor + `activeCountryId` güncelleniyor. Optimistic değil ama loading state var (`settingActive`). |
+| Progress bar görsel reset | ✅ Uyumlu | Ülke geçişinde `loading: true` → spinner → yeni ülke adımları yükleniyor. Progress bar otomatik güncelleniyor. |
+| Blocker durumu görünürlüğü | ✅ Uyumlu | `blocked === true` → `BlockerCard` gösteriliyor. `progressFillBlocked: backgroundColor: Colors.warning` — sarı bar. |
+
+---
+
+### Özet Tablosu — Sprint 2
+
+| Ekran | Kontrol | Durum |
+|-------|---------|-------|
+| ResetPasswordScreen | Inline errorBox | ✅ |
+| ResetPasswordScreen | A-16/A-17 Türkçe hata mesajı | ⚠️ |
+| ResetPasswordScreen | "Yeni kod iste" ForgotPassword linki | ❌ |
+| ForumTopicsScreen | Upvote butonu her satırda | ❌ |
+| ForumTopicsScreen | Aktif/pasif upvote state | ❌ |
+| ForumTopicsScreen | Optimistic sayaç | ❌ |
+| ForumTopicDetailScreen | Upvote butonu | ❌ |
+| ForumTopicDetailScreen | Toggle davranışı | ❌ |
+| ForumTopicDetailScreen | Subscribe butonu MinTapTarget | ✅ |
+| NotificationsScreen | NO-03 kendi bildirimleri | ✅ |
+| NotificationsScreen | NO-05 403 hata UI | ⚠️ (silent fail) |
+| NotificationsScreen | Okunmamış badge optimistic | ✅ |
+| ForgotPasswordScreen | "Kodum var" → navigate | ✅ |
+| ForgotPasswordScreen | Hata mesajı Türkçe | ⚠️ |
+| ForgotPasswordScreen | Email format doğrulaması | ⚠️ |
+| GuideScreen | G-07 ülke geçişi progress reset | ✅ |
+| GuideScreen | Ülke değiştirme UI | ✅ |
+
+### Öncelikli Düzeltmeler (Developer Görevi)
+
+| Kod | Öncelik | Görev |
+|-----|---------|-------|
+| SP2-D1 | **P0** | `ForumTopicsScreen` + `ForumTopicDetailScreen`: RU2 spec'e göre upvote butonunu implement et. `Topic` interface'e `upvotes: number`, `hasUpvoted: boolean` ekle. Optimistic update + toggle. |
+| SP2-D2 | **P1** | `ResetPasswordScreen`: Token hata durumunda (A-16/A-17) inline "Yeni kod iste →" linki ekle (`onNavigateForgot` prop) + backend hata mesajlarına Türkçe map. |
+| SP2-D3 | **P2** | `ForgotPasswordScreen`: Email format client-side validasyonu ekle + hata mesajlarına Türkçe fallback. |
+| SP2-D4 | **P3** | `NotificationsScreen`: `markRead` catch bloğuna `console.warn` ekle (silent fail yerine en azından log). |
+
+## Design Audit — Sprint 3 (P2, 2026-05-16)
+
+### 1. L-09 — Splash / Loading State (Oturum Restore) ✅ Uyumlu
+
+`AuthContext.tsx`: `isLoading` state `true` başlıyor, AsyncStorage'dan token+user okunduktan sonra `false` oluyor.
+`AppNavigator.tsx`: `isLoading === true` iken `<ActivityIndicator size="large" color={Colors.primary}>` centered `<View style={styles.loading}>` içinde gösteriliyor. Arka plan `Colors.background`.
+
+**Değerlendirme:** Flash of Login Screen sorunu yok. Loading sırasında kullanıcı AuthStack'e düşmüyor; `isLoading` false olmadan navigator render edilmiyor. UX spec karşılanmış.
+
+**İyileştirme önerisi (P3):** Marka logosu + spinner daha premium hissettirirdi (şu an sadece spinner). MVP için kabul edilebilir.
+
+---
+
+### 2. N-10 — Tab Bar Bildirim Rozeti ✅ Uyumlu
+
+`AppNavigator.tsx` incelendi:
+- `BadgeDot` bileşeni mevcut: `count <= 0` → görünmez, `count > 9` → "9+", diğerleri sayı.
+- Token uyumu: `backgroundColor: Colors.danger`, `color: "#fff"`, `fontSize: 10`, `fontWeight: "700"`, `minWidth: 18`, `height: 18`, `borderRadius: 9`, `paddingHorizontal: 4` — Sprint 9 memory spec ile tam uyumlu.
+- Konum: **Home tab ikonunun** üst sağ köşesi (`top: -4, right: -8`) — Sprint 9 kararıyla uyumlu.
+- `useUnreadCount` hook: mount + `AppState "active"` event'inde refresh — spec'e uygun.
+
+**Değerlendirme:** N-10 tamamen implement edilmiş ve Sprint 9 spec'ine uyumlu.
+
+---
+
+### 3. G-03 — Guide Blocker Adım Görsel State ✅ Uyumlu (küçük iyileştirme notu)
+
+`GuideScreen.tsx` incelendi — 4 state:
+
+| State | Görsel | Uygulama |
+|-------|--------|----------|
+| completed (normal) | Yeşil badge (`Colors.secondary`), `completedCard: secondaryLight bg, #BBF7D0 border` | ✅ `CompletedCard` |
+| completed (blocking) | Amber badge (`warningLight + warning border`), `completedCardWarn` | ✅ `blocking && styles.completedCardWarn` |
+| active (next step) | Mavi outlined kart (`Colors.primary border + shadow`) | ✅ `ActiveStepCard` |
+| locked (sonraki) | Görünmüyor — `visibleUpTo + 1` ile slice edildiği için listelenmez | ✅ Doğru yaklaşım |
+| disqualified (blocker) | `BlockerCard`: amber bg, `alert-circle` ikon, açıklama metin + opsiyonel FAQ linki | ✅ `BlockerCard` bileşeni |
+
+**Disqualified / Blocker detayı:** Amber arka plan (`Colors.warningLight`), `#FDE68A` border, `Colors.warning` ikon, `#92400E` başlık, `#78350F` metin — spec'e uyumlu. "Bu adımda durmanız gerekiyor" başlığı mevcut.
+
+**Eksik:** Blocker'da tıklanınca toast gösterimi spec'te belirtilmişti. `BlockerCard` tıklanamaz — sadece statik görüntü. Küçük iyileştirme: kart `TouchableOpacity` olarak ve üzerine dokunulunca "Bu adımdan ilerlenemez" kısa toast eklenebilir (P3).
+
+**Token uyumu sorunları (P3):**
+- `#7C3AED`, `#F5F3FF`, `#DDD6FE` — violet/premium renkleri "global step" badge için kullanılıyor. Sistemde `Colors.premium` var ama `Colors.premiumLight` / `Colors.premiumBorder` token yok. P3 kabul edilebilir.
+- `#BBF7D0`, `#D1FAE5`, `#065F46` — green tint değerleri, `Colors.secondary` yerine kullanılmış. Görsel olarak aynı ama token dışı (P3).
+- `activateBtn: minHeight: 36` — MinTapTarget (44pt) altında. ⚠️ P2 — `minHeight: MinTapTarget` olmalı.
+
+---
+
+### 4. FT-05 — ForumTopicsScreen Pagination UX ⚠️ İyileştirme Gerekli
+
+`ForumTopicsScreen.tsx` incelendi:
+- `FlatList` kullanılıyor ✅
+- `onEndReached` prop yok ❌ — sayfalama/infinite scroll implement edilmemiş.
+- `ListFooterComponent` yok ❌ — footer spinner yok.
+- Şu an tüm topic'ler tek seferde `api.forum.getTopics()` ile çekiliyor.
+
+**UX Spec (FT-05 fix):**
+```
+FlatList:
+  onEndReached={() => loadMore()}   // page-based veya cursor-based
+  onEndReachedThreshold={0.3}
+  ListFooterComponent={loadingMore ? <ActivityIndicator color={Colors.primary} style={{ marginVertical: 16 }} /> : null}
+```
+Developer görevi: API'ye `?page=` veya `?cursor=` parametresi ekle + FlatList'i paginate et. Mevcut data küçükken sorun yok ama scale için gerekli.
+
+**Öncelik:** P2 — şu an veri kümesi küçük, kritik değil ama erken alınmalı.
+
+---
+
+### 5. CT-08 — "Onay Bekliyor" / "Reddedildi" Badge ✅ Uyumlu
+
+`ForumTopicsScreen.tsx` `TopicRow` bileşeni incelendi:
+- `showStatusBadge = topic.isMine && topic.status !== "approved"` — yalnızca kendi konusu + onaysız durum kombinasyonunda gösteriliyor.
+- **Pending (Onay Bekliyor):** `statusPending: backgroundColor: Colors.warningLight` + `statusTextPending: color: "#92400E"` — amber arka plan, koyu kahve metin. ✅
+- **Rejected (Reddedildi):** `statusRejected: backgroundColor: Colors.dangerLight` + `statusTextRejected: color: "#991B1B"` — kırmızı arka plan, koyu kırmızı metin. ✅
+- Lock ikonu spec'te belirtilmişti — mevcut değil. Badge yalnızca metin gösteriyor. P3 iyileştirme.
+- Token uyumu: `Colors.warningLight`, `Colors.dangerLight` — tema token'larıyla uyumlu ✅.
+
+---
+
+## Design Audit — Sprint 4 (P3, 2026-05-16)
+
+### 6. NAV-05/06 — Deep Link UX ⚠️ Kısmi
+
+`AppNavigator.tsx` `linking` config incelendi:
+```js
+Forum: {
+  path: "forum/topic/:openTopicId",
+  parse: { openTopicId: (id: string) => id },
+}
+```
+- Deep link yapılandırması mevcut ✅
+- Giriş yapılmamış kullanıcı `goworldy://forum/topic/:id` açınca: `user === null` → `<AuthNavigator />` render ediliyor. React Navigation `linking` config giriş yapılmamış durumda `AuthStack` içinde `Forum` route'unu çözemez → kullanıcı LoginScreen'e düşer. ✅ (otomatik)
+- **Sorun:** Intent korunmuyor ❌ — giriş yaptıktan sonra kullanıcı HomeScreen'e gider, topic'e otomatik yönlendirilmez. React Navigation `linking` config `AuthStack` ile `MainTabs` arasında intent aktarımı yapmıyor.
+- **"Devam etmek için giriş yapın" mesajı:** Yok. Kullanıcı neden LoginScreen'e geldiğini anlamıyor.
+
+**UX Spec (NAV-05/06):**
+1. `LinkingContext` veya `initialURL` ile "pending deep link" state tut.
+2. `AuthContext` `login()` başarısı sonrası → pending link varsa `navigation.navigate(target)`.
+3. LoginScreen'de (deep link ile gelinmişse) bilgilendirme banner: "Bu içeriği görmek için giriş yapmanız gerekiyor." — `Colors.primaryLight` arka plan, `Colors.primary` metin, `information-circle` ikon.
+
+**Öncelik:** P2 — deep link ile gelen kullanıcı intent'i kaybedince platformdan kopukluğu hisseder.
+
+---
+
+### 7. AD-08/09 — Admin Kullanıcı Arama UX ✅ Uyumlu
+
+`admin/src/pages/UsersPage.tsx` incelendi:
+- Arama input'u mevcut: `placeholder="İsim veya e-posta ara..."`, `width: 260`, `padding: "9px 14px"`. ✅
+- `handleSearch`: `displayName` ve `email` üzerinde case-insensitive `toLowerCase().includes(lower)` filtresi. ✅
+- Boş sonuç: `filtered.length === 0 && <div style={css.empty}>Kullanıcı bulunamadı.</div>` — Türkçe, yeterli. ✅
+- Hata: `setError()` inline banner (`#FEF2F2` bg, `#DC2626` renk). ✅ — Sprint 6'da düzeltilmişti, doğrulandı.
+- `USER_TYPE_LABELS` — Türkçe etiketler mevcut. ✅
+
+**Admin token uyumu:** Inline CSS kullanıyor — Sprint 4 MVP kararıyla kabul edilebilir. GoWorldy brand renkleriyle (blue, gray) genel uyumlu.
+
+**Küçük sorun (P3):** `searchInput` stil objesinde `border`, `borderRadius`, `outline` tanımı yok — tarayıcı default input stili görünüyor. Görsel tutarsızlık. `border: "1px solid #E2E8F0"`, `borderRadius: 8`, `outline: "none"` eklenmeli.
+
+---
+
+### 8. P10-2 — PremiumScreen Geçerlilik Süresi ✅ Uyumlu (iyileştirme notu)
+
+`PremiumScreen.tsx` incelendi:
+- `premiumStatus` state: `{ isPremium: boolean; premiumUntil?: string }` — `/users/me`'den `isPremium` ve `premiumUntil` alınıyor. ✅
+- `refreshCredits()` hem mount hem de `goworldy://payment/success` deep link'te çağrılıyor. ✅
+- **Aktif Premium Card:** `premiumStatus.isPremium === true` iken `activePremiumCard` görünüyor. `Colors.secondary` (yeşil) arka plan, `checkmark-circle` ikon, "Aktif Premium Üye" başlığı. ✅
+- **Bitiş tarihi:** `premiumUntil` varsa `toLocaleDateString("tr-TR", { day, month, year })` formatında "X tarihine kadar geçerlidir." ✅
+
+**Eksik — Countdown (P3):** Spec "X gün Y saat kaldı" countdown formatı istiyordu. Şu an sadece tarih gösteriliyor ("15 Haziran 2026 tarihine kadar"). Gerçek zamanlı geri sayım yok.
+
+**Renk değişimi (< 24 saat) — Spec kararı gerekli:**
+- Şu an `activePremiumCard` her zaman `Colors.secondary` (yeşil) kullanıyor.
+- **UX Önerisi:** `premiumUntil` ile şu an arasındaki fark < 24 saat ise `backgroundColor: Colors.warning` (amber), < 3 gün ise `Colors.warningLight` border + normal yeşil arka plan — kullanıcıyı yenileme için uyar.
+- **Sprint 4 kararı (P2):** Countdown yerine sadece `Colors.warning` arka plan geçişi yeterli MVP için. Gerçek zamanlı countdown post-MVP.
+
+**Token sorunları:**
+- `premiumCta: paddingVertical: 12` → `Spacing.md` (16) değil; P3.
+- `sectionTitle: fontSize: 17, marginBottom: 12` → Typography/Spacing token yok; P3.
+- `actionCard: padding: 14` → token yok; P3, kabul edilebilir.
+- `balanceBtn: minHeight: MinTapTarget` ✅ — Sprint 1 audit'te işaretlenmiş ve düzeltilmişti, doğrulandı.
+
+---
+
+### 9. SEC-07 — Rate Limiting 429 UX ❌ Eksik
+
+`mobile/src/services/api.ts` `request()` fonksiyonu incelendi:
+```ts
+if (!res.ok) {
+  if (res.status === 401 && on401Handler) on401Handler();
+  throw new ApiError(data.error || "Request failed", res.status);
+}
+```
+- 429 için özel handling yok. Sadece genel `ApiError` fırlatılıyor.
+- Çağıran ekranlarda 429'a özel UI yok — genel hata mesajı gösterilir veya catch bloğu boş.
+
+**UX Spec (SEC-07, P3):**
+```ts
+// api.ts request() içinde:
+if (res.status === 429) {
+  throw new ApiError("Çok fazla istek gönderildi. Lütfen bir dakika bekleyin.", 429);
+}
+```
+Ekran seviyesinde: `ApiError.status === 429` ise özel inline errorBox + 60 saniyelik geri sayım timer.
+Geri sayım: `setInterval` ile `timeLeft` state, her saniye azalır, 0'da tekrar denemek için buton aktif olur.
+Tüm form submit butonları ve API çağrıları bu pattern'i paylaşabilir — ortak `useRateLimit()` hook önerilebilir.
+
+**Öncelik:** P3 — şu an rate limiting backend'de aktif mi belirsiz; frontend spec hazır, developer MVP sonrası implement eder.
+
+---
+
+### 10. Genel Token Kontrolü — Sprint 3-4 Etkilenen Dosyalar
+
+**CreateTopicScreen.tsx:**
+- `btnText: color: "#fff"` → `Colors.surface` olmalı ⚠️ (Sprint 9'da diğer ekranlarda düzeltilmişti, burada kaçmış — DA7 olarak daha önce işaretlenmişti)
+- `infoBoxStaff: backgroundColor: "#ECFDF5", borderColor: "#A7F3D0"` → `Colors.secondaryLight` / token-yakın P3
+- `infoTitle: color: "#92400E"`, `infoText: color: "#78350F"` → amber koyu ton, token yok P3
+
+**GuideScreen.tsx:**
+- `#7C3AED`, `#F5F3FF`, `#DDD6FE` → violet/premium badge renkleri, token yok P3
+- `#BBF7D0`, `#D1FAE5`, `#065F46` → green tint, `Colors.secondary`-türevi P3
+- `activateBtn minHeight: 36` → MinTapTarget olmalı ⚠️ P2
+- `badgeNum color: "#fff"` → `Colors.surface` olmalı P3
+- `tabBadgeTextActive color: "#fff"` → `Colors.surface` olmalı P3
+
+**PremiumScreen.tsx:**
+- Büyük ölçüde temiz. `premiumCta paddingVertical: 12`, `sectionTitle fontSize: 17` → P3
+- `activePremiumCard` renk geçişi (< 24 saat `Colors.warning`) eklenmeli P2
+
+**AppNavigator.tsx:**
+- `badgeStyles.text: color: "#fff"` → `Colors.surface` olmalı P3 (küçük istisna)
+- Geri kalan her şey `Colors` token kullanıyor ✅
+
+**ForumTopicsScreen.tsx:**
+- Token uyumu genel olarak iyi. `row padding: 14`, `statusText fontSize: 10` → küçük token dışı değerler P3.
+
+**Admin UsersPage.tsx:**
+- Inline CSS — MVP kararıyla kabul edilebilir. `searchInput` border/outline eksik P3.
+
+### Sprint 3+4 Özet Tablosu
+
+| Madde | Ekran | Durum |
+|-------|-------|-------|
+| L-09 Splash/Loading | AppNavigator + AuthContext | ✅ Uyumlu |
+| N-10 Tab Bar Badge | AppNavigator | ✅ Uyumlu |
+| G-03 Guide Blocker State | GuideScreen | ✅ Uyumlu (küçük P3 notlar) |
+| FT-05 Pagination UX | ForumTopicsScreen | ⚠️ İyileştirme (P2) |
+| CT-08 Pending/Rejected Badge | ForumTopicsScreen | ✅ Uyumlu |
+| NAV-05/06 Deep Link Intent | AppNavigator | ⚠️ Intent korunmuyor (P2) |
+| AD-08/09 Admin Arama | UsersPage | ✅ Uyumlu |
+| P10-2 Premium Bitiş Süresi | PremiumScreen | ✅ Uyumlu (countdown P3) |
+| SEC-07 429 Rate Limit UX | api.ts + ekranlar | ❌ Eksik (P3) |
+| Token Kontrolü genel | Birden fazla | ⚠️ P3 notlar listede |
+
+### Öncelikli Düzeltmeler (Developer Görevi)
+
+| Kod | Öncelik | Görev |
+|-----|---------|-------|
+| SP34-D1 | **P2** | `GuideScreen` `activateBtn`: `minHeight: 36` → `MinTapTarget` (44pt WCAG) |
+| SP34-D2 | **P2** | `ForumTopicsScreen`: FlatList'e `onEndReached` + `ListFooterComponent` (pagination) |
+| SP34-D3 | **P2** | `AppNavigator`: Deep link intent korunması — pending URL state + login sonrası otomatik navigate |
+| SP34-D4 | **P2** | `PremiumScreen` `activePremiumCard`: `premiumUntil` < 24 saat ise `Colors.warning` arka plan geçişi |
+| SP34-D5 | **P3** | `api.ts` `request()`: 429 → özel `ApiError` mesajı ("Çok fazla istek...") + ekran seviyesinde 60s geri sayım |
+| SP34-D6 | **P3** | `CreateTopicScreen` `btnText`: `color: "#fff"` → `Colors.surface` |
+| SP34-D7 | **P3** | `GuideScreen`: `badgeNum`, `tabBadgeTextActive` `"#fff"` → `Colors.surface` |
+| SP34-D8 | **P3** | Admin `UsersPage` `searchInput`: `border`, `borderRadius`, `outline: none` ekle |
+| SP34-D9 | **P3** | `ForumTopicsScreen` CT-08 Pending badge: lock ikonu ekle (spec isteği) |
+
 ## User Research Notes
 <!-- Populate as user feedback comes in -->

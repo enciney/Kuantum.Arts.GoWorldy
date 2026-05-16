@@ -251,28 +251,108 @@ Stakeholder 9 sorun raporladı. Kök neden: CORS + 3 bağımsız UI bug.
 ### Stakeholder Kararı (2026-05-12)
 - Avatar: URL girişi kaldırıldı — sadece cihaz galerisi (stakeholder "sadece localden" istedi).
 
-## Sprint 10 — BEKLEYEN (2026-05-15)
+## Sprint 10 — BACKLOG'A TAŞINDI (2026-05-15)
 
-### Konu: Premium Özellik Sahipliği + Forum Konu Açma Fix
+Sprint 10 görevleri test bulgularına göre yeniden önceliklendirildi. P10-1 → Sprint 4'e, P10-2 → Sprint 4'e, P10-3 → Sprint 5'e, P10-4 → Sprint 1'e (P0), P10-5 → Sprint 1'e (P0) taşındı. Tüm maddeler Backlog bölümünde "⏳ Backlog" etiketiyle korunuyor.
 
-Stakeholder 4 sorun bildirdi. Bir sonraki sprintte fix edilecek.
+---
 
-### Sprint 10 Görev Tablosu
+## Backlog
+
+| Kod | Öncelik | Görev | Taşınan Sprint | Durum |
+|-----|---------|-------|----------------|-------|
+| P10-1 | **P0** | Premium özellik tekrar satın alma engeli: `userFeatures` koleksiyonu + sahiplik kontrolü — "Zaten sahipsiniz, X tarihe kadar geçerli" mesajı | Sprint 4 | ⏳ Backlog |
+| P10-2 | **P1** | PremiumScreen özellik kartları: geçerlilik süresi gün/saat formatında göster (örn. "3 gün 4 saat kaldı") | Sprint 4 | ⏳ Backlog |
+| P10-3 | **P1** | CreateTopicScreen: kullanıcı `credits_topic` özelliğine sahipse "Konu açma ücretlidir" infobox'ını gösterme | Sprint 5 | ⏳ Backlog |
+| P10-4 | **P0** | CreateTopicScreen "Onayla ve Gönder" butonu çalışmıyor — root cause araştır (`CreditGateModal.onDeduct` → `doCreate` akışı, API 402 dönüşü, token/categoryId eksikliği) | Sprint 1 | ⏳ Backlog |
+| P10-5 | **P0** | ForumTopicsScreen FAB: özellik yoksa CreditGateModal açılıyor ama "Satın Al" flow'u Premium sayfasına doğru yönlendirmiyor — `onNavigatePremium` bağlantısını doğrula | Sprint 1 | ⏳ Backlog |
+
+---
+
+## Yeni Sprint 1 (Test Bulguları) — BAŞLANDI ⚡
+
+### Konu: Kritik Bug Fix (P0) — Güvenlik + Kredi Atomikliği + Temel Akışlar
 
 | Kod | Öncelik | Görev | Sahip | Durum |
 |-----|---------|-------|-------|-------|
-| P10-1 | **P0** | Premium özellik tekrar satın alma engeli: `userFeatures` koleksiyonu + sahiplik kontrolü — "Zaten sahipsiniz, X tarihe kadar geçerli" mesajı | Developer | ⏳ |
-| P10-2 | **P1** | PremiumScreen özellik kartları: geçerlilik süresi gün/saat formatında göster (örn. "3 gün 4 saat kaldı") | Developer + UX-UI | ⏳ |
-| P10-3 | **P1** | CreateTopicScreen: kullanıcı `credits_topic` özelliğine sahipse "Konu açma ücretlidir" infobox'ını gösterme | Developer | ⏳ |
-| P10-4 | **P0** | CreateTopicScreen "Onayla ve Gönder" butonu çalışmıyor — root cause araştır (`CreditGateModal.onDeduct` → `doCreate` akışı, API 402 dönüşü, token/categoryId eksikliği) | Developer | ⏳ |
-| P10-5 | **P0** | ForumTopicsScreen FAB: özellik yoksa CreditGateModal açılıyor ama "Satın Al" flow'u Premium sayfasına doğru yönlendirmiyor — `onNavigatePremium` bağlantısını doğrula | Developer | ⏳ |
+| S1-01 | **P0** | SEC-06: GET /me response'unda passwordHash alanı kesinlikle dönmemeli — serializer/response kontrolü | Developer | ⏳ |
+| S1-02 | **P0** | CR-03 + CR-07: Kredi atomikliği — başarısız işlemde kredi düşmemeli, bakiye asla eksi olmamalı (DB transaction) | Developer | ⏳ |
+| S1-03 | **P0** | F-09 + F-14: Yetersiz kredide POST /forum/topics ve POST /forum/comments 402 Payment Required dönmeli | Developer | ⏳ |
+| S1-04 | **P0** | P10-4 (backlog): CreateTopicScreen "Onayla ve Gönder" butonu çalışmıyor — CreditGateModal.onDeduct → doCreate akışını düzelt | Developer | ⏳ |
+| S1-05 | **P0** | P10-5 (backlog): ForumTopicsScreen FAB → CreditGateModal → "Satın Al" → PremiumScreen yönlendirmesi çalışmıyor — onNavigatePremium bağlantısını doğrula | Developer | ⏳ |
+| S1-06 | **P0** | AD-02 + SEC-03: Admin endpoint'lerine normal kullanıcı erişimi kesin 403 dönmeli — middleware audit | Developer | ⏳ |
+| S1-07 | **P0** | SEC-01: Süresi dolmuş JWT 401 dönmeli, mobile taraf kullanıcıyı LoginScreen'e yönlendirmeli | Developer | ⏳ |
+| S1-08 | **P0** | DEV: Tüm P0 bug fix'leri sonrası `tsc --noEmit` çalıştır, sıfır hata doğrula | Developer | ⏳ |
+| S1-09 | **P1** | UXUI: Sprint 1'deki değişikliklerin etkilediği ekranları audit et — CreditGateModal, PremiumScreen, CreateTopicScreen | UX-UI | ⏳ |
 
-### Kök Neden Notları (PM analizi)
+---
 
-- **P10-1/P10-2**: `credits_topic`, `credits_reply`, `credits_message` özellik satın almaları şu an sınırsız tekrarlanabiliyor. DB'de `userFeatures { userId, featureType, purchasedAt, expiresAt }` koleksiyonu eklenerek `POST /payment/spend-credit` öncesi kontrol yapılmalı.
-- **P10-3**: `CreateTopicScreen` → `isStaff` kontrolü var ama "özellik sahibi" kontrolü yok. `userFeatures` koleksiyonu hazır olunca bu kontrol trivial olacak.
-- **P10-4**: `doCreate()` doğrudan `api.forum.createTopic(categoryId, title, token)` çağırıyor. `token` veya `categoryId` boş gelmiyor mu? CreditGateModal'ın `onDeduct` prop'u `doCreate` fonksiyonunu reference etmeli. Olası bug: `gateVisible` state'i modal açılmadan önce kapanıyor olabilir.
-- **P10-5**: `ForumTopicsScreen`'de `onNavigatePremium` prop'u `ForumScreen`'den geçiriliyor (`navigateToPremium`). CreditGateModal `onBuy` callback'i doğru çalışıyor mu kontrol edilmeli.
+## Yeni Sprint 2 (Test Bulguları) — BEKLEYEN ⏳
+
+### Konu: API Doğruluğu (P1) — Reset Password, Forum Davranışları, Stripe
+
+| Kod | Öncelik | Görev | Sahip | Durum |
+|-----|---------|-------|-------|-------|
+| S2-01 | **P1** | A-15 + A-16 + A-17: Reset password token doğrulamaları — süresi dolmuş token 400/401, geçersiz token 400 dönmeli | Developer | ⏳ |
+| S2-02 | **P1** | F-04: GET /forum/topics sadece status=approved konular dönmeli — pending/rejected filtrelenmeli | Developer | ⏳ |
+| S2-03 | **P1** | F-16 + F-17: Upvote toggle — ekle (200 upvote eklendi) + kaldır (200 upvote kaldırıldı) tam çalışmalı | Developer | ⏳ |
+| S2-04 | **P1** | NO-03 + NO-05 + NO-06: Notification güvenliği — başka kullanıcının bildirimini okuma 403 dönmeli; unread-count doğru çalışmalı | Developer | ⏳ |
+| S2-05 | **P1** | PM-09 + PM-10: Stripe webhook — geçerli imza ile isPremium güncellenmeli; geçersiz imza 400 dönmeli | Developer | ⏳ |
+| S2-06 | **P1** | G-06 + G-07: Guide progress kaydetme — aynı stepId tekrar kaydedilince üzerine yazılmalı; farklı ülke seçilince adımlar sıfırlanmalı | Developer | ⏳ |
+| S2-07 | **P1** | DEV: Tüm P1 API kontrolleri + fix, tsc --noEmit | Developer | ⏳ |
+| S2-08 | **P2** | UXUI: Sprint 2 değişikliklerini audit et — Guide progress ekranları, notification badge | UX-UI | ⏳ |
+
+---
+
+## Yeni Sprint 3 (Test Bulguları) — BEKLEYEN ⏳
+
+### Konu: UX & Orta Öncelik (P2) — Oturum Kalıcılığı, Abonelikler, Pagination
+
+| Kod | Öncelik | Görev | Sahip | Durum |
+|-----|---------|-------|-------|-------|
+| S3-01 | **P2** | L-09: Oturum kalıcılığı — AsyncStorage'dan token restore edilmeli, uygulama yeniden açılınca otomatik giriş | Developer | ⏳ |
+| S3-02 | **P2** | U-09: PATCH /me → role güncelleme denemesi role değiştirmemeli — whitelist kontrolü (displayName, bio, avatar, userType, targetCountry) | Developer | ⏳ |
+| S3-03 | **P2** | NO-07 + NO-08 + NO-09: Ülke/konu aboneliği tam akışı — abone ol, abonelikten çık, liste doğru dönmeli | Developer | ⏳ |
+| S3-04 | **P2** | N-06 + N-07: Tab bar bildirim rozeti — okunmamış sayı tab bar'da gösterilmeli (9+ format), konu aboneliği bildirimleri | Developer | ⏳ |
+| S3-05 | **P2** | G-03: Guide blocker adım akışı — blockingAnswer seçilince ilerleme durmalı, uyarı gösterilmeli | Developer | ⏳ |
+| S3-06 | **P2** | FT-05 + F-05: Pagination — ForumTopicsScreen infinite scroll + GET /forum/topics?page=2 doğru sayfalama | Developer | ⏳ |
+| S3-07 | **P2** | CT-08: Konu admin onay süreci — normal kullanıcı topic'i status=pending oluşturmalı, admin panelinde görünmeli | Developer | ⏳ |
+| S3-08 | **P2** | DEV: P2 düzeltmeleri, tsc --noEmit | Developer | ⏳ |
+| S3-09 | **P2** | UXUI: Guide blocker state'leri + bildirim badge doğrulama — ekran spec'leri gözden geçir | UX-UI | ⏳ |
+
+---
+
+## Yeni Sprint 4 (Test Bulguları) — BEKLEYEN ⏳
+
+### Konu: Edge Case & Admin (P3) — Deep Link, Güvenlik, Admin Kullanıcı Yönetimi
+
+| Kod | Öncelik | Görev | Sahip | Durum |
+|-----|---------|-------|-------|-------|
+| S4-01 | **P3** | NAV-05 + NAV-06: Deep link testleri — `goworldy://topic/:id` ForumTopicDetailScreen açmalı; giriş yapılmamışsa Login'e yönlendir | Developer | ⏳ |
+| S4-02 | **P3** | SEC-04: NoSQL injection koruması — `{email: {"$gt": ""}}` girişi 400 veya boş sonuç dönmeli | Developer | ⏳ |
+| S4-03 | **P3** | SEC-07: Rate limiting kontrolü — çok hızlı istekte 429 Too Many Requests dönmeli | Developer | ⏳ |
+| S4-04 | **P3** | SEC-08: CORS politikası — sadece izin verilen origin'lerden istek kabul edilmeli | Developer | ⏳ |
+| S4-05 | **P3** | AD-08 + AD-09: Admin kullanıcı listesi (200) ve arama filtresi (q=engin eşleşen kullanıcılar) | Developer | ⏳ |
+| S4-06 | **P3** | AD-10 + AD-11: Admin role güncelleme — geçerli role 200; geçersiz role (superadmin) 400 | Developer | ⏳ |
+| S4-07 | **P0** | P10-1 (backlog): userFeatures koleksiyonu + sahiplik kontrolü — tekrar satın alma engeli | Developer | ⏳ |
+| S4-08 | **P1** | P10-2 (backlog): PremiumScreen geçerlilik süresi gün/saat formatında göster | Developer + UX-UI | ⏳ |
+| S4-09 | **P3** | DEV + UXUI: Edge case ve admin sprint — tsc --noEmit + etkilenen ekran audit | Developer + UX-UI | ⏳ |
+
+---
+
+## Yeni Sprint 5 (Test Bulguları) — BEKLEYEN ⏳
+
+### Konu: Backlog Özellikleri & Refinement — Eksik Özellikler + Stakeholder Beklentileri
+
+| Kod | Öncelik | Görev | Sahip | Durum |
+|-----|---------|-------|-------|-------|
+| S5-01 | **P1** | P10-3 (backlog): CreateTopicScreen — credits_topic özelliğine sahipse "Konu açma ücretlidir" infobox'ını gösterme | Developer | ⏳ |
+| S5-02 | **P1** | CR-06: Premium süresi dolma kontrolü — premiumUntil geçtiyse isPremium=false olmalı (cron veya middleware kontrolü) | Developer | ⏳ |
+| S5-03 | **P2** | PM-06: Mock topup dev endpoint doğrulama — POST /payment/topup/mock 200, 50 kredi eklendiğini doğrula | Developer | ⏳ |
+| S5-04 | **P1** | Onboarding flow — RU3 spec hazır, implementation (UX-UI spec'e göre yeni kullanıcı akışı) | Developer + UX-UI | ⏳ |
+| S5-05 | **P2** | Forum arama — RU1 spec hazır, GET /forum/search?q=X implementasyonu + mobile SearchBar entegrasyonu | Developer | ⏳ |
+| S5-06 | **P0** | Stakeholder bekleniyor: Stripe Price ID'leri (CREDITS_TOPIC/COMMENT/AD/100 + PREMIUM_MONTHLY) `.env.development`'a eklenmeli | Stakeholder | ⏳ Blokaj |
+| S5-07 | **P0** | Stakeholder bekleniyor: SendGrid API Key — reset e-postası gerçekten gitmesi için | Stakeholder | ⏳ Blokaj |
 
 ## Open Questions
 - **Push notifications**: Firebase FCM mi, Expo Notifications mı? (Karar verilmedi)

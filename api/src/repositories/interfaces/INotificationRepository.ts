@@ -26,6 +26,8 @@ export interface TopicSubscription {
 export interface INotificationRepository {
   getForUser(userId: string, limit?: number): Promise<Notification[]>;
   markRead(id: string, userId: string): Promise<void>;
+  /** Returns true if the notification belonged to userId and was marked read; false if not found / not owned */
+  markReadOwned(id: string, userId: string): Promise<boolean>;
   markAllRead(userId: string): Promise<void>;
   create(data: Omit<Notification, "id" | "createdAt" | "read">): Promise<Notification>;
   getUnreadCount(userId: string): Promise<number>;

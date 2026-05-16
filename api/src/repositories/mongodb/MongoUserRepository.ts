@@ -72,7 +72,9 @@ export class MongoUserRepository implements IUserRepository {
     const { users } = await getCollections();
     const filter: Record<string, unknown> = {};
     if (params.search) {
-      const re = new RegExp(params.search, "i");
+      // SEC-04: Regex özel karakterlerini escape et — NoSQL injection önleme
+      const escaped = params.search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(escaped, "i");
       filter.$or = [{ displayName: re }, { email: re }];
     }
     if (params.role) filter.role = params.role;

@@ -27,18 +27,21 @@ interface Comment {
 interface Props {
   topicId: string;
   topicTitle: string;
+  topicUpvotes?: number;
+  topicHasUpvoted?: boolean;
   onBack: () => void;
 }
 
-export function ForumTopicDetailScreen({ topicId, topicTitle, onBack }: Props) {
+export function ForumTopicDetailScreen({ topicId, topicTitle, topicUpvotes = 0, topicHasUpvoted = false, onBack }: Props) {
   const { token, user } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reply, setReply] = useState("");
   const [posting, setPosting] = useState(false);
-  const [subscribed, setSubscribed] = useState(false);
-  const [subscribing, setSubscribing] = useState(false);
+  const [upvotes, setUpvotes] = useState(topicUpvotes);
+  const [hasUpvoted, setHasUpvoted] = useState(topicHasUpvoted);
+  const [upvoting, setUpvoting] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -50,15 +53,35 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, onBack }: Props) {
     }
   }, [topicId, token]);
 
-  // Load comments and subscription state
   useEffect(() => {
     load().finally(() => setLoading(false));
-    if (token) {
-      api.notifications.isTopicSubscribed(topicId, token)
-        .then((r) => setSubscribed(r.subscribed))
-        .catch(() => {});
+  }, [load]);
+
+  const handleUpvote = async () => {
+    if (!token) {
+      Alert.alert("Giriş Gerekli", "Upvote vermek için giriş yapmanız gerekiyor.");
+      return;
     }
-  }, [load, topicId, token]);
+    if (upvoting) return;
+
+    const prevUpvotes = upvotes;
+    const prevHasUpvoted = hasUpvoted;
+    setHasUpvoted(!hasUpvoted);
+    setUpvotes(hasUpvoted ? upvotes - 1 : upvotes + 1);
+    setUpvoting(true);
+
+    try {
+      const result = await api.forum.upvoteTopic(topicId, token);
+      setUpvotes(result.upvotes);
+      setHasUpvoted(result.hasVoted);
+    } catch {
+      setUpvotes(prevUpvotes);
+      setHasUpvoted(prevHasUpvoted);
+      Alert.alert("Hata", "Upvote işlemi başarısız oldu, lütfen tekrar deneyin.");
+    } finally {
+      setUpvoting(false);
+    }
+  };
 
   const handlePost = async () => {
     if (!reply.trim() || !token) return;
@@ -77,24 +100,6 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, onBack }: Props) {
     }
   };
 
-  const handleSubscribe = async () => {
-    if (!token || subscribing) return;
-    setSubscribing(true);
-    const next = !subscribed;
-    setSubscribed(next); // optimistic
-    try {
-      if (next) {
-        await api.notifications.subscribeToTopic(topicId, token);
-      } else {
-        await api.notifications.unsubscribeFromTopic(topicId, token);
-      }
-    } catch (_) {
-      setSubscribed(!next); // rollback
-    } finally {
-      setSubscribing(false);
-    }
-  };
-
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -108,21 +113,22 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, onBack }: Props) {
         <Text style={styles.title} numberOfLines={2}>
           {topicTitle}
         </Text>
+      </View>
+      <View style={styles.topicMeta}>
         <TouchableOpacity
-          onPress={handleSubscribe}
-          style={[styles.subscribeBtn, subscribed && styles.subscribeBtnActive]}
-          activeOpacity={0.75}
-          disabled={subscribing}
+          onPress={handleUpvote}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
+          style={[styles.upvoteBtn, hasUpvoted && styles.upvoteBtnActive]}
         >
-          {subscribing ? (
-            <ActivityIndicator size="small" color={subscribed ? Colors.surface : Colors.primary} />
-          ) : (
-            <Ionicons
-              name={subscribed ? "notifications" : "notifications-outline"}
-              size={18}
-              color={subscribed ? Colors.surface : Colors.primary}
-            />
-          )}
+          <Ionicons
+            name={hasUpvoted ? "arrow-up" : "arrow-up-outline"}
+            size={18}
+            color={hasUpvoted ? Colors.primary : Colors.textMuted}
+          />
+          <Text style={[styles.upvoteCount, hasUpvoted && styles.upvoteCountActive]}>
+            {upvotes}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -221,8 +227,34 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: 12,
     backgroundColor: Colors.surface,
+  },
+  topicMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    paddingBottom: 10,
+    backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+  },
+  upvoteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: Radius.full,
+  },
+  upvoteBtnActive: {
+    backgroundColor: Colors.primaryLight,
+  },
+  upvoteCount: {
+    ...Typography.small,
+    fontWeight: "600",
+    color: Colors.textMuted,
+  },
+  upvoteCountActive: {
+    color: Colors.primary,
   },
   backBtn: {
     padding: 6,
@@ -236,21 +268,6 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     flex: 1,
     paddingTop: 6,
-  },
-  subscribeBtn: {
-    width: MinTapTarget,
-    height: MinTapTarget,
-    borderRadius: Radius.full,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: Spacing.xs,
-    alignSelf: "center",
-  },
-  subscribeBtnActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
   },
   center: {
     flex: 1,

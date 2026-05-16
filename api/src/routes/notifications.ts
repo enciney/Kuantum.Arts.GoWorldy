@@ -25,7 +25,11 @@ export function notificationRoutes(repos: Repositories): Router {
 
   router.patch("/:id/read", authMiddleware, async (req: AuthRequest, res) => {
     try {
-      await repos.notifications.markRead(req.params.id as string, req.userId!);
+      const notifId = req.params.id as string;
+      const updated = await repos.notifications.markReadOwned(notifId, req.userId!);
+      if (!updated) {
+        return res.status(403).json({ error: "Bu bildirime erişim izniniz yok veya bildirim bulunamadı." });
+      }
       res.json({ ok: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message });

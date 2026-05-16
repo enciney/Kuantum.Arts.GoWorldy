@@ -38,6 +38,16 @@ export function paymentRoutes(repos: Repositories): Router {
     res.json({ credits: CREDIT_PACKAGES, premium: PREMIUM_PACKAGES });
   });
 
+  // GET /my-features — kullanıcının aktif özelliklerini listele
+  router.get("/my-features", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const features = await repos.userFeatures.getActiveFeatures(req.userId!);
+      res.json(features);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // Spend credits for an action (credits_topic / credits_reply / credits_message)
   router.post("/spend-credit", authMiddleware, async (req: AuthRequest, res) => {
     try {
@@ -46,6 +56,16 @@ export function paymentRoutes(repos: Repositories): Router {
       if (cost == null) {
         return res.status(400).json({ error: `Geçersiz aksiyon türü: ${actionType}` });
       }
+
+      // P10-1: Özellik zaten aktifse 409 dön
+      const alreadyOwned = await repos.userFeatures.hasFeature(req.userId!, actionType);
+      if (alreadyOwned) {
+        return res.status(409).json({
+          error: "Zaten bu özelliğe sahipsiniz.",
+          code: "ALREADY_OWNED",
+        });
+      }
+
       const deducted = await repos.users.deductCredits(req.userId!, cost);
       if (!deducted) {
         const user = await repos.users.findById(req.userId!);
@@ -56,6 +76,11 @@ export function paymentRoutes(repos: Repositories): Router {
           balance: user?.credits ?? 0,
         });
       }
+
+      // Özelliği kaydet (30 gün geçerli)
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      await repos.userFeatures.addFeature(req.userId!, actionType, expiresAt);
+
       const user = await repos.users.findById(req.userId!);
       res.json({ ok: true, credits: user?.credits ?? 0 });
     } catch (e: any) {

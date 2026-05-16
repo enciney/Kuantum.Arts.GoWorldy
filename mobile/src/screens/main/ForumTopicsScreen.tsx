@@ -7,14 +7,12 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
-import { CreditGateModal } from "../../components/CreditGateModal";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
-
-const TOPIC_COST = 50;
 
 interface Topic {
   id: string;
@@ -24,6 +22,8 @@ interface Topic {
   status: string;
   createdAt: string;
   commentCount: number;
+  upvotes: number;
+  hasUpvoted: boolean;
 }
 
 interface TopicWithIsMine extends Topic {
@@ -47,50 +47,100 @@ export function ForumTopicsScreen({
   onBack,
   onTopicPress,
   onCreateTopic,
-  onNavigatePremium,
+  onNavigatePremium: _onNavigatePremium,
 }: Props) {
   const { token, user } = useAuth();
   const [topics, setTopics] = useState<Topic[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [userCredits, setUserCredits] = useState(0);
-  const [gateVisible, setGateVisible] = useState(false);
+  const [upvotingIds, setUpvotingIds] = useState<Set<string>>(new Set());
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (pageNum = 1, append = false) => {
     if (!token) return;
     try {
       setError(null);
-      const [topicsData, meData] = await Promise.all([
-        api.forum.getTopics(categoryId, token),
-        api.users.me(token),
-      ]);
-      setTopics(topicsData);
-      setUserCredits(meData.credits);
+      const result = await api.forum.getTopics(categoryId, token, pageNum, 20);
+      const mapped = result.data.map((t) => ({
+        ...t,
+        upvotes: t.upvotes ?? 0,
+        hasUpvoted: t.hasUpvoted ?? false,
+      }));
+      setTopics((prev) => append ? [...prev, ...mapped] : mapped);
+      setPage(result.page);
+      setTotalPages(result.totalPages);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Yüklenemedi.");
     }
   }, [categoryId, token]);
 
+  const handleUpvote = useCallback(
+    async (topicId: string) => {
+      if (!token) {
+        Alert.alert("Giriş Gerekli", "Upvote vermek için giriş yapmanız gerekiyor.");
+        return;
+      }
+      if (upvotingIds.has(topicId)) return;
+
+      // Optimistic update
+      let prevTopics: Topic[] = [];
+      setTopics((prev) => {
+        prevTopics = prev;
+        return prev.map((t) =>
+          t.id === topicId
+            ? {
+                ...t,
+                hasUpvoted: !t.hasUpvoted,
+                upvotes: t.hasUpvoted ? t.upvotes - 1 : t.upvotes + 1,
+              }
+            : t
+        );
+      });
+      setUpvotingIds((prev) => new Set(prev).add(topicId));
+
+      try {
+        const result = await api.forum.upvoteTopic(topicId, token);
+        setTopics((prev) =>
+          prev.map((t) =>
+            t.id === topicId
+              ? { ...t, upvotes: result.upvotes, hasUpvoted: result.hasVoted }
+              : t
+          )
+        );
+      } catch {
+        // Geri al
+        setTopics(prevTopics);
+        Alert.alert("Hata", "Upvote işlemi başarısız oldu, lütfen tekrar deneyin.");
+      } finally {
+        setUpvotingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(topicId);
+          return next;
+        });
+      }
+    },
+    [token, upvotingIds]
+  );
+
   useEffect(() => {
-    load().finally(() => setLoading(false));
+    load(1).finally(() => setLoading(false));
   }, [load]);
-
-  const isStaff = user?.role === "admin" || user?.role === "moderator";
-
-  const handleFabPress = () => {
-    if (isStaff || userCredits >= TOPIC_COST) {
-      onCreateTopic();
-    } else {
-      setGateVisible(true);
-    }
-  };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await load();
+    await load(1);
     setRefreshing(false);
+  };
+
+  const loadMore = async () => {
+    if (loadingMore || page >= totalPages) return;
+    setLoadingMore(true);
+    await load(page + 1, true);
+    setLoadingMore(false);
   };
 
   // Approved tüm topic'ler + kullanıcının kendi pending/rejected'ları görünür.
@@ -160,26 +210,28 @@ export function ForumTopicsScreen({
               <Text style={styles.emptyText}>İlk konuyu sen aç!</Text>
             </View>
           }
+          ListFooterComponent={
+            page < totalPages ? (
+              <TouchableOpacity style={styles.loadMoreBtn} onPress={loadMore} disabled={loadingMore} activeOpacity={0.75}>
+                {loadingMore
+                  ? <ActivityIndicator size="small" color={Colors.primary} />
+                  : <Text style={styles.loadMoreText}>Daha fazla yükle</Text>}
+              </TouchableOpacity>
+            ) : null
+          }
           renderItem={({ item }) => (
-            <TopicRow topic={item} onPress={() => onTopicPress(item.id, item.title)} />
+            <TopicRow
+              topic={item}
+              onPress={() => onTopicPress(item.id, item.title)}
+              onUpvote={() => handleUpvote(item.id)}
+            />
           )}
         />
       )}
 
-      <TouchableOpacity style={styles.fab} onPress={handleFabPress}>
+      <TouchableOpacity style={styles.fab} onPress={onCreateTopic} activeOpacity={0.85}>
         <Ionicons name="add" size={28} color={Colors.surface} />
       </TouchableOpacity>
-
-      <CreditGateModal
-        visible={gateVisible}
-        actionLabel="Yeni konu açma"
-        cost={TOPIC_COST}
-        userCredits={userCredits}
-        deducting={false}
-        onDeduct={() => { setGateVisible(false); onCreateTopic(); }}
-        onBuy={() => { setGateVisible(false); onNavigatePremium?.(); }}
-        onClose={() => setGateVisible(false)}
-      />
     </View>
   );
 }
@@ -187,9 +239,11 @@ export function ForumTopicsScreen({
 function TopicRow({
   topic,
   onPress,
+  onUpvote,
 }: {
   topic: TopicWithIsMine;
   onPress: () => void;
+  onUpvote: () => void;
 }) {
   const date = new Date(topic.createdAt);
   const dateLabel = date.toLocaleDateString("tr-TR", {
@@ -240,7 +294,32 @@ function TopicRow({
           )}
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+      <View style={styles.rowActions}>
+        <TouchableOpacity
+          onPress={onUpvote}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
+          style={[
+            styles.upvoteBtn,
+            topic.hasUpvoted && styles.upvoteBtnActive,
+          ]}
+        >
+          <Ionicons
+            name={topic.hasUpvoted ? "arrow-up" : "arrow-up-outline"}
+            size={18}
+            color={topic.hasUpvoted ? Colors.primary : Colors.textMuted}
+          />
+          <Text
+            style={[
+              styles.upvoteCount,
+              topic.hasUpvoted && styles.upvoteCountActive,
+            ]}
+          >
+            {topic.upvotes}
+          </Text>
+        </TouchableOpacity>
+        <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+      </View>
     </TouchableOpacity>
   );
 }
@@ -402,5 +481,46 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
+  },
+  rowActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  upvoteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: Radius.full,
+  },
+  upvoteBtnActive: {
+    backgroundColor: Colors.primaryLight,
+  },
+  upvoteCount: {
+    ...Typography.small,
+    fontWeight: "600",
+    color: Colors.textMuted,
+  },
+  upvoteCountActive: {
+    color: Colors.primary,
+  },
+  loadMoreBtn: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.lg,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    minHeight: MinTapTarget,
+  },
+  loadMoreText: {
+    ...Typography.label,
+    color: Colors.primary,
+    fontWeight: "600",
   },
 });

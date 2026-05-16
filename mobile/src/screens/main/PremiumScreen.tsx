@@ -13,10 +13,27 @@ import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-ico
 import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
-import { CreditGateModal } from "../../components/CreditGateModal";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 
-const CREDIT_COST = 50;
+/**
+ * P4-S4-8: Geçerlilik süresi formatla
+ * > 24 saat: "X gün Y saat kaldı"
+ * < 24 saat: "X saat Y dakika kaldı"
+ * Geçmiş: "Süresi doldu"
+ */
+export function formatTimeRemaining(expiresAt: string): string {
+  const diff = new Date(expiresAt).getTime() - Date.now();
+  if (diff <= 0) return "Süresi doldu";
+  const totalMinutes = Math.floor(diff / 60000);
+  const totalHours = Math.floor(totalMinutes / 60);
+  if (totalHours >= 24) {
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    return `${days} gün ${hours} saat kaldı`;
+  }
+  const minutes = totalMinutes % 60;
+  return `${totalHours} saat ${minutes} dakika kaldı`;
+}
 
 const CREDIT_ITEMS = [
   {
@@ -24,21 +41,24 @@ const CREDIT_ITEMS = [
     icon: "create" as const,
     title: "Konu Aç",
     description: "Forum'da yeni konu açma hakkı",
+    price: "50 TL",
     family: "ionicons" as const,
   },
   {
-    productType: "credits_reply",
-    icon: "chatbubble-ellipses" as const,
-    title: "Forum Yorum Gönderme",
-    description: "Mevcut konulara yorum gönderme hakkı",
-    family: "ionicons" as const,
+    productType: "credits_comment",
+    icon: "comment-multiple" as const,
+    title: "Yorum Erişimi",
+    description: "1 hafta sınırsız yorum okuma",
+    price: "50 TL",
+    family: "mc" as const,
   },
   {
-    productType: "credits_message",
-    icon: "mail" as const,
-    title: "Mesajlaşma Hakkı",
-    description: "Diğer üyelerle özel mesajlaşma",
-    family: "ionicons" as const,
+    productType: "credits_ad",
+    icon: "bullhorn" as const,
+    title: "Reklam Yayınla",
+    description: "Forum'da reklam yayınlama",
+    price: "50 TL",
+    family: "fa5" as const,
   },
 ];
 
@@ -46,16 +66,17 @@ export function PremiumScreen() {
   const { token } = useAuth();
   const navigation = useNavigation<any>();
   const [credits, setCredits] = useState<number | null>(null);
+  const [premiumStatus, setPremiumStatus] = useState<{ isPremium: boolean; premiumUntil?: string }>({ isPremium: false });
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const linkListenerRef = useRef<ReturnType<typeof Linking.addEventListener> | null>(null);
-  // Credit gate modal state
-  const [gateItem, setGateItem] = useState<{ productType: string; title: string } | null>(null);
-  const [spending, setSpending] = useState(false);
 
   const refreshCredits = useCallback(() => {
     if (!token) return;
-    api.users.me(token).then((u) => setCredits(u.credits)).catch(() => {});
+    api.users.me(token).then((u) => {
+      setCredits(u.credits);
+      setPremiumStatus({ isPremium: u.isPremium, premiumUntil: u.premiumUntil });
+    }).catch(() => {});
   }, [token]);
 
   useEffect(() => {
@@ -72,41 +93,6 @@ export function PremiumScreen() {
       linkListenerRef.current?.remove();
     };
   }, [refreshCredits]);
-
-  const handleCreditItemPress = (productType: string, title: string) => {
-    setGateItem({ productType, title });
-  };
-
-  const handleSpendCredit = async () => {
-    if (!token || !gateItem) return;
-    setSpending(true);
-    try {
-      const result = await api.payment.spendCredit(gateItem.productType, token);
-      setCredits(result.credits);
-      setGateItem(null);
-      Alert.alert("Başarılı", `${gateItem.title} hakkı satın alındı. Yeni bakiyeniz: ${result.credits} kredi.`);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "İşlem başarısız.";
-      setPurchaseError(msg);
-      setGateItem(null);
-    } finally {
-      setSpending(false);
-    }
-  };
-
-  const handleMockTopup = async () => {
-    if (!token) return;
-    setPurchasing("mock_topup");
-    setPurchaseError(null);
-    try {
-      const result = await api.payment.mockTopup(token);
-      setCredits(result.credits);
-    } catch {
-      setPurchaseError("Yükleme başarısız. Lütfen tekrar deneyin.");
-    } finally {
-      setPurchasing(null);
-    }
-  };
 
   const handlePurchase = async (productType: string, label: string) => {
     if (!token) return;
@@ -144,7 +130,6 @@ export function PremiumScreen() {
   };
 
   return (
-    <>
     <ScrollView style={styles.container} contentContainerStyle={styles.scroll}>
       <View style={styles.header}>
         <Text style={styles.title}>Premium</Text>
@@ -160,6 +145,21 @@ export function PremiumScreen() {
         </View>
       )}
 
+      {/* Active Premium Card */}
+      {premiumStatus.isPremium && (
+        <View style={styles.activePremiumCard}>
+          <Ionicons name="checkmark-circle" size={22} color={Colors.surface} />
+          <View style={{ flex: 1, marginLeft: Spacing.sm }}>
+            <Text style={styles.activePremiumTitle}>Aktif Premium Üye</Text>
+            {premiumStatus.premiumUntil && (
+              <Text style={styles.activePremiumSub}>
+                {formatTimeRemaining(premiumStatus.premiumUntil)}
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
+
       {/* Balance Card */}
       <View style={styles.balanceCard}>
         <View style={styles.balanceRow}>
@@ -172,13 +172,13 @@ export function PremiumScreen() {
           </View>
           <TouchableOpacity
             style={styles.balanceBtn}
-            onPress={handleMockTopup}
-            disabled={purchasing === "mock_topup"}
+            onPress={() => handlePurchase("credits_100", "100 Kredi")}
+            disabled={purchasing === "credits_100"}
           >
-            {purchasing === "mock_topup" ? (
+            {purchasing === "credits_100" ? (
               <ActivityIndicator size="small" color={Colors.surface} />
             ) : (
-              <Text style={styles.balanceBtnText}>Yükle (+50)</Text>
+              <Text style={styles.balanceBtnText}>Yükle</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -224,18 +224,30 @@ export function PremiumScreen() {
         <TouchableOpacity
           key={a.title}
           style={styles.actionCard}
-          onPress={() => handleCreditItemPress(a.productType, a.title)}
-          activeOpacity={0.75}
+          onPress={() => handlePurchase(a.productType, a.title)}
+          disabled={purchasing === a.productType}
         >
           <View style={styles.actionIcon}>
-            <Ionicons name={a.icon} size={24} color={Colors.primary} />
+            {a.family === "ionicons" && (
+              <Ionicons name={a.icon} size={24} color={Colors.primary} />
+            )}
+            {a.family === "mc" && (
+              <MaterialCommunityIcons name={a.icon} size={24} color={Colors.primary} />
+            )}
+            {a.family === "fa5" && (
+              <FontAwesome5 name={a.icon} size={20} color={Colors.primary} />
+            )}
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.actionTitle}>{a.title}</Text>
             <Text style={styles.actionDesc}>{a.description}</Text>
           </View>
           <View style={styles.actionPriceBox}>
-            <Text style={styles.actionPrice}>{CREDIT_COST} kr</Text>
+            {purchasing === a.productType ? (
+              <ActivityIndicator size="small" color={Colors.primary} />
+            ) : (
+              <Text style={styles.actionPrice}>{a.price}</Text>
+            )}
           </View>
         </TouchableOpacity>
       ))}
@@ -245,20 +257,6 @@ export function PremiumScreen() {
         <Text style={styles.footerText}>Güvenli ödeme — Stripe ile</Text>
       </View>
     </ScrollView>
-
-    {gateItem && (
-      <CreditGateModal
-        visible={!!gateItem}
-        actionLabel={gateItem.title}
-        cost={CREDIT_COST}
-        userCredits={credits ?? 0}
-        deducting={spending}
-        onDeduct={handleSpendCredit}
-        onBuy={() => setGateItem(null)}
-        onClose={() => setGateItem(null)}
-      />
-    )}
-    </>
   );
 }
 
@@ -309,6 +307,25 @@ const styles = StyleSheet.create({
     color: Colors.danger,
     lineHeight: 18,
   },
+  activePremiumCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.secondary,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  activePremiumTitle: {
+    ...Typography.label,
+    fontWeight: "700",
+    color: Colors.surface,
+  },
+  activePremiumSub: {
+    ...Typography.small,
+    color: Colors.surface,
+    marginTop: 2,
+    lineHeight: 17,
+  },
   balanceCard: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
@@ -336,7 +353,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: Radius.sm,
-    minHeight: MinTapTarget - 8,
+    minHeight: MinTapTarget,
     justifyContent: "center",
   },
   balanceBtnText: {
