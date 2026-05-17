@@ -362,3 +362,139 @@ Sprint 10 görevleri test bulgularına göre yeniden önceliklendirildi. P10-1 �
 - **Seed verisi dışındaki ortamlar**: Prod'da seed nasıl çalışacak? (Belirsiz)
 - **PrivacyScreen genişleme**: Telefon paylaşım toggle'ının ötesinde hangi gizlilik ayarları MVP kapsamında? (Belirsiz)
 - **Stripe priceId'ler**: Her paket için Stripe dashboard'da Price oluşturulacak mı? Test modunda mı çalışılacak?
+
+---
+
+## Mobil Analiz Sprint Planı (2026-05-17)
+
+Tester Agent tarafından 17 ekranda 24 sorun tespit edildi. Aşağıda önceliğe göre 3 sprinte dağıtılmıştır.
+
+### Sprint M1 — P1: Kritik Navigation & Tıklanabilirlik Sorunları
+
+Tüm P1 sorunlar + navigasyon blokeri olan P2 sorunları (M-08, M-12) bu sprintte ele alınır.
+
+| Kod | Öncelik | Görev | Sahip | Dosya:Satır | Durum |
+|-----|---------|-------|-------|-------------|-------|
+| M-01 | **P1** | ProfileScreen: "Bildirim Ayarları" butonu — `navigation.getParent()?.navigate("Home", { screen: "Notifications" })` düzeltilmeli | Developer | ProfileScreen.tsx:329 | ⏳ |
+| M-02 | **P1** | NotificationsScreen: Bildirime tıklanınca forum navigasyonu — `navigation.navigate("Forum",...)` yerine `navigation.getParent()?.navigate("Forum",...)` kullanılmalı | Developer | NotificationsScreen.tsx:95-98 | ⏳ |
+| M-03 | **P1** | MyTopicsScreen: Topic satırları tıklanamıyor — `<View>` yerine `<TouchableOpacity>` | Developer | MyTopicsScreen.tsx:122 | ⏳ |
+| M-04 | **P1** | MyCommentsScreen: Yorum satırları tıklanamıyor — `<View>` yerine `<TouchableOpacity>` | Developer | MyCommentsScreen.tsx:103 | ⏳ |
+| M-08 | **P2** | ForumTopicDetailScreen: Deep link ile açılışta upvote sayısı daima 0 — başlangıç state düzeltilmeli | Developer | ForumTopicDetailScreen.tsx:35 | ⏳ |
+| M-12 | **P2** | ForumScreen: Deep link ile topic açılınca geri navigasyon context'i kayboluyor | Developer | ForumScreen.tsx:69-78 | ⏳ |
+
+### Sprint M2 — P2: Hata Yönetimi & UX Düzeltmeleri
+
+| Kod | Öncelik | Görev | Sahip | Dosya:Satır | Durum |
+|-----|---------|-------|-------|-------------|-------|
+| M-05 | **P2** | HomeScreen: API hataları sessizce yutulur — catch bloğu + kullanıcıya hata mesajı eklenmeli | Developer | HomeScreen.tsx:46-58 | ⏳ |
+| M-06 | **P2** | ProfileScreen: Profil yüklenirken loading spinner eksik | Developer + UX-UI | ProfileScreen.tsx:60-73 | ⏳ |
+| M-07 | **P2** | NotificationsScreen: Feed/abonelik API hataları sessizce yutulur — hata yönetimi eklenmeli | Developer | NotificationsScreen.tsx:56-68 | ⏳ |
+| M-09 | **P2** | ForumTopicDetailScreen: Yorum gönderilince FlatList en alta scroll yapmıyor — `scrollToEnd` entegrasyonu | Developer | ForumTopicDetailScreen.tsx:86-101 | ⏳ |
+| M-10 | **P2** | CreateTopicScreen: Alert callback kapatılmazsa listeye dönülmüyor — navigation.goBack() güvence altına alınmalı | Developer | CreateTopicScreen.tsx:70-76 | ⏳ |
+| M-11 | **P2** | PremiumScreen: Paket fiyatları hardcode — `api.payment.getPackages()` çağrısı eklenmeli | Developer | PremiumScreen.tsx:38-63 | ⏳ |
+| M-13 | **P2** | GuideScreen: `handleAnswer` içinde hata kullanıcıya gösterilmiyor — Alert veya inline error eklenmeli | Developer | GuideScreen.tsx:154-164 | ⏳ |
+| M-14 | **P2** | ForumTopicsScreen: "Popüler" filtresi sadece commentCount'a bakıyor — upvotes da dahil edilmeli | Developer | ForumTopicsScreen.tsx:154-158 | ⏳ |
+| M-15 | **P2** | MyTopicsScreen: Sayfalama yok, sadece ilk 20 konu gösteriliyor — sayfalama / infinite scroll eklenmeli | Developer | MyTopicsScreen.tsx:56 | ⏳ |
+| M-16 | **P2** | MyCommentsScreen: Sayfalama yok, sadece ilk 20 yorum gösteriliyor — sayfalama / infinite scroll eklenmeli | Developer | MyCommentsScreen.tsx:37 | ⏳ |
+
+### Sprint M3 — P3: Minor UX & Validasyon
+
+| Kod | Öncelik | Görev | Sahip | Dosya:Satır | Durum |
+|-----|---------|-------|-------|-------------|-------|
+| M-17 | **P3** | ResetPasswordScreen: `onNavigateForgot` prop AppNavigator'da geçirilmiyor — prop bağlantısı eklenmeli | Developer | AppNavigator.tsx:79-84 | ⏳ |
+| M-18 | **P3** | RegisterScreen: Şifre alanına göster/gizle (eye icon) butonu eklenmeli | Developer + UX-UI | RegisterScreen.tsx:99-107 | ⏳ |
+| M-19 | **P3** | RegisterScreen: E-posta format validasyonu yok — regex kontrolü eklenmeli | Developer | RegisterScreen.tsx:39 | ⏳ |
+| M-20 | **P3** | PrivacyScreen: Telefon numarası format validasyonu yok — Türkiye formatı kontrolü eklenmeli | Developer | PrivacyScreen.tsx:47-59 | ⏳ |
+| M-21 | **P3** | HomeScreen: Premium fiyatı hardcode "250 TL" — API'dan dinamik çekilmeli | Developer | HomeScreen.tsx:232 | ⏳ |
+| M-22 | **P3** | CreateTopicScreen: Konu içeriği (body) alanı girilemiyor — TextInput etkinleştirilmeli | Developer | CreateTopicScreen.tsx:69 | ⏳ |
+| M-23 | **P3** | ForumTopicsScreen: `onNavigatePremium` prop destructure edilip kullanılmıyor — bağlantı düzeltilmeli | Developer | ForumTopicsScreen.tsx:51 | ⏳ |
+| M-24 | **P3** | ProfileScreen: `navigation` tipi `any` — doğru NavigationProp tipi tanımlanmalı | Developer | ProfileScreen.tsx:39 | ⏳ |
+
+### Ekran Sağlık Özeti
+
+| Ekran | Sorun Sayısı | En Yüksek Öncelik | Sprint |
+|-------|-------------|-------------------|--------|
+| ProfileScreen | 3 | P1 (M-01) | M1 + M2 + M3 |
+| NotificationsScreen | 2 | P1 (M-02) | M1 + M2 |
+| MyTopicsScreen | 2 | P1 (M-03) | M1 + M2 |
+| MyCommentsScreen | 2 | P1 (M-04) | M1 + M2 |
+| ForumTopicDetailScreen | 2 | P2 (M-08) | M1 + M2 |
+| ForumScreen | 1 | P2 (M-12) | M1 |
+| HomeScreen | 2 | P2 (M-05) | M2 + M3 |
+| PremiumScreen | 1 | P2 (M-11) | M2 |
+| CreateTopicScreen | 2 | P2 (M-10) | M2 + M3 |
+| GuideScreen | 1 | P2 (M-13) | M2 |
+| ForumTopicsScreen | 2 | P2 (M-14) | M2 + M3 |
+| AppNavigator | 1 | P3 (M-17) | M3 |
+| RegisterScreen | 2 | P3 (M-18) | M3 |
+| PrivacyScreen | 1 | P3 (M-20) | M3 |
+
+**Toplam:** 24 sorun — Sprint M1: 6 görev, Sprint M2: 10 görev, Sprint M3: 8 görev
+
+---
+
+## Mobile Test Sprint Planı — MT1/MT2/MT3/MT4 (2026-05-17)
+
+React Native Testing Library ile mobile ekran test senaryolarının implementasyonu. Toplam 118 senaryo, 4 sprinte bölünmüştür.
+
+### MT1 — P0: Auth Ekranları + Kurulum (23 senaryo)
+
+Kurulum: `@testing-library/react-native`, `jest-expo`, mock yapılandırması bu sprintte tamamlanır.
+
+| Kod | Ekran | Senaryolar | Sahip | Durum |
+|-----|-------|------------|-------|-------|
+| MT1-SETUP | Kurulum | jest + @testing-library/react-native + jest-expo config, mock'lar (navigation, AsyncStorage, api) | Developer | ⏳ |
+| MT1-L | LoginScreen | L-01…L-09 (9 senaryo) — render, e-posta/şifre validasyonu, başarılı giriş, hata mesajları, Google Sign-In, oturum kalıcılığı | Developer | ⏳ |
+| MT1-R | RegisterScreen | R-01…R-07 (7 senaryo) — render, form validasyonu, başarılı kayıt, e-posta çakışması, şifre kuralları | Developer | ⏳ |
+| MT1-FP | ForgotPasswordScreen | FP-01…FP-03 (3 senaryo) — render, e-posta gönderme, hata state | Developer | ⏳ |
+| MT1-RP | ResetPasswordScreen | RP-01…RP-04 (4 senaryo) — render, token doğrulama, şifre güncelleme, süresi dolmuş token | Developer | ⏳ |
+
+**MT1 Toplam:** 23 senaryo + kurulum adımı
+
+### MT2 — P1: Forum Core (28 senaryo)
+
+| Kod | Ekran | Senaryolar | Sahip | Durum |
+|-----|-------|------------|-------|-------|
+| MT2-F | ForumScreen | F-01…F-04 (4 senaryo) — render, kategori listesi yükleme, hata state, boş state | Developer | ⏳ |
+| MT2-FC | ForumCategoriesScreen | FC-01…FC-03 (3 senaryo) — render, kategori navigasyonu, loading | Developer | ⏳ |
+| MT2-FT | ForumTopicsScreen | FT-01…FT-06 (6 senaryo) — render, topic listesi, popüler filtre, FAB tıklama, pagination, premium gate | Developer | ⏳ |
+| MT2-FTD | ForumTopicDetailScreen | FTD-01…FTD-09 (9 senaryo) — render, yorum listesi, yorum gönderme, upvote, deep link state, scroll, hata yönetimi | Developer | ⏳ |
+| MT2-CT | CreateTopicScreen | CT-01…CT-08 (8 senaryo) — render, form validasyonu, kategori seçimi, kredi kontrolü, gönderme, hata state | Developer | ⏳ |
+
+**MT2 Toplam:** 30 senaryo
+
+### MT3 — P1: Profil + Bildirimler + Premium (34 senaryo)
+
+| Kod | Ekran | Senaryolar | Sahip | Durum |
+|-----|-------|------------|-------|-------|
+| MT3-P | ProfileScreen | P-01…P-12 (12 senaryo) — render, profil yükleme, avatar, bio düzenleme, istatistik kartları, navigasyon butonları, userType, loading spinner | Developer | ⏳ |
+| MT3-MT | MyTopicsScreen | MT-01…MT-06 (6 senaryo) — render, topic listesi, tıklanabilirlik, boş state, pagination | Developer | ⏳ |
+| MT3-MC | MyCommentsScreen | MC-01…MC-03 (3 senaryo) — render, yorum listesi, tıklanabilirlik | Developer | ⏳ |
+| MT3-N | NotificationsScreen | N-01…N-08 (8 senaryo) — render, bildirim listesi, okundu işareti, toplu okundu, abonelik toggle, navigasyon, hata yönetimi | Developer | ⏳ |
+| MT3-PR | PremiumScreen | PR-01…PR-07 (7 senaryo) — render, paket listesi, satın alma akışı, fail state, geçerlilik süresi, kapat butonu | Developer | ⏳ |
+
+**MT3 Toplam:** 36 senaryo
+
+### MT4 — P2: Guide + Navigasyon + Edge Case (29 senaryo)
+
+| Kod | Ekran | Senaryolar | Sahip | Durum |
+|-----|-------|------------|-------|-------|
+| MT4-H | HomeScreen | H-01…H-06 (6 senaryo) — render, aktivite feed, progress bar, premium banner, hata yönetimi, loading | Developer | ⏳ |
+| MT4-G | GuideScreen | G-01…G-10 (10 senaryo) — render, adım akışı, blocker adım, progress kaydetme, hata gösterme, accordion UI | Developer | ⏳ |
+| MT4-CG | CreditGateModal | CG-01…CG-06 (6 senaryo) — render, kredi gösterimi, satın al navigasyonu, kapat, deduct akışı | Developer | ⏳ |
+| MT4-NAV | Navigasyon | NAV-01…NAV-07 (7 senaryo) — tab bar render, deep link, giriş yönlendirmesi, bildirim rozeti, geri navigasyon | Developer | ⏳ |
+
+**MT4 Toplam:** 29 senaryo
+
+### Özet
+
+| Sprint | Kapsam | Senaryo Sayısı | Öncelik |
+|--------|--------|----------------|---------|
+| MT1 | Auth (Login + Register + ForgotPassword + ResetPassword) + Kurulum | 23 | P0 |
+| MT2 | Forum Core (ForumScreen + ForumCategories + ForumTopics + TopicDetail + CreateTopic) | 30 | P1 |
+| MT3 | Profil + Bildirimler + Premium (Profile + MyTopics + MyComments + Notifications + Premium) | 36 | P1 |
+| MT4 | Guide + Navigasyon + Edge Case (Home + Guide + CreditGate + Nav) | 29 | P2 |
+
+- **Toplam senaryo:** 118
+- **MT1:** 23, **MT2:** 30, **MT3:** 36, **MT4:** 29
+- **Kurulum notu:** MT1 sprint başlangıcında `@testing-library/react-native`, `jest-expo` kurulumu ve navigation/AsyncStorage/api mock yapılandırması tamamlanmalıdır. Sonraki sprintler bu altyapıyı miras alır.

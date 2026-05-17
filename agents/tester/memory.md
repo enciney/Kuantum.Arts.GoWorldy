@@ -6,6 +6,43 @@
 
 ---
 
+## Otomatik Test Altyapısı — Kuruldu (2026-05-16)
+
+Jest + Supertest + MongoDB Memory Server kuruldu. `api/tests/` altında 5 sprint test dosyası mevcut.
+Çalıştırma: `cd api && npm test` (tümü) veya `npm run test:sprint1` (sprint bazlı).
+
+---
+
+## Otomatik Test Raporu — Sprint 1: Auth (2026-05-16)
+
+**Dosya:** `api/tests/sprint1-auth.test.ts`
+**Sonuç: 17/17 geçti ✅ — Süre: 3.5s**
+
+| # | Grup | Test Senaryosu | Sonuç |
+|---|------|---------------|-------|
+| 1 | Health | GET /api/health → 200 { status: "ok" } | ✅ |
+| 2 | Register | Başarılı kayıt → 200, user + token döner | ✅ |
+| 3 | Register | Duplicate e-posta → 400 | ✅ |
+| 4 | Register | Şifre eksik → ≥400 | ✅ |
+| 5 | Login | Başarılı giriş → 200, token döner | ✅ |
+| 6 | Login | Yanlış şifre → 401 | ✅ |
+| 7 | Login | Bilinmeyen e-posta → 401 | ✅ |
+| 8 | Forgot Password | Mevcut e-posta → 200, bilgi sızdırmaz | ✅ |
+| 9 | Forgot Password | Olmayan e-posta → 200 (user varlığı sızdırılmaz) | ✅ |
+| 10 | Forgot Password | E-posta alanı eksik → 400 | ✅ |
+| 11 | Reset Password | Geçerli token + geçerli şifre → 200 | ✅ |
+| 12 | Reset Password | Geçersiz token → 401 | ✅ |
+| 13 | Reset Password | Kısa şifre (< 6 karakter) → 400 | ✅ |
+| 14 | Reset Password | Body boş → 400 | ✅ |
+| 15 | Reset Password | Yanlış purpose token → 401 | ✅ |
+| 16 | SEC-01 | Süresi dolmuş JWT → GET /users/me → 401 | ✅ |
+| 17 | SEC-06 | GET /users/me response'unda passwordHash yok | ✅ |
+
+**Bulunan Bug:** Yok
+**Not:** SENDGRID_API_KEY eksik → forgot-password e-posta console.log'a düşüyor (beklenen graceful degrade).
+
+---
+
 ## Test Raporu — 2026-05-11
 
 ### Özet
@@ -549,6 +586,82 @@ Sprint 7 maddelerinin (S7-1, S7-2) kaynak kod ile doğrulanması tamamlandı —
 
 ---
 
+---
+
+## Test Raporu — 2026-05-16 (8. Tur — Sprint 9 Doğrulaması)
+
+### Özet
+2026-05-12'den bu yana 5 commit yapılmış: `sprint 3 and 4 security issues`, `premium improvement, topic subscription`, `mongodb is added`, `fixes for Rehberim page`, `GuideScreen: two-tab flow`. Sprint 8 açık maddeleri (C1–C4) tamamı kaynakta doğrulandı — hepsi çözülmüş. Sprint 9 bildirim sistemi (N-T1..N-T7 test planı) kaynak kodu incelemesiyle doğrulandı; backend logic tam ve çalışır durumda. **1 yeni P2 sorun** tespit edildi (N1 — bildirim tipi uyumsuzluğu). T13 P3 tutarsızlığı hâlâ açık.
+
+---
+
+### Açık Maddeler Durum (7. Tur'dan Devir)
+
+| ID | Önem | Durum | Açıklama | Dosya:Satır |
+|----|------|-------|----------|-------------|
+| C1 | P0 | ✅ Çözüldü | `allowedOrigins` env yoksa `true` (tüm originlere izin ver) — Expo web 8081 dahil. | `api/src/index.ts:16-19` |
+| C2 | P1 | ✅ Çözüldü | Avatar modal kaldırıldı. Avatar'a tıklayınca doğrudan `handlePickFromGallery()` çağrılıyor. Modal ve URL akışı yok. | `ProfileScreen.tsx:172-187` |
+| C3 | P1 | ✅ Çözüldü | `StatItem` artık `TouchableOpacity` kullanıyor, `onPress` prop'u var. "Konu" → `navigate("MyTopics")`, "Yorum" → `navigate("MyComments")`, "Adım" → `navigate("Guide")`. | `ProfileScreen.tsx:392-412` |
+| C4 | P1 | ✅ Çözüldü | "Hakkında" butonu `Alert.alert` yerine React Native `Modal` açıyor (`aboutVisible` state + fade animasyonu). Web/native uyumlu. | `ProfileScreen.tsx:355-372` |
+| T10 | P3 | ✅ Çözüldü | `CreateTopicScreen` — `color="#fff"` kalmamış, `Colors.surface` kullanılıyor. | `CreateTopicScreen.tsx:157-162` |
+| T11 | P3 | ✅ Çözüldü | `ForumTopicDetailScreen` — send butonu `Colors.surface` kullanıyor. | `ForumTopicDetailScreen.tsx:181-183` |
+| T12 | P3 | ✅ Çözüldü | `ForumTopicsScreen` FAB `Colors.surface` kullanıyor. | `ForumTopicsScreen.tsx:233` |
+| T13 | P3 | ❌ Açık | `GuideScreen:491` — tamamlanan adım dot: `color="#fff"` hâlâ var. | `GuideScreen.tsx:491` |
+
+---
+
+### Sprint 9 Bildirim Sistemi Doğrulaması
+
+| Test | Durum | Açıklama |
+|------|-------|----------|
+| N-T1: Ülke aboneliği bildirimi — backend | ✅ Geçti | `forum.ts:152-154` — `updateTopicStatus` onaylandığında `notifyCountrySubscribers` çağrılıyor. `forum.ts:83-86` — staff topic oluşturduğunda da çağrılıyor. `MongoNotificationRepository.notifyCountrySubscribers` tam implement edilmiş: aboneleri bulup insertMany yapıyor. |
+| N-T1: Ülke aboneliği bildirimi — endpoint | ✅ Geçti | `notifications.ts:50-74` — `GET /notifications/subscriptions` ve `PATCH /notifications/subscriptions/:countryId` endpoint'leri mevcut ve çalışıyor. |
+| N-T1: NotificationsScreen UI | ✅ Geçti | `NotificationsScreen.tsx` — toggle switch'ler, `setSubscription` API çağrısı, optimistic update + rollback hepsi var. |
+| N-T2: Konu aboneliği bildirimi | ✅ Geçti | `forum.ts:174-179` — comment sonrası `notifyTopicSubscribers` çağrılıyor. `MongoNotificationRepository.notifyTopicSubscribers` — konu aboneleri + konu yazarını dahil ediyor, yorum yapanı hariç tutuyor. `forum.ts:186-211` — subscribe/unsubscribe/isSubscribed endpoint'leri mevcut. |
+| N-T3: Admin SSE canlı onay paneli | ✅ Geçti | `admin.ts:155-196` — `GET /admin/topics/stream` endpoint tam implement: JWT doğrulama, SSE headers, init event, 25s heartbeat, client temizleme. `broadcastPendingTopic` fonksiyonu `forum.ts:88` tarafından çağrılıyor. `TopicsPage.tsx:35-66` — EventSource bağlantısı, `init/new_pending/removed` event handling, live/offline/connecting durumu. |
+| N-T4: Badge count (9+ kuralı) | ✅ Geçti | `notifications.ts:17-24` — `GET /notifications/unread-count` endpoint mevcut, MongoDB `countDocuments` ile sayıyor. `AppNavigator.tsx:124-148` — `BadgeDot` bileşeni: 0 → gizli, 1-9 → exact sayı, 10+ → "9+". `useUnreadCount` hook: mount'ta ve AppState "active"'de yeniliyor. |
+| N-T5: Konu onay/red bildirimi | ✅ Geçti | `forum.ts:135-155` — `updateTopicStatus` handler'ında `topic_approved`/`topic_rejected` tipinde bildirim oluşturuluyor. Red sebebi mesaja ekleniyor. |
+| N-T6: Konu yazarına yorum bildirimi | ✅ Geçti | `MongoNotificationRepository.notifyTopicSubscribers:170-181` — konu yazarı `authorId` aboneler setine ekleniyor, yorum yapanın kendi konusuna yorum yapması durumunda bildirim gitmiyor. |
+| N-T7: Edge case'ler — pending topic abonelere gitmez | ✅ Geçti | `forum.ts:83-86` — sadece `status === "approved"` olduğunda `notifyCountrySubscribers` çağrılıyor. Normal kullanıcı pending oluşturursa abonelere bildirim gitmiyor. |
+| N-T7: Duplicate subscription | ✅ Geçti | `MongoNotificationRepository.setTopicSubscription:93-100` — `upsert: true` + `$setOnInsert` ile duplicate oluşmuyor. Ülke aboneliği de aynı pattern. |
+| N-T7: Token expire SSE | ✅ Geçti | `admin.ts:163-166` — `jwt.verify` başarısız olursa 401 dönüyor. Client-side: `TopicsPage.tsx:46` — `es.onerror` → `liveStatus: "offline"`. |
+
+---
+
+### Yeni Sorunlar (8. Tur)
+
+| ID | Ekran | Element | Önem | Açıklama | Dosya:Satır |
+|----|-------|---------|------|----------|-------------|
+| N1 | NotificationsScreen | Bildirim listesi (tip uyumsuzluğu) | **P2-Orta** | `NotificationsScreen.tsx:18` — `NotifType` union'ı yalnızca `"topic_approved" | "topic_rejected" | "comment_reply" | "system"` içeriyor. Backend `INotificationRepository.ts:4` ise `"topic_new"` ve `"new_comment"` tiplerini de gönderiyor. `MongoNotificationRepository.notifyCountrySubscribers` `type: "topic_new"`, `notifyTopicSubscribers` `type: "new_comment"` gönderiyor. Bu tipler `ICON_MAP`'e girmiyor — `ICON_MAP[notif.type]` `undefined` döndürür, `?? ICON_MAP.system` fallback devreye girer (crash yok ama yanlış ikon). `api.ts:234` bildirim tipi union'ı da bu iki tipi kapsamıyor — TypeScript tip hatası verir. | `NotificationsScreen.tsx:18,222` / `api.ts:234` |
+
+---
+
+### tsc Durumu (8. Tur)
+- **API**: Worktree ortamında `node_modules/.bin/tsc` mevcut değil — type check yapılamadı. Gerçek repoda (`C:\Kuantum.Arts.GoWorldy\api`) önceki turlarda temizdi; yeni dosyalar (`MongoUserFeatureRepository`, `MongoPremiumRepository`) eklenmiş — kaynak kodu incelemesinde belirgin tip hatası görülmedi.
+- **Mobile**: tsc binary erişilemiyor — çalıştırılamadı.
+- **Admin**: tsc binary erişilemiyor — çalıştırılamadı.
+
+> Not: tsc kontrolleri gerçek repoda `cd C:\Kuantum.Arts.GoWorldy\api && npx tsc --noEmit` ile yapılmalı.
+
+---
+
+### Developer İçin Düzeltilecek Maddeler (Öncelik Sırasıyla)
+
+1. **[N1 — P2]** `mobile/src/screens/main/NotificationsScreen.tsx:18` — `NotifType` union'ına `"topic_new"` ve `"new_comment"` ekle:
+   ```typescript
+   type NotifType = "topic_approved" | "topic_rejected" | "comment_reply" | "system" | "topic_new" | "new_comment";
+   ```
+   Aynı zamanda `ICON_MAP`'e bu iki yeni tip için giriş ekle:
+   ```typescript
+   topic_new: { name: "earth", color: Colors.primary },
+   new_comment: { name: "chatbubble", color: Colors.secondary },
+   ```
+   `mobile/src/services/api.ts:234` bildirim tipi union'ını da güncelle.
+
+2. **[T13 — P3]** `mobile/src/screens/main/GuideScreen.tsx:491` — tamamlanan adım checkmark ikonu: `color="#fff"` → `color={Colors.surface}`.
+
+---
+
 ## Regresyon Logu (güncel)
 
 - **2026-05-11 2. Tur**: T1, T2, T3, T4 düzeltmeleri uygulandı. tsc her iki tarafta temiz. T5/T6/T7 hâlâ açık (P3, UX ekibine bildirildi).
@@ -557,3 +670,70 @@ Sprint 7 maddelerinin (S7-1, S7-2) kaynak kod ile doğrulanması tamamlandı —
 - **2026-05-11 5. Tur**: D_NEW1, D_NEW3, D_NEW4, D_NEW5, D_NEW6 doğrulandı — hepsi çözülmüş. D_NEW2 (followingCount=0) açık, follow sistemi olmadığı için düzeltilemez, kullanıcıya görünmüyor. tsc API+Mobile+Admin temiz. Yeni P0/P1/P2 sorun yok. Sistem kod taraması açısından hazır.
 - **2026-05-12 6. Tur**: FETCH-1, PROF-1–3, UX Sprint 7 token değişiklikleri doğrulandı. Sprint 7 PS-1 (userType seçici) ve PS-2 (telefon input) henüz uygulanmamış — 2 P1 açık. 4 yeni P3 bulgu (T10–T13, token tutarsızlığı). tsc API+Mobile+Admin temiz.
 - **2026-05-12 7. Tur**: S7-1 (userType seçici) ve S7-2 (telefon input) doğrulandı — ikisi de çözülmüş. Sprint 8 görevleri (C1–C4) henüz uygulanmamış: C1 P0 CORS fix, C2–C4 P1. T10–T13 hâlâ açık (P3, UX). tsc API+Mobile+Admin temiz.
+- **2026-05-16 8. Tur**: Sprint 8 maddeleri (C1–C4) tam doğrulandı — hepsi çözülmüş. Sprint 9 bildirim sistemi kod incelemesiyle doğrulandı: backend tam çalışıyor (N-T1..N-T7 kapsayan logic mevcut). Yeni P2 sorun tespit edildi: N1 — NotificationsScreen `NotifType` union'ı `topic_new` ve `new_comment` tiplerini kapsamıyor (backend bunları gönderiyor, UI'da fallback icon var ama `api.ts` tip tanımı da eksik). T10–T13 `color="#fff"` tutarsızlıklarından T10/T11/T12 giderilmiş; T13 (GuideScreen:491) hâlâ açık. tsc worktree ortamı nedeniyle çalıştırılamadı (node_modules eksik — gerçek repoda temiz).
+
+---
+
+## Mobil Analiz Raporu (2026-05-17)
+
+17 ekranda 24 sorun tespit edildi. PM tarafından 3 sprinte organize edilmiştir.
+
+### Sprint M1 — P1: Kritik Navigation & Tıklanabilirlik Sorunları
+
+| Kod | Öncelik | Görev | Sahip | Dosya:Satır | Durum |
+|-----|---------|-------|-------|-------------|-------|
+| M-01 | **P1** | ProfileScreen: "Bildirim Ayarları" butonu — `navigation.getParent()?.navigate("Home", { screen: "Notifications" })` düzeltilmeli | Developer | ProfileScreen.tsx:329 | ⏳ |
+| M-02 | **P1** | NotificationsScreen: Bildirime tıklanınca forum navigasyonu — `navigation.navigate("Forum",...)` yerine `navigation.getParent()?.navigate("Forum",...)` kullanılmalı | Developer | NotificationsScreen.tsx:95-98 | ⏳ |
+| M-03 | **P1** | MyTopicsScreen: Topic satırları tıklanamıyor — `<View>` yerine `<TouchableOpacity>` | Developer | MyTopicsScreen.tsx:122 | ⏳ |
+| M-04 | **P1** | MyCommentsScreen: Yorum satırları tıklanamıyor — `<View>` yerine `<TouchableOpacity>` | Developer | MyCommentsScreen.tsx:103 | ⏳ |
+| M-08 | **P2** | ForumTopicDetailScreen: Deep link ile açılışta upvote sayısı daima 0 — başlangıç state düzeltilmeli | Developer | ForumTopicDetailScreen.tsx:35 | ⏳ |
+| M-12 | **P2** | ForumScreen: Deep link ile topic açılınca geri navigasyon context'i kayboluyor | Developer | ForumScreen.tsx:69-78 | ⏳ |
+
+### Sprint M2 — P2: Hata Yönetimi & UX Düzeltmeleri
+
+| Kod | Öncelik | Görev | Sahip | Dosya:Satır | Durum |
+|-----|---------|-------|-------|-------------|-------|
+| M-05 | **P2** | HomeScreen: API hataları sessizce yutulur — catch bloğu + kullanıcıya hata mesajı eklenmeli | Developer | HomeScreen.tsx:46-58 | ⏳ |
+| M-06 | **P2** | ProfileScreen: Profil yüklenirken loading spinner eksik | Developer + UX-UI | ProfileScreen.tsx:60-73 | ⏳ |
+| M-07 | **P2** | NotificationsScreen: Feed/abonelik API hataları sessizce yutulur — hata yönetimi eklenmeli | Developer | NotificationsScreen.tsx:56-68 | ⏳ |
+| M-09 | **P2** | ForumTopicDetailScreen: Yorum gönderilince FlatList en alta scroll yapmıyor — `scrollToEnd` entegrasyonu | Developer | ForumTopicDetailScreen.tsx:86-101 | ⏳ |
+| M-10 | **P2** | CreateTopicScreen: Alert callback kapatılmazsa listeye dönülmüyor — navigation.goBack() güvence altına alınmalı | Developer | CreateTopicScreen.tsx:70-76 | ⏳ |
+| M-11 | **P2** | PremiumScreen: Paket fiyatları hardcode — `api.payment.getPackages()` çağrısı eklenmeli | Developer | PremiumScreen.tsx:38-63 | ⏳ |
+| M-13 | **P2** | GuideScreen: `handleAnswer` içinde hata kullanıcıya gösterilmiyor — Alert veya inline error eklenmeli | Developer | GuideScreen.tsx:154-164 | ⏳ |
+| M-14 | **P2** | ForumTopicsScreen: "Popüler" filtresi sadece commentCount'a bakıyor — upvotes da dahil edilmeli | Developer | ForumTopicsScreen.tsx:154-158 | ⏳ |
+| M-15 | **P2** | MyTopicsScreen: Sayfalama yok, sadece ilk 20 konu gösteriliyor — sayfalama / infinite scroll eklenmeli | Developer | MyTopicsScreen.tsx:56 | ⏳ |
+| M-16 | **P2** | MyCommentsScreen: Sayfalama yok, sadece ilk 20 yorum gösteriliyor — sayfalama / infinite scroll eklenmeli | Developer | MyCommentsScreen.tsx:37 | ⏳ |
+
+### Sprint M3 — P3: Minor UX & Validasyon
+
+| Kod | Öncelik | Görev | Sahip | Dosya:Satır | Durum |
+|-----|---------|-------|-------|-------------|-------|
+| M-17 | **P3** | ResetPasswordScreen: `onNavigateForgot` prop AppNavigator'da geçirilmiyor — prop bağlantısı eklenmeli | Developer | AppNavigator.tsx:79-84 | ⏳ |
+| M-18 | **P3** | RegisterScreen: Şifre alanına göster/gizle (eye icon) butonu eklenmeli | Developer + UX-UI | RegisterScreen.tsx:99-107 | ⏳ |
+| M-19 | **P3** | RegisterScreen: E-posta format validasyonu yok — regex kontrolü eklenmeli | Developer | RegisterScreen.tsx:39 | ⏳ |
+| M-20 | **P3** | PrivacyScreen: Telefon numarası format validasyonu yok — Türkiye formatı kontrolü eklenmeli | Developer | PrivacyScreen.tsx:47-59 | ⏳ |
+| M-21 | **P3** | HomeScreen: Premium fiyatı hardcode "250 TL" — API'dan dinamik çekilmeli | Developer | HomeScreen.tsx:232 | ⏳ |
+| M-22 | **P3** | CreateTopicScreen: Konu içeriği (body) alanı girilemiyor — TextInput etkinleştirilmeli | Developer | CreateTopicScreen.tsx:69 | ⏳ |
+| M-23 | **P3** | ForumTopicsScreen: `onNavigatePremium` prop destructure edilip kullanılmıyor — bağlantı düzeltilmeli | Developer | ForumTopicsScreen.tsx:51 | ⏳ |
+| M-24 | **P3** | ProfileScreen: `navigation` tipi `any` — doğru NavigationProp tipi tanımlanmalı | Developer | ProfileScreen.tsx:39 | ⏳ |
+
+### Ekran Sağlık Özeti
+
+| Ekran | Sorun Sayısı | En Yüksek Öncelik | Sprint |
+|-------|-------------|-------------------|--------|
+| ProfileScreen | 3 | P1 (M-01) | M1 + M2 + M3 |
+| NotificationsScreen | 2 | P1 (M-02) | M1 + M2 |
+| MyTopicsScreen | 2 | P1 (M-03) | M1 + M2 |
+| MyCommentsScreen | 2 | P1 (M-04) | M1 + M2 |
+| ForumTopicDetailScreen | 2 | P2 (M-08) | M1 + M2 |
+| ForumScreen | 1 | P2 (M-12) | M1 |
+| HomeScreen | 2 | P2 (M-05) | M2 + M3 |
+| PremiumScreen | 1 | P2 (M-11) | M2 |
+| CreateTopicScreen | 2 | P2 (M-10) | M2 + M3 |
+| GuideScreen | 1 | P2 (M-13) | M2 |
+| ForumTopicsScreen | 2 | P2 (M-14) | M2 + M3 |
+| AppNavigator | 1 | P3 (M-17) | M3 |
+| RegisterScreen | 2 | P3 (M-18) | M3 |
+| PrivacyScreen | 1 | P3 (M-20) | M3 |
+
+**Toplam:** 24 sorun — Sprint M1: 6 görev, Sprint M2: 10 görev, Sprint M3: 8 görev

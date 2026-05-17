@@ -216,6 +216,21 @@ async function ensureIndexes(d: Db): Promise<void> {
   await d.collection(COLL.USER_FEATURES).createIndex({ expiresAt: 1 });
 }
 
+// ── Test helpers ─────────────────────────────────────────────────────────────
+
+export async function closeDbConnection(): Promise<void> {
+  if (client) {
+    await client.close();
+    client = null;
+    db = null;
+  }
+}
+
+export function resetDbConnection(): void {
+  client = null;
+  db = null;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 export function toDoc<T extends { id: string }>(doc: { _id: unknown; [key: string]: unknown }): T {

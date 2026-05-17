@@ -17,3 +17,4 @@ Thumbs.db
 
 # Sprint-specific agent task files (workflow scratchpad)
 agent-commands/current-tasks.md
+tests/.mongo-uri
