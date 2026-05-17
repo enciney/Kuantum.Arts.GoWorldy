@@ -10,25 +10,27 @@ const ACTION_COSTS: Record<string, number> = {
 };
 
 const CREDIT_PACKAGES = [
-  { id: "credits_50", name: "50 Kredi", credits: 50, priceTL: 50 },
-  { id: "credits_100", name: "100 Kredi (Ekstra %10)", credits: 100, priceTL: 90 },
-  { id: "credits_250", name: "250 Kredi (Ekstra %20)", credits: 250, priceTL: 200 },
+  { id: "credits_pack", name: "50 Kredi", credits: 50, priceTL: 99 },
 ];
 
 const PREMIUM_PACKAGES = [
-  { id: "premium_weekly", name: "Haftalık Premium", days: 7, priceTL: 50 },
-  { id: "premium_monthly", name: "Aylık Premium", days: 30, priceTL: 250 },
+  { id: "premium_weekly",  name: "Haftalık Premium", days: 7,  priceTL: 199 },
+  { id: "premium_monthly", name: "Aylık Premium",    days: 30, priceTL: 299 },
 ];
 
+const CREDITS_GRANT: Record<string, number> = {
+  credits_pack: 50,
+};
+
+const PREMIUM_DAYS: Record<string, number> = {
+  premium_weekly:  7,
+  premium_monthly: 30,
+};
+
 const PRICE_MAP: Record<string, string> = {
-  credits_50: config.stripe.prices.credits_50,
-  credits_100: config.stripe.prices.credits_100,
-  credits_250: config.stripe.prices.credits_250,
-  premium_weekly: config.stripe.prices.premium_weekly,
+  credits_pack:    config.stripe.prices.credits_50,
+  premium_weekly:  config.stripe.prices.premium_weekly,
   premium_monthly: config.stripe.prices.premium_monthly,
-  credits_topic: config.stripe.prices.credits_topic,
-  credits_comment: config.stripe.prices.credits_comment,
-  credits_ad: config.stripe.prices.credits_ad,
 };
 
 export function paymentRoutes(repos: Repositories): Router {
@@ -94,6 +96,43 @@ export function paymentRoutes(repos: Repositories): Router {
       await repos.users.addCredits(req.userId!, 50);
       const user = await repos.users.findById(req.userId!);
       res.json({ ok: true, credits: user?.credits ?? 0 });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Simüle ödeme — Stripe olmadan anlık kredi/premium ver
+  router.post("/process", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const { productType } = req.body;
+      if (!productType) {
+        return res.status(400).json({ error: "productType zorunlu" });
+      }
+
+      const creditAmount = CREDITS_GRANT[productType];
+      const premiumDays  = PREMIUM_DAYS[productType];
+
+      if (creditAmount != null) {
+        await repos.users.addCredits(req.userId!, creditAmount);
+      } else if (premiumDays != null) {
+        const now = new Date();
+        const existing = await repos.users.findById(req.userId!);
+        const base = existing?.premiumUntil && new Date(existing.premiumUntil) > now
+          ? new Date(existing.premiumUntil)
+          : now;
+        const premiumUntil = new Date(base.getTime() + premiumDays * 86_400_000).toISOString();
+        await repos.users.update(req.userId!, { isPremium: true, premiumUntil });
+      } else {
+        return res.status(400).json({ error: `Geçersiz productType: ${productType}` });
+      }
+
+      const user = await repos.users.findById(req.userId!);
+      res.json({
+        ok: true,
+        credits:      user?.credits      ?? 0,
+        isPremium:    user?.isPremium     ?? false,
+        premiumUntil: user?.premiumUntil  ?? null,
+      });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }

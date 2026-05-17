@@ -34,11 +34,12 @@ export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreate
   const [gateVisible, setGateVisible] = useState(false);
 
   const isStaff = user?.role === "admin" || user?.role === "moderator";
+  const isFree  = isStaff || user?.isPremium === true;
 
   useEffect(() => {
-    if (!token || isStaff) return;
+    if (!token || isFree) return;
     api.users.me(token).then((u) => setUserCredits(u.credits)).catch(() => {});
-  }, [token, isStaff]);
+  }, [token, isFree]);
 
   const validateTitle = (): boolean => {
     if (!title.trim()) {
@@ -54,7 +55,7 @@ export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreate
 
   const handleConfirm = () => {
     if (!validateTitle()) return;
-    if (isStaff) {
+    if (isFree) {
       doCreate();
       return;
     }
@@ -134,6 +135,16 @@ export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreate
                 </Text>
                 <Text style={[styles.infoText, { color: "#047857" }]}>
                   Konunuz ücretsiz ve doğrudan yayına alınır.
+                </Text>
+              </View>
+            </View>
+          ) : user?.isPremium ? (
+            <View style={[styles.infoBox, styles.infoBoxPremium]}>
+              <MaterialCommunityIcons name="crown" size={18} color="#7C3AED" />
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Text style={[styles.infoTitle, { color: "#4C1D95" }]}>Premium üye — ücretsiz</Text>
+                <Text style={[styles.infoText, { color: "#5B21B6" }]}>
+                  Premium üyeliğiniz sayesinde sınırsız konu açabilirsiniz.
                 </Text>
               </View>
             </View>
@@ -240,6 +251,7 @@ const styles = StyleSheet.create({
     borderColor: "#FDE68A",
   },
   infoBoxStaff: { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" },
+  infoBoxPremium: { backgroundColor: "#EDE9FE", borderColor: "#C4B5FD" },
   infoTitle: { ...Typography.caption, fontWeight: "600", color: "#92400E", marginBottom: 2 },
   infoText: { ...Typography.small, color: "#78350F", lineHeight: 17 },
   btn: {

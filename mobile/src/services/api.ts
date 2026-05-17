@@ -220,6 +220,12 @@ export const api = {
         token,
       }),
 
+    process: (productType: string, token: string) =>
+      request<{ ok: boolean; credits: number; isPremium: boolean; premiumUntil: string | null }>(
+        "/payment/process",
+        { method: "POST", body: JSON.stringify({ productType }), token }
+      ),
+
     myFeatures: (token: string) =>
       request<{ id: string; userId: string; featureType: string; purchasedAt: string; expiresAt: string | null }[]>(
         "/payment/my-features",

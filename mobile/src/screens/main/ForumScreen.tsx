@@ -41,6 +41,8 @@ type ScreenView =
       categoryName: string;
       topicId: string;
       topicTitle: string;
+      topicUpvotes: number;
+      topicHasUpvoted: boolean;
     }
   | {
       kind: "create-topic";
@@ -130,6 +132,8 @@ export function ForumScreen() {
       <ForumTopicDetailScreen
         topicId={view.topicId}
         topicTitle={view.topicTitle}
+        topicUpvotes={view.topicUpvotes}
+        topicHasUpvoted={view.topicHasUpvoted}
         onBack={() => {
           if (!view.country.id) {
             setView({ kind: "countries" });
@@ -152,7 +156,7 @@ export function ForumScreen() {
         categoryId={view.categoryId}
         categoryName={view.categoryName}
         onBack={() => setView({ kind: "categories", country: view.country })}
-        onTopicPress={(topicId, topicTitle) =>
+        onTopicPress={(topicId, topicTitle, topicUpvotes, topicHasUpvoted) =>
           setView({
             kind: "topic-detail",
             country: view.country,
@@ -160,6 +164,8 @@ export function ForumScreen() {
             categoryName: view.categoryName,
             topicId,
             topicTitle,
+            topicUpvotes: topicUpvotes ?? 0,
+            topicHasUpvoted: topicHasUpvoted ?? false,
           })
         }
         onCreateTopic={() =>

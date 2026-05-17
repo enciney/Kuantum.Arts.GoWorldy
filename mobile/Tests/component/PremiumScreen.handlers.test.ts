@@ -6,7 +6,7 @@
  */
 
 import { ApiError } from "../../src/services/api";
-import { loadPackages, executePurchase } from "../../src/screens/main/premiumHandlers";
+import { loadPackages, executePurchase, executePurchaseAndOpen } from "../../src/screens/main/premiumHandlers";
 
 // ── loadPackages() — Ekran açılınca paketler yükleniyor mu? ──────────────────
 
@@ -79,5 +79,62 @@ describe("executePurchase() — Satın Al butonu", () => {
     const body = mockCheckout.mock.calls[0][0];
     expect(body.successUrl).toBe("goworldy://payment/success");
     expect(body.cancelUrl).toBe("goworldy://payment/cancel");
+  });
+});
+
+// ── executePurchaseAndOpen() — URL gerçekten açılıyor mu? ────────────────────
+//
+// Asıl kritik test: checkout URL döndükten sonra Linking.openURL çağrılmalı.
+// Bu fonksiyon test edilmezse "return { url }" kodu çalışır ama tarayıcı açılmaz
+// ve test yanlış geçer.
+
+describe("executePurchaseAndOpen() — URL tarayıcıda açılıyor mu?", () => {
+  it("HP-08: checkout URL'ini Linking.openURL'e iletir", async () => {
+    const mockCheckout = jest.fn().mockResolvedValue({ url: "https://stripe.com/pay/test" });
+    const mockOpenURL = jest.fn().mockResolvedValue(undefined);
+    await executePurchaseAndOpen(
+      { productType: "premium_monthly", token: "tok123" },
+      { checkout: mockCheckout } as any,
+      { openURL: mockOpenURL }
+    );
+    expect(mockOpenURL).toHaveBeenCalledWith("https://stripe.com/pay/test");
+  });
+
+  it("HP-09: checkout hata verince openURL hiç çağrılmaz", async () => {
+    const mockCheckout = jest.fn().mockRejectedValue(new ApiError("Ödeme hatası", 402));
+    const mockOpenURL = jest.fn();
+    await expect(
+      executePurchaseAndOpen(
+        { productType: "premium_monthly", token: "tok123" },
+        { checkout: mockCheckout } as any,
+        { openURL: mockOpenURL }
+      )
+    ).rejects.toBeInstanceOf(ApiError);
+    expect(mockOpenURL).not.toHaveBeenCalled();
+  });
+
+  it("HP-10: checkout boş URL döndürürse fırlatır — openURL çağrılmaz", async () => {
+    const mockCheckout = jest.fn().mockResolvedValue({ url: "" });
+    const mockOpenURL = jest.fn();
+    await expect(
+      executePurchaseAndOpen(
+        { productType: "premium_monthly", token: "tok123" },
+        { checkout: mockCheckout } as any,
+        { openURL: mockOpenURL }
+      )
+    ).rejects.toThrow("Geçersiz ödeme URL'i");
+    expect(mockOpenURL).not.toHaveBeenCalled();
+  });
+
+  it("HP-11: Linking.openURL hata verince fırlatır — ödeme ekranı açılamadı alert'i gösterir", async () => {
+    const mockCheckout = jest.fn().mockResolvedValue({ url: "https://stripe.com/pay/test" });
+    const mockOpenURL = jest.fn().mockRejectedValue(new Error("Tarayıcı açılamadı"));
+    await expect(
+      executePurchaseAndOpen(
+        { productType: "premium_monthly", token: "tok123" },
+        { checkout: mockCheckout } as any,
+        { openURL: mockOpenURL }
+      )
+    ).rejects.toThrow("Tarayıcı açılamadı");
   });
 });

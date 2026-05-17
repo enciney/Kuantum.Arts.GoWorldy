@@ -36,7 +36,7 @@ interface Props {
   categoryId: string;
   categoryName: string;
   onBack: () => void;
-  onTopicPress: (topicId: string, topicTitle: string) => void;
+  onTopicPress: (topicId: string, topicTitle: string, upvotes: number, hasUpvoted: boolean) => void;
   onCreateTopic: () => void;
   onNavigatePremium?: () => void;
 }
@@ -222,7 +222,7 @@ export function ForumTopicsScreen({
           renderItem={({ item }) => (
             <TopicRow
               topic={item}
-              onPress={() => onTopicPress(item.id, item.title)}
+              onPress={() => onTopicPress(item.id, item.title, item.upvotes, item.hasUpvoted)}
               onUpvote={() => handleUpvote(item.id)}
             />
           )}

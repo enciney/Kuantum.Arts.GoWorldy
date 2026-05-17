@@ -22,6 +22,7 @@ import { MyTopicsScreen } from "../screens/main/MyTopicsScreen";
 import { MyCommentsScreen } from "../screens/main/MyCommentsScreen";
 import { NotificationsScreen } from "../screens/main/NotificationsScreen";
 import { PremiumScreen } from "../screens/main/PremiumScreen";
+import { PaymentScreen, PaymentScreenParams } from "../screens/main/PaymentScreen";
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -34,6 +35,7 @@ export type HomeStackParamList = {
   HomeMain: undefined;
   Notifications: undefined;
   Premium: undefined;
+  Payment: PaymentScreenParams;
 };
 
 export type ProfileStackParamList = {
@@ -96,6 +98,11 @@ function HomeStackNavigator() {
       <HomeStack.Screen
         name="Premium"
         component={PremiumScreen}
+        options={{ presentation: "modal" }}
+      />
+      <HomeStack.Screen
+        name="Payment"
+        component={PaymentScreen}
         options={{ presentation: "modal" }}
       />
     </HomeStack.Navigator>

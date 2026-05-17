@@ -53,3 +53,19 @@ export async function executePurchase(
 
   return { url };
 }
+
+/**
+ * Ödeme checkout'unu başlatır ve dönen Stripe URL'ini tarayıcıda açar.
+ * Linker dependency injection ile test edilebilir — gerçek Linking.openURL testlerde mock'lanır.
+ */
+export async function executePurchaseAndOpen(
+  params: PurchaseParams,
+  apiPayment: typeof defaultApi.payment = defaultApi.payment,
+  linker?: { openURL: (url: string) => Promise<void> }
+): Promise<void> {
+  const { url } = await executePurchase(params, apiPayment);
+  if (!url) throw new Error("Geçersiz ödeme URL'i");
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const opener = linker ?? (require("react-native").Linking as { openURL: (url: string) => Promise<void> });
+  await opener.openURL(url);
+}

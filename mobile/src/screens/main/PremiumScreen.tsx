@@ -1,19 +1,17 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
-  Linking,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
-import { executePurchase, loadPackages } from "./premiumHandlers";
+import { loadPackages } from "./premiumHandlers";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 import { formatTimeRemaining } from "../../utils/timeUtils";
 
@@ -36,15 +34,12 @@ export function PremiumScreen() {
   const navigation = useNavigation<any>();
   const [credits, setCredits] = useState<number | null>(null);
   const [premiumStatus, setPremiumStatus] = useState<{ isPremium: boolean; premiumUntil?: string }>({ isPremium: false });
-  const [purchasing, setPurchasing] = useState<string | null>(null);
-  const [purchaseError, setPurchaseError] = useState<string | null>(null);
-  const linkListenerRef = useRef<ReturnType<typeof Linking.addEventListener> | null>(null);
   const [creditPackages, setCreditPackages] = useState<CreditPackage[]>([]);
   const [premiumPackages, setPremiumPackages] = useState<PremiumPackage[]>([]);
   const [packagesLoading, setPackagesLoading] = useState(true);
   const [packagesError, setPackagesError] = useState<string | null>(null);
 
-  const refreshCredits = useCallback(() => {
+  const refreshUserStatus = useCallback(() => {
     if (!token) return;
     api.users.me(token).then((u) => {
       setCredits(u.credits);
@@ -52,9 +47,12 @@ export function PremiumScreen() {
     }).catch(() => {});
   }, [token]);
 
-  useEffect(() => {
-    refreshCredits();
-  }, [refreshCredits]);
+  // Ödeme ekranından geri dönünce kredi/premium durumunu yenile
+  useFocusEffect(
+    useCallback(() => {
+      refreshUserStatus();
+    }, [refreshUserStatus])
+  );
 
   useEffect(() => {
     setPackagesLoading(true);
@@ -64,66 +62,33 @@ export function PremiumScreen() {
         setCreditPackages(data.credits ?? []);
         setPremiumPackages(data.premium ?? []);
       })
-      .catch(() => {
-        setPackagesError("Paket bilgileri yüklenemedi. Lütfen tekrar deneyin.");
-      })
+      .catch(() => setPackagesError("Paket bilgileri yüklenemedi. Lütfen tekrar deneyin."))
       .finally(() => setPackagesLoading(false));
   }, []);
 
-  useEffect(() => {
-    linkListenerRef.current = Linking.addEventListener("url", ({ url }) => {
-      if (url.startsWith("goworldy://payment/success")) {
-        refreshCredits();
-      }
-    });
-    return () => {
-      linkListenerRef.current?.remove();
-    };
-  }, [refreshCredits]);
-
-  const handlePurchase = (productType: string, label: string, priceId?: string) => {
-    if (!token) return;
-    Alert.alert(
-      "Satın Al",
-      `${label} için ödeme sayfasına yönlendirileceksiniz.`,
-      [
-        { text: "İptal", style: "cancel" },
-        {
-          text: "Devam",
-          onPress: async () => {
-            setPurchasing(productType);
-            setPurchaseError(null);
-            try {
-              const { url } = await executePurchase({ productType, priceId, token });
-              await Linking.openURL(url);
-            } catch {
-              setPurchaseError(
-                "Ödeme tamamlanamadı. Lütfen tekrar deneyin veya destek@goworldy.com ile iletişime geçin."
-              );
-            } finally {
-              setPurchasing(null);
-            }
-          },
-        },
-      ]
-    );
+  const openPayment = (
+    productId: string,
+    productName: string,
+    price: number,
+    description: string,
+    isPremium: boolean
+  ) => {
+    navigation.navigate("Payment", { productId, productName, price, description, isPremium });
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scroll}>
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Premium</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.closeBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
           <Ionicons name="close" size={24} color={Colors.textSecondary} />
         </TouchableOpacity>
       </View>
-
-      {purchaseError && (
-        <View style={styles.errorBanner}>
-          <Ionicons name="alert-circle" size={18} color={Colors.danger} />
-          <Text style={styles.errorBannerText}>{purchaseError}</Text>
-        </View>
-      )}
 
       {packagesError && (
         <View style={styles.errorBanner}>
@@ -132,7 +97,7 @@ export function PremiumScreen() {
         </View>
       )}
 
-      {/* Active Premium Card */}
+      {/* Aktif Premium Kartı */}
       {premiumStatus.isPremium && (
         <View style={styles.activePremiumCard}>
           <Ionicons name="checkmark-circle" size={22} color={Colors.surface} />
@@ -147,11 +112,11 @@ export function PremiumScreen() {
         </View>
       )}
 
-      {/* Balance Card */}
+      {/* Kredi Bakiyesi */}
       <View style={styles.balanceCard}>
         <View style={styles.balanceRow}>
           <FontAwesome5 name="coins" size={24} color={Colors.warning} />
-          <View style={{ flex: 1, marginLeft: Spacing.md - 4 }}>
+          <View style={{ flex: 1, marginLeft: Spacing.sm }}>
             <Text style={styles.balanceLabel}>Mevcut Bakiyem</Text>
             <Text style={styles.balanceValue}>
               {credits === null ? "—" : `${credits} Kredi`}
@@ -160,37 +125,39 @@ export function PremiumScreen() {
           <TouchableOpacity
             style={styles.balanceBtn}
             onPress={() => {
-              const firstCredit = creditPackages[0];
-              if (firstCredit) {
-                handlePurchase(firstCredit.id, firstCredit.name, firstCredit.id);
-              } else {
-                handlePurchase("credits_100", "100 Kredi");
+              const pkg = creditPackages[0];
+              if (pkg) {
+                openPayment(pkg.id, pkg.name, pkg.priceTL, `${pkg.credits} kredi yüklenir`, false);
               }
             }}
-            disabled={purchasing === (creditPackages[0]?.id ?? "credits_100")}
+            activeOpacity={0.8}
           >
-            {purchasing === (creditPackages[0]?.id ?? "credits_100") ? (
-              <ActivityIndicator size="small" color={Colors.surface} />
-            ) : (
-              <Text style={styles.balanceBtnText}>Yükle</Text>
-            )}
+            <Text style={styles.balanceBtnText}>Yükle</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Premium Cards (dynamic) */}
       {packagesLoading ? (
         <View style={styles.packagesLoader}>
           <ActivityIndicator color={Colors.primary} />
         </View>
       ) : (
         <>
+          {/* Premium Paketleri */}
           {premiumPackages.map((pkg, index) => (
             <TouchableOpacity
               key={pkg.id}
               style={styles.premiumCard}
-              onPress={() => handlePurchase(pkg.id, pkg.name, pkg.id)}
-              disabled={purchasing === pkg.id}
+              onPress={() =>
+                openPayment(
+                  pkg.id,
+                  pkg.name,
+                  pkg.priceTL,
+                  `${pkg.days} gün Premium üyelik`,
+                  true
+                )
+              }
+              activeOpacity={0.85}
             >
               {index === 0 && (
                 <View style={styles.premiumBadge}>
@@ -199,8 +166,8 @@ export function PremiumScreen() {
               )}
               <View style={styles.premiumHeader}>
                 <MaterialCommunityIcons name="crown" size={32} color={Colors.surface} />
-                <View style={{ marginLeft: Spacing.md - 4 }}>
-                  <Text style={styles.premiumTitle}>{pkg.name}</Text>
+                <View style={{ marginLeft: Spacing.sm }}>
+                  <Text style={styles.premiumName}>{pkg.name}</Text>
                   <Text style={styles.premiumPrice}>{pkg.priceTL} TL / {pkg.days} gün</Text>
                 </View>
               </View>
@@ -211,61 +178,22 @@ export function PremiumScreen() {
                 <Feature text="Öncelikli destek" />
               </View>
               <View style={styles.premiumCta}>
-                {purchasing === pkg.id ? (
-                  <ActivityIndicator color={Colors.premium} />
-                ) : (
-                  <>
-                    <Text style={styles.premiumCtaText}>Şimdi Premium Ol</Text>
-                    <Ionicons name="arrow-forward" size={18} color={Colors.premium} />
-                  </>
-                )}
+                <Text style={styles.premiumCtaText}>Şimdi Premium Ol</Text>
+                <Ionicons name="arrow-forward" size={18} color={Colors.premium} />
               </View>
             </TouchableOpacity>
           ))}
 
-          {premiumPackages.length === 0 && !packagesError && (
-            <TouchableOpacity
-              style={styles.premiumCard}
-              onPress={() => handlePurchase("premium_monthly", "Aylık Premium")}
-              disabled={purchasing === "premium_monthly"}
-            >
-              <View style={styles.premiumBadge}>
-                <Text style={styles.premiumBadgeText}>EN AVANTAJLI</Text>
-              </View>
-              <View style={styles.premiumHeader}>
-                <MaterialCommunityIcons name="crown" size={32} color={Colors.surface} />
-                <View style={{ marginLeft: Spacing.md - 4 }}>
-                  <Text style={styles.premiumTitle}>Aylık Premium</Text>
-                  <Text style={styles.premiumPrice}>250 TL / ay</Text>
-                </View>
-              </View>
-              <View style={styles.premiumFeatures}>
-                <Feature text="Sınırsız konu açma" />
-                <Feature text="Reklamsız deneyim" />
-                <Feature text="Tüm yorumlara erişim" />
-                <Feature text="Öncelikli destek" />
-              </View>
-              <View style={styles.premiumCta}>
-                {purchasing === "premium_monthly" ? (
-                  <ActivityIndicator color={Colors.premium} />
-                ) : (
-                  <>
-                    <Text style={styles.premiumCtaText}>Şimdi Premium Ol</Text>
-                    <Ionicons name="arrow-forward" size={18} color={Colors.premium} />
-                  </>
-                )}
-              </View>
-            </TouchableOpacity>
-          )}
-
+          {/* Kredi Paketleri */}
           <Text style={styles.sectionTitle}>Tek Kullanımlık Krediler</Text>
-
           {creditPackages.map((pkg) => (
             <TouchableOpacity
               key={pkg.id}
               style={styles.actionCard}
-              onPress={() => handlePurchase(pkg.id, pkg.name, pkg.id)}
-              disabled={purchasing === pkg.id}
+              onPress={() =>
+                openPayment(pkg.id, pkg.name, pkg.priceTL, `${pkg.credits} kredi yüklenir`, false)
+              }
+              activeOpacity={0.8}
             >
               <View style={styles.actionIcon}>
                 <Ionicons name="wallet-outline" size={24} color={Colors.primary} />
@@ -275,24 +203,16 @@ export function PremiumScreen() {
                 <Text style={styles.actionDesc}>{pkg.credits} kredi</Text>
               </View>
               <View style={styles.actionPriceBox}>
-                {purchasing === pkg.id ? (
-                  <ActivityIndicator size="small" color={Colors.primary} />
-                ) : (
-                  <Text style={styles.actionPrice}>{pkg.priceTL} TL</Text>
-                )}
+                <Text style={styles.actionPrice}>{pkg.priceTL} TL</Text>
               </View>
             </TouchableOpacity>
           ))}
-
-          {creditPackages.length === 0 && !packagesError && (
-            <Text style={styles.noPackagesText}>Kredi paketi bulunamadı.</Text>
-          )}
         </>
       )}
 
       <View style={styles.footer}>
         <Ionicons name="shield-checkmark" size={16} color={Colors.secondary} />
-        <Text style={styles.footerText}>Güvenli ödeme — Stripe ile</Text>
+        <Text style={styles.footerText}>Güvenli ödeme</Text>
       </View>
     </ScrollView>
   );
@@ -308,28 +228,16 @@ function Feature({ text }: { text: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  scroll: {
-    padding: Spacing.md,
-    paddingTop: 56,
-    paddingBottom: 40,
-  },
+  container: { flex: 1, backgroundColor: Colors.background },
+  scroll: { padding: Spacing.md, paddingTop: 56, paddingBottom: 40 },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: Spacing.md,
   },
-  title: {
-    ...Typography.h1,
-    color: Colors.textPrimary,
-  },
-  closeBtn: {
-    padding: 4,
-  },
+  title: { ...Typography.h1, color: Colors.textPrimary },
+  closeBtn: { padding: 4 },
   errorBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -339,12 +247,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     gap: 8,
   },
-  errorBannerText: {
-    flex: 1,
-    fontSize: 13,
-    color: Colors.danger,
-    lineHeight: 18,
-  },
+  errorBannerText: { flex: 1, fontSize: 13, color: Colors.danger, lineHeight: 18 },
   activePremiumCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -353,17 +256,8 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     marginBottom: Spacing.md,
   },
-  activePremiumTitle: {
-    ...Typography.label,
-    fontWeight: "700",
-    color: Colors.surface,
-  },
-  activePremiumSub: {
-    ...Typography.small,
-    color: Colors.surface,
-    marginTop: 2,
-    lineHeight: 17,
-  },
+  activePremiumTitle: { ...Typography.label, fontWeight: "700", color: Colors.surface },
+  activePremiumSub: { ...Typography.small, color: Colors.surface, marginTop: 2, lineHeight: 17 },
   balanceCard: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
@@ -372,20 +266,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  balanceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  balanceLabel: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-  },
-  balanceValue: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: Colors.textPrimary,
-    marginTop: 2,
-  },
+  balanceRow: { flexDirection: "row", alignItems: "center" },
+  balanceLabel: { ...Typography.caption, color: Colors.textSecondary },
+  balanceValue: { fontSize: 22, fontWeight: "bold", color: Colors.textPrimary, marginTop: 2 },
   balanceBtn: {
     backgroundColor: Colors.primary,
     paddingHorizontal: Spacing.md,
@@ -394,11 +277,8 @@ const styles = StyleSheet.create({
     minHeight: MinTapTarget,
     justifyContent: "center",
   },
-  balanceBtnText: {
-    ...Typography.caption,
-    color: Colors.surface,
-    fontWeight: "600",
-  },
+  balanceBtnText: { ...Typography.caption, color: Colors.surface, fontWeight: "600" },
+  packagesLoader: { paddingVertical: Spacing.lg, alignItems: "center" },
   premiumCard: {
     backgroundColor: Colors.premium,
     borderRadius: Radius.lg,
@@ -415,40 +295,13 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: Radius.sm,
   },
-  premiumBadgeText: {
-    color: Colors.surface,
-    fontSize: 10,
-    fontWeight: "bold",
-    letterSpacing: 0.5,
-  },
-  premiumHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.md,
-  },
-  premiumTitle: {
-    ...Typography.h2,
-    fontWeight: "bold",
-    color: Colors.surface,
-  },
-  premiumPrice: {
-    ...Typography.label,
-    color: Colors.premiumLight,
-    marginTop: 2,
-  },
-  premiumFeatures: {
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
-  },
-  featureRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
-  featureText: {
-    color: Colors.surface,
-    ...Typography.label,
-  },
+  premiumBadgeText: { color: Colors.surface, fontSize: 10, fontWeight: "bold", letterSpacing: 0.5 },
+  premiumHeader: { flexDirection: "row", alignItems: "center", marginBottom: Spacing.md },
+  premiumName: { ...Typography.h2, fontWeight: "bold", color: Colors.surface },
+  premiumPrice: { ...Typography.label, color: Colors.premiumLight, marginTop: 2 },
+  premiumFeatures: { gap: Spacing.sm, marginBottom: Spacing.md },
+  featureRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
+  featureText: { color: Colors.surface, ...Typography.label },
   premiumCta: {
     flexDirection: "row",
     alignItems: "center",
@@ -458,11 +311,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     gap: 6,
   },
-  premiumCtaText: {
-    color: Colors.premium,
-    fontSize: 15,
-    fontWeight: "bold",
-  },
+  premiumCtaText: { color: Colors.premium, fontSize: 15, fontWeight: "bold" },
   sectionTitle: {
     fontSize: 17,
     fontWeight: "600",
@@ -488,16 +337,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 12,
   },
-  actionTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: Colors.textPrimary,
-  },
-  actionDesc: {
-    ...Typography.small,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
+  actionTitle: { fontSize: 15, fontWeight: "600", color: Colors.textPrimary },
+  actionDesc: { ...Typography.small, color: Colors.textSecondary, marginTop: 2 },
   actionPriceBox: {
     backgroundColor: Colors.background,
     paddingHorizontal: 12,
@@ -506,11 +347,7 @@ const styles = StyleSheet.create({
     minWidth: 60,
     alignItems: "center",
   },
-  actionPrice: {
-    ...Typography.caption,
-    fontWeight: "bold",
-    color: Colors.textPrimary,
-  },
+  actionPrice: { ...Typography.caption, fontWeight: "bold", color: Colors.textPrimary },
   footer: {
     flexDirection: "row",
     alignItems: "center",
@@ -518,18 +355,5 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     gap: 6,
   },
-  footerText: {
-    ...Typography.small,
-    color: Colors.textSecondary,
-  },
-  packagesLoader: {
-    paddingVertical: Spacing.lg,
-    alignItems: "center",
-  },
-  noPackagesText: {
-    ...Typography.small,
-    color: Colors.textSecondary,
-    textAlign: "center",
-    marginBottom: Spacing.md,
-  },
+  footerText: { ...Typography.small, color: Colors.textSecondary },
 });
