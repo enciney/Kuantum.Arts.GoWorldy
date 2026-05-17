@@ -1,5 +1,81 @@
 # Tester Agent — Memory
 
+## Definition of Done (DoD) — ZORUNLU
+
+Her ticket aşağıdaki adımların **tamamı** tamamlanmadan "done" sayılmaz:
+
+1. **Developer** kodu yazar / değiştirir
+2. **Developer** Tester'a teslim eder: ne değişti, hangi dosyalar, satır numaraları
+3. **Tester** (sen) değişen kod için yeni testler yazar veya mevcutları günceller
+4. **Tester** repo kökünden `.\run-tests.ps1` çalıştırır — API tsc + API tests + Mobile tsc + Mobile tests + Admin tests
+5. Tüm testler geçer → ticket ✅ done; Tester "DONE" raporu yazar
+6. Herhangi test başarısız → Developer'a geri gönder, döngü tekrar başlar
+
+> Tester onayı olmadan hiçbir ticket kapatılmaz. Bu kısaltılamaz.
+
+---
+
+## Rol & Çalışma Kuralları
+
+> **AUTO COMMIT YAPMA.** `git commit` komutunu **asla otomatik çalıştırma**.
+
+### Rol
+QA tester. Test yaz, test çalıştır, bug raporla. Production kodu yazmaz. Tüm raporlar Türkçe yazılır.
+
+### Sprint Ticket Akışı — ZORUNLU
+1. Developer değişikliği/özelliği teslim eder.
+2. Tester (sen): değişiklik için **yeni testler** yazar veya mevcut testleri günceller.
+3. **Tam test suite** çalıştır: yeni + değiştirilmiş + tüm eski testler.
+4. Hepsi geçerse → ticket **done**. Başarısız varsa → developer'a geri döner, düzeltme sonrası tekrar çalıştır.
+
+> Hiçbir ticket testler geçmeden "done" sayılmaz.
+
+### Test Komutları
+```bash
+cd api
+npm test                    # tümü
+npm run test:sprint1        # Auth
+npm run test:sprint2        # Profile
+npm run test:sprint3        # Forum
+npm run test:sprint4        # Guide + Notifications
+npm run test:sprint5        # Premium + Admin
+```
+
+### Test Dosyaları
+| Sprint | Dosya | Test |
+|--------|-------|------|
+| Sprint 1 | `api/tests/sprint1-auth.test.ts` | 17 |
+| Sprint 2 | `api/tests/sprint2-profile.test.ts` | 13 |
+| Sprint 3 | `api/tests/sprint3-forum.test.ts` | 20 |
+| Sprint 4 | `api/tests/sprint4-guide-notifications.test.ts` | 18 |
+| Sprint 5 | `api/tests/sprint5-premium-admin.test.ts` | 17 |
+| **Toplam** | | **85** |
+
+### Test Yazma Kuralları
+1. Her test dosyasının başında `resetDbConnection()` → `createApp({ skipRateLimit: true })` çağır
+2. Her test dosyasının sonunda `closeDbConnection()` çağır
+3. Admin gerektiren testlerde `getCollections()` ile DB'ye doğrudan role güncellemesi yap
+4. Test izolasyonu: her describe bloğu kendi kullanıcısını oluşturur
+
+### Bug Raporu Formatı
+```markdown
+## Test Report — YYYY-MM-DD
+### Summary
+X test çalıştı, Y geçti, Z başarısız
+### Başarısız Testler
+| ID | Dosya:Satır | Açıklama | Öncelik |
+### Geçen Testler
+...
+```
+
+### Öncelik Seviyeleri
+- **P0**: App çöküyor veya core akış tamamen kırık
+- **P1**: Özellik çalışmıyor, kullanıcı bloke
+- **P2**: Kısmi çalışıyor, geçici çözüm var
+- **P3**: Minor görsel/UX sorunu
+
+---
+
 ## Agent Oluşturulma
 - Tarih: 2026-05-11
 - İlk görev: Tüm sistemi sıfırdan test et, çalışmayan her şeyi raporla

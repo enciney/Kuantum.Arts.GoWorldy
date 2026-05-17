@@ -92,7 +92,7 @@ export function NotificationsScreen() {
       );
     }
     if (notif.targetType === "forum_topic" && notif.targetId) {
-      navigation.navigate("Forum", {
+      navigation.getParent()?.navigate("Forum", {
         openTopicId: notif.targetId,
         openTopicTitle: notif.title,
       });

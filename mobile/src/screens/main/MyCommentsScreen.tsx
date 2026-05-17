@@ -85,14 +85,14 @@ export function MyCommentsScreen() {
               <Text style={styles.emptyText}>Forum konularına yorum yaparak topluluğa katıl.</Text>
             </View>
           }
-          renderItem={({ item }) => <CommentRow comment={item} />}
+          renderItem={({ item }) => <CommentRow comment={item} onPress={() => navigation.getParent()?.navigate("Forum", { openTopicId: item.topicId, openTopicTitle: item.topicTitle })} />}
         />
       )}
     </View>
   );
 }
 
-function CommentRow({ comment }: { comment: MyComment }) {
+function CommentRow({ comment, onPress }: { comment: MyComment; onPress: () => void }) {
   const date = new Date(comment.createdAt).toLocaleDateString("tr-TR", {
     day: "numeric",
     month: "short",
@@ -100,7 +100,7 @@ function CommentRow({ comment }: { comment: MyComment }) {
   });
 
   return (
-    <View style={styles.row}>
+    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.iconBox}>
         <Ionicons name="chatbubble" size={16} color={Colors.primary} />
       </View>
@@ -116,7 +116,7 @@ function CommentRow({ comment }: { comment: MyComment }) {
           <Text style={styles.metaText}>{date}</Text>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 

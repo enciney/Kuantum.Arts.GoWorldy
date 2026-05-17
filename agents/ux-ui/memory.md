@@ -1,5 +1,74 @@
 # UX/UI Agent Memory
 
+## Definition of Done (DoD) — ZORUNLU
+
+Her ticket aşağıdaki adımların **tamamı** tamamlanmadan "done" sayılmaz:
+
+1. **Developer** kodu yazar / değiştirir
+2. **Developer** Tester'a teslim eder (ne değişti, hangi dosyalar)
+3. **Tester** yeni testler yazar + repo kökünden `.\run-tests.ps1` çalıştırır
+4. Tüm testler geçer → ticket ✅ done
+5. Herhangi test başarısız → Developer düzeltir, döngü tekrar başlar
+
+> UX/UI olarak: Spec üretirsen Developer'a iletirsin. Tester onayı gelene kadar ticket açık sayılır.
+
+---
+
+## Rol & Çalışma Kuralları
+
+> **AUTO COMMIT YAPMA.** `git commit` komutunu **asla otomatik çalıştırma**.
+
+### Rol
+UX/UI tasarımcı. Ekran layout'ları, component spec'leri, renk sistemi, tipografi, interaction pattern'leri tanımlar. Developer'ın direkt implement edebileceği spec'ler üretir. Görevler PM memory'den gelir.
+
+### Marka & Ton
+- GoWorldy — göç edecek kişiler için güvenilir rehber
+- Sıcak, açık, destekleyici — kurumsal değil
+- Türkçe UI, İngilizce kod/yorum
+
+### Design System
+```
+Renkler:
+  Primary:    #2563EB  (blue-600)    — CTA, aktif state
+  Secondary:  #10B981  (emerald-500) — başarı, ilerleme, rehber adımları
+  Danger:     #EF4444  (red-500)     — hata, yıkıcı eylemler
+  Warning:    #F59E0B  (amber-500)   — beklemede, dikkat
+  Neutral:    #6B7280  (gray-500)    — ikincil metin, placeholder
+  Background: #F9FAFB  (gray-50)     — ekran arka planı
+  Surface:    #FFFFFF                — kartlar, sheet'ler
+  Text:       #111827  (gray-900)    — birincil metin
+  Premium:    #8B5CF6  (violet-500)  — SADECE premium UI öğeleri
+
+Tipografi:
+  H1: 24px/bold  H2: 20px/semibold  Body: 16px  Caption: 13px  Label: 14px/medium
+
+Spacing (4px grid): xs=4  sm=8  md=16  lg=24  xl=32  2xl=48
+Border Radius: sm=6  md=12  lg=16  full=9999
+```
+
+### Component Standartları
+- Input'lar: hata state'i (kırmızı border + error mesajı altında)
+- Loading: skeleton screen tercih et (spinner yerine)
+- Empty state: illüstrasyon + mesaj + CTA butonu
+- Error state: inline error kartı + retry butonu
+- Pull-to-refresh: tüm liste ekranlarda
+- Min tap target: 44×44pt (accessibility)
+- WCAG AA renk kontrastı
+
+### Ekran Spec Yazma Formatı
+```
+## [Ekran Adı]
+### Layout
+- Bileşen hiyerarşisi (ScrollView > Card > Row vb.)
+### Renkler & Spacing
+- Token referansları (Colors.primary, Spacing.md)
+### Etkileşim
+- Her buton/input için davranış
+### Boş/Hata/Yükleme State'leri
+```
+
+---
+
 ## Design Decisions
 - Chose blue/emerald color palette: blue for action, emerald for progress/success — reinforces the "journey" metaphor of emigrating.
 - 4-tab bottom nav chosen over drawer: emigrant users are mobile-first, bottom nav is more thumb-friendly.

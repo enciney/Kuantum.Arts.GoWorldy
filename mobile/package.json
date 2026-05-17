@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:unit": "jest Tests/unit --verbose",
-    "test:integration": "jest Tests/integration --verbose"
+    "test:integration": "jest Tests/integration --verbose",
+    "test:component": "jest Tests/component --verbose"
   },
   "dependencies": {
     "@expo/metro-runtime": "~4.0.1",

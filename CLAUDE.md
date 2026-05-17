@@ -11,15 +11,15 @@ GoWorldy is a Turkish-language emigration guide platform.
 
 ## Agents
 
-Five specialized agents live in `agents/`. Each has a `README.md` (instructions) and a `memory.md` (accumulated context). Read the relevant agent file before acting in that agent's domain.
+Five specialized agents live in `agents/`. Each agent's role, working rules, and accumulated context are in a single `memory.md` file. Read the relevant agent's `memory.md` before acting in that agent's domain.
 
-| Agent | Folder | Domain |
-|-------|--------|--------|
-| Developer | `agents/developer/` | All code: API, mobile app, admin dashboard |
-| Project Manager | `agents/project-manager/` | Planning, status, priorities, roadmap |
-| UX/UI | `agents/ux-ui/` | Screen specs, design system, component design |
-| DevOps | `agents/devops/` | CI/CD pipelines, deployment, infra, secrets, monitoring |
-| Tester | `agents/tester/` | Writing and running tests, verifying ticket completion |
+| Agent | File | Domain |
+|-------|------|--------|
+| Developer | `agents/developer/memory.md` | All code: API, mobile app, admin dashboard |
+| Project Manager | `agents/project-manager/memory.md` | Planning, status, priorities, roadmap |
+| UX/UI | `agents/ux-ui/memory.md` | Screen specs, design system, component design |
+| DevOps | `agents/devops/memory.md` | CI/CD pipelines, deployment, infra, secrets, monitoring |
+| Tester | `agents/tester/memory.md` | Writing and running tests, verifying ticket completion |
 
 ---
 
@@ -53,7 +53,7 @@ PM agent reads `agents/project-manager/memory.md` and delivers a structured Turk
 ```
 developer: [görev açıklaması]
 ```
-Developer agent reads `agents/developer/README.md`, implements the task, runs `tsc --noEmit`, and reports back with what was done, what files changed, and any issues found.
+Developer agent reads `agents/developer/memory.md`, implements the task, runs `tsc --noEmit`, and reports back with what was done, what files changed, and any issues found.
 
 ### Fix errors and report
 ```

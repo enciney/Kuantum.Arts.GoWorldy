@@ -104,14 +104,14 @@ export function MyTopicsScreen() {
               <Text style={styles.emptyText}>Forum'dan yeni konu açabilirsin.</Text>
             </View>
           }
-          renderItem={({ item }) => <TopicRow topic={item} />}
+          renderItem={({ item }) => <TopicRow topic={item} onPress={() => navigation.getParent()?.navigate("Forum", { openTopicId: item.id, openTopicTitle: item.title })} />}
         />
       )}
     </View>
   );
 }
 
-function TopicRow({ topic }: { topic: MyTopic }) {
+function TopicRow({ topic, onPress }: { topic: MyTopic; onPress: () => void }) {
   const date = new Date(topic.createdAt).toLocaleDateString("tr-TR", {
     day: "numeric",
     month: "short",
@@ -119,7 +119,7 @@ function TopicRow({ topic }: { topic: MyTopic }) {
   });
 
   return (
-    <View style={styles.row}>
+    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
       {topic.isPinned && (
         <View style={styles.pinBadge}>
           <MaterialCommunityIcons name="pin" size={12} color={Colors.warning} />
@@ -143,7 +143,7 @@ function TopicRow({ topic }: { topic: MyTopic }) {
           </View>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 

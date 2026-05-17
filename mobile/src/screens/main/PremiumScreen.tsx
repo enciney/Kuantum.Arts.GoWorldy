@@ -13,54 +13,23 @@ import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-ico
 import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
+import { executePurchase, loadPackages } from "./premiumHandlers";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
+import { formatTimeRemaining } from "../../utils/timeUtils";
 
-/**
- * P4-S4-8: Geçerlilik süresi formatla
- * > 24 saat: "X gün Y saat kaldı"
- * < 24 saat: "X saat Y dakika kaldı"
- * Geçmiş: "Süresi doldu"
- */
-export function formatTimeRemaining(expiresAt: string): string {
-  const diff = new Date(expiresAt).getTime() - Date.now();
-  if (diff <= 0) return "Süresi doldu";
-  const totalMinutes = Math.floor(diff / 60000);
-  const totalHours = Math.floor(totalMinutes / 60);
-  if (totalHours >= 24) {
-    const days = Math.floor(totalHours / 24);
-    const hours = totalHours % 24;
-    return `${days} gün ${hours} saat kaldı`;
-  }
-  const minutes = totalMinutes % 60;
-  return `${totalHours} saat ${minutes} dakika kaldı`;
+interface CreditPackage {
+  id: string;
+  name: string;
+  credits: number;
+  priceTL: number;
 }
 
-const CREDIT_ITEMS = [
-  {
-    productType: "credits_topic",
-    icon: "create" as const,
-    title: "Konu Aç",
-    description: "Forum'da yeni konu açma hakkı",
-    price: "50 TL",
-    family: "ionicons" as const,
-  },
-  {
-    productType: "credits_comment",
-    icon: "comment-multiple" as const,
-    title: "Yorum Erişimi",
-    description: "1 hafta sınırsız yorum okuma",
-    price: "50 TL",
-    family: "mc" as const,
-  },
-  {
-    productType: "credits_ad",
-    icon: "bullhorn" as const,
-    title: "Reklam Yayınla",
-    description: "Forum'da reklam yayınlama",
-    price: "50 TL",
-    family: "fa5" as const,
-  },
-];
+interface PremiumPackage {
+  id: string;
+  name: string;
+  days: number;
+  priceTL: number;
+}
 
 export function PremiumScreen() {
   const { token } = useAuth();
@@ -70,6 +39,10 @@ export function PremiumScreen() {
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const linkListenerRef = useRef<ReturnType<typeof Linking.addEventListener> | null>(null);
+  const [creditPackages, setCreditPackages] = useState<CreditPackage[]>([]);
+  const [premiumPackages, setPremiumPackages] = useState<PremiumPackage[]>([]);
+  const [packagesLoading, setPackagesLoading] = useState(true);
+  const [packagesError, setPackagesError] = useState<string | null>(null);
 
   const refreshCredits = useCallback(() => {
     if (!token) return;
@@ -84,6 +57,20 @@ export function PremiumScreen() {
   }, [refreshCredits]);
 
   useEffect(() => {
+    setPackagesLoading(true);
+    setPackagesError(null);
+    loadPackages()
+      .then((data) => {
+        setCreditPackages(data.credits ?? []);
+        setPremiumPackages(data.premium ?? []);
+      })
+      .catch(() => {
+        setPackagesError("Paket bilgileri yüklenemedi. Lütfen tekrar deneyin.");
+      })
+      .finally(() => setPackagesLoading(false));
+  }, []);
+
+  useEffect(() => {
     linkListenerRef.current = Linking.addEventListener("url", ({ url }) => {
       if (url.startsWith("goworldy://payment/success")) {
         refreshCredits();
@@ -94,7 +81,7 @@ export function PremiumScreen() {
     };
   }, [refreshCredits]);
 
-  const handlePurchase = async (productType: string, label: string) => {
+  const handlePurchase = (productType: string, label: string, priceId?: string) => {
     if (!token) return;
     Alert.alert(
       "Satın Al",
@@ -107,14 +94,7 @@ export function PremiumScreen() {
             setPurchasing(productType);
             setPurchaseError(null);
             try {
-              const { url } = await api.payment.checkout(
-                {
-                  productType,
-                  successUrl: "goworldy://payment/success",
-                  cancelUrl: "goworldy://payment/cancel",
-                },
-                token
-              );
+              const { url } = await executePurchase({ productType, priceId, token });
               await Linking.openURL(url);
             } catch {
               setPurchaseError(
@@ -145,6 +125,13 @@ export function PremiumScreen() {
         </View>
       )}
 
+      {packagesError && (
+        <View style={styles.errorBanner}>
+          <Ionicons name="alert-circle" size={18} color={Colors.danger} />
+          <Text style={styles.errorBannerText}>{packagesError}</Text>
+        </View>
+      )}
+
       {/* Active Premium Card */}
       {premiumStatus.isPremium && (
         <View style={styles.activePremiumCard}>
@@ -172,10 +159,17 @@ export function PremiumScreen() {
           </View>
           <TouchableOpacity
             style={styles.balanceBtn}
-            onPress={() => handlePurchase("credits_100", "100 Kredi")}
-            disabled={purchasing === "credits_100"}
+            onPress={() => {
+              const firstCredit = creditPackages[0];
+              if (firstCredit) {
+                handlePurchase(firstCredit.id, firstCredit.name, firstCredit.id);
+              } else {
+                handlePurchase("credits_100", "100 Kredi");
+              }
+            }}
+            disabled={purchasing === (creditPackages[0]?.id ?? "credits_100")}
           >
-            {purchasing === "credits_100" ? (
+            {purchasing === (creditPackages[0]?.id ?? "credits_100") ? (
               <ActivityIndicator size="small" color={Colors.surface} />
             ) : (
               <Text style={styles.balanceBtnText}>Yükle</Text>
@@ -184,73 +178,117 @@ export function PremiumScreen() {
         </View>
       </View>
 
-      {/* Premium Card (Best Value) */}
-      <TouchableOpacity
-        style={styles.premiumCard}
-        onPress={() => handlePurchase("premium_monthly", "Aylık Premium")}
-        disabled={purchasing === "premium_monthly"}
-      >
-        <View style={styles.premiumBadge}>
-          <Text style={styles.premiumBadgeText}>EN AVANTAJLI</Text>
+      {/* Premium Cards (dynamic) */}
+      {packagesLoading ? (
+        <View style={styles.packagesLoader}>
+          <ActivityIndicator color={Colors.primary} />
         </View>
-        <View style={styles.premiumHeader}>
-          <MaterialCommunityIcons name="crown" size={32} color={Colors.surface} />
-          <View style={{ marginLeft: Spacing.md - 4 }}>
-            <Text style={styles.premiumTitle}>Aylık Premium</Text>
-            <Text style={styles.premiumPrice}>250 TL / ay</Text>
-          </View>
-        </View>
-        <View style={styles.premiumFeatures}>
-          <Feature text="Sınırsız konu açma" />
-          <Feature text="Reklamsız deneyim" />
-          <Feature text="Tüm yorumlara erişim" />
-          <Feature text="Öncelikli destek" />
-        </View>
-        <View style={styles.premiumCta}>
-          {purchasing === "premium_monthly" ? (
-            <ActivityIndicator color={Colors.premium} />
-          ) : (
-            <>
-              <Text style={styles.premiumCtaText}>Şimdi Premium Ol</Text>
-              <Ionicons name="arrow-forward" size={18} color={Colors.premium} />
-            </>
+      ) : (
+        <>
+          {premiumPackages.map((pkg, index) => (
+            <TouchableOpacity
+              key={pkg.id}
+              style={styles.premiumCard}
+              onPress={() => handlePurchase(pkg.id, pkg.name, pkg.id)}
+              disabled={purchasing === pkg.id}
+            >
+              {index === 0 && (
+                <View style={styles.premiumBadge}>
+                  <Text style={styles.premiumBadgeText}>EN AVANTAJLI</Text>
+                </View>
+              )}
+              <View style={styles.premiumHeader}>
+                <MaterialCommunityIcons name="crown" size={32} color={Colors.surface} />
+                <View style={{ marginLeft: Spacing.md - 4 }}>
+                  <Text style={styles.premiumTitle}>{pkg.name}</Text>
+                  <Text style={styles.premiumPrice}>{pkg.priceTL} TL / {pkg.days} gün</Text>
+                </View>
+              </View>
+              <View style={styles.premiumFeatures}>
+                <Feature text="Sınırsız konu açma" />
+                <Feature text="Reklamsız deneyim" />
+                <Feature text="Tüm yorumlara erişim" />
+                <Feature text="Öncelikli destek" />
+              </View>
+              <View style={styles.premiumCta}>
+                {purchasing === pkg.id ? (
+                  <ActivityIndicator color={Colors.premium} />
+                ) : (
+                  <>
+                    <Text style={styles.premiumCtaText}>Şimdi Premium Ol</Text>
+                    <Ionicons name="arrow-forward" size={18} color={Colors.premium} />
+                  </>
+                )}
+              </View>
+            </TouchableOpacity>
+          ))}
+
+          {premiumPackages.length === 0 && !packagesError && (
+            <TouchableOpacity
+              style={styles.premiumCard}
+              onPress={() => handlePurchase("premium_monthly", "Aylık Premium")}
+              disabled={purchasing === "premium_monthly"}
+            >
+              <View style={styles.premiumBadge}>
+                <Text style={styles.premiumBadgeText}>EN AVANTAJLI</Text>
+              </View>
+              <View style={styles.premiumHeader}>
+                <MaterialCommunityIcons name="crown" size={32} color={Colors.surface} />
+                <View style={{ marginLeft: Spacing.md - 4 }}>
+                  <Text style={styles.premiumTitle}>Aylık Premium</Text>
+                  <Text style={styles.premiumPrice}>250 TL / ay</Text>
+                </View>
+              </View>
+              <View style={styles.premiumFeatures}>
+                <Feature text="Sınırsız konu açma" />
+                <Feature text="Reklamsız deneyim" />
+                <Feature text="Tüm yorumlara erişim" />
+                <Feature text="Öncelikli destek" />
+              </View>
+              <View style={styles.premiumCta}>
+                {purchasing === "premium_monthly" ? (
+                  <ActivityIndicator color={Colors.premium} />
+                ) : (
+                  <>
+                    <Text style={styles.premiumCtaText}>Şimdi Premium Ol</Text>
+                    <Ionicons name="arrow-forward" size={18} color={Colors.premium} />
+                  </>
+                )}
+              </View>
+            </TouchableOpacity>
           )}
-        </View>
-      </TouchableOpacity>
 
-      <Text style={styles.sectionTitle}>Tek Kullanımlık Krediler</Text>
+          <Text style={styles.sectionTitle}>Tek Kullanımlık Krediler</Text>
 
-      {CREDIT_ITEMS.map((a) => (
-        <TouchableOpacity
-          key={a.title}
-          style={styles.actionCard}
-          onPress={() => handlePurchase(a.productType, a.title)}
-          disabled={purchasing === a.productType}
-        >
-          <View style={styles.actionIcon}>
-            {a.family === "ionicons" && (
-              <Ionicons name={a.icon} size={24} color={Colors.primary} />
-            )}
-            {a.family === "mc" && (
-              <MaterialCommunityIcons name={a.icon} size={24} color={Colors.primary} />
-            )}
-            {a.family === "fa5" && (
-              <FontAwesome5 name={a.icon} size={20} color={Colors.primary} />
-            )}
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.actionTitle}>{a.title}</Text>
-            <Text style={styles.actionDesc}>{a.description}</Text>
-          </View>
-          <View style={styles.actionPriceBox}>
-            {purchasing === a.productType ? (
-              <ActivityIndicator size="small" color={Colors.primary} />
-            ) : (
-              <Text style={styles.actionPrice}>{a.price}</Text>
-            )}
-          </View>
-        </TouchableOpacity>
-      ))}
+          {creditPackages.map((pkg) => (
+            <TouchableOpacity
+              key={pkg.id}
+              style={styles.actionCard}
+              onPress={() => handlePurchase(pkg.id, pkg.name, pkg.id)}
+              disabled={purchasing === pkg.id}
+            >
+              <View style={styles.actionIcon}>
+                <Ionicons name="wallet-outline" size={24} color={Colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionTitle}>{pkg.name}</Text>
+                <Text style={styles.actionDesc}>{pkg.credits} kredi</Text>
+              </View>
+              <View style={styles.actionPriceBox}>
+                {purchasing === pkg.id ? (
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                ) : (
+                  <Text style={styles.actionPrice}>{pkg.priceTL} TL</Text>
+                )}
+              </View>
+            </TouchableOpacity>
+          ))}
+
+          {creditPackages.length === 0 && !packagesError && (
+            <Text style={styles.noPackagesText}>Kredi paketi bulunamadı.</Text>
+          )}
+        </>
+      )}
 
       <View style={styles.footer}>
         <Ionicons name="shield-checkmark" size={16} color={Colors.secondary} />
@@ -483,5 +521,15 @@ const styles = StyleSheet.create({
   footerText: {
     ...Typography.small,
     color: Colors.textSecondary,
+  },
+  packagesLoader: {
+    paddingVertical: Spacing.lg,
+    alignItems: "center",
+  },
+  noPackagesText: {
+    ...Typography.small,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    marginBottom: Spacing.md,
   },
 });

@@ -1,5 +1,83 @@
 # Developer Agent Memory
 
+## Definition of Done (DoD) — ZORUNLU
+
+Her ticket aşağıdaki adımların **tamamı** tamamlanmadan "done" sayılmaz:
+
+1. **Developer** kodu yazar / değiştirir
+2. **Developer** Tester'a teslim eder: ne değişti, hangi dosyalar, satır numaraları
+3. **Tester** yeni testler yazar + repo kökünden `.\run-tests.ps1` çalıştırır
+4. Tüm testler geçer → ticket ✅ done
+5. Herhangi test başarısız → Developer düzeltir, döngü tekrar başlar
+
+> "Kod çalışıyor görünüyor" geçerli teslim değildir. Tester onayı olmadan ticket kapatılmaz.
+
+---
+
+## Rol & Çalışma Kuralları
+
+> **AUTO COMMIT YAPMA.** `git commit` komutunu **asla otomatik çalıştırma**.
+
+### Rol
+Lead developer. Tam stack: React Native mobile, React admin dashboard, Node.js/Express/TypeScript API. Görevler PM memory'den ve Tester raporlarından gelir — kendin test etmez, kendin bug aramaz.
+
+### Tech Stack
+| Katman | Teknoloji |
+|--------|----------|
+| Mobile | React Native + Expo + TypeScript |
+| Admin | React + TypeScript |
+| API | Node.js + Express + TypeScript |
+| DB | SQLite (better-sqlite3) / MongoDB (prod) |
+| Auth | JWT + bcryptjs + Firebase (Google login) |
+| Payments | Stripe Checkout + Webhooks |
+
+### API Endpoints (hızlı referans)
+```
+POST /api/auth/register|login|forgot-password|reset-password|google
+GET/PATCH /api/users/me  |  GET /api/users/me/stats|activity|notifications
+GET /api/forum/countries  |  POST /api/forum/countries            [admin]
+GET /api/forum/countries/:id/categories
+GET /api/forum/categories/:id/topics  |  POST /api/forum/topics   [auth]
+PATCH /api/forum/topics/:id/status                                 [admin/mod]
+GET/POST /api/forum/topics/:id/comments                            [auth]
+POST/DELETE /api/forum/topics/:id/subscribe                        [auth]
+GET/POST /api/guide/progress  |  GET /api/guide/steps/:countryId   [auth]
+GET /api/notifications  |  PATCH /api/notifications/:id/read       [auth]
+GET /api/notifications/unread-count  |  GET/PATCH /api/notifications/subscriptions/:countryId
+GET /api/admin/topics/stream  |  GET /api/admin/dashboard|users    [admin]
+PATCH /api/admin/users/:id/role                                    [admin]
+POST /api/payment/checkout                                         [auth]
+```
+
+### Çalışma Kuralları
+1. Bu memory.md'yi oku — açık görevleri önceliğe göre sırala
+2. Değişiklik yapmadan önce ilgili dosyayı oku
+3. Her değişiklik sonrası `cd api && npx tsc --noEmit`
+4. Bug fix'te root cause bul — semptomu patch etme
+5. SPRINT.md'deki aktif ticket'ı teslim et, tester'a bildir
+
+### Kod Standartları
+- TypeScript strict mode — `any` yasak
+- Repository pattern — route'larda ham SQL/MongoDB query yasak
+- `zod` ile request body validation
+- Sadece parameterized query — string concatenation yasak
+- Business logic repository'de, route'ta değil
+
+### Yeni Özellik Checklist
+1. `IXxxRepository.ts`'e interface metodu ekle
+2. `SqliteXxxRepository.ts` ve `MongoXxxRepository.ts`'de implement et
+3. `routes/xxx.ts`'e route ekle
+4. `src/index.ts`'e yeni router'ı wire'la
+5. `tsc --noEmit` çalıştır
+
+### Hata Kalıpları
+- TypeScript hatası → hatalı satırı oku, type'ı düzelt
+- Import eksik → `repositories/index.ts` export'larını kontrol et
+- Auth hatası → `middleware/auth.ts` ve JWT_SECRET'i kontrol et
+- DB hatası → `repositories/sqlite/db.ts` schema'yı kontrol et
+
+---
+
 ## Architecture Decisions
 - DB provider: SQLite for local dev, MongoDB interface ready for prod switch via DB_PROVIDER env var.
 - Repository pattern enforced — routes never touch DB directly.
