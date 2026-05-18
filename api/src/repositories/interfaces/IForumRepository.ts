@@ -24,6 +24,8 @@ export interface ForumTopic {
   createdAt: string;
   commentCount: number;
   upvotes?: number;
+  editedAt?: string;
+  deletedAt?: string;
 }
 
 export interface ForumComment {
@@ -32,7 +34,26 @@ export interface ForumComment {
   authorId: string;
   authorDisplayName: string;
   content: string;
+  parentCommentId?: string | null;
   createdAt: string;
+  editedAt?: string;
+  deletedAt?: string;
+  likesCount?: number;
+  hasLiked?: boolean;
+}
+
+export interface TopicDeletionRequest {
+  id: string;
+  topicId: string;
+  topicTitle?: string;
+  requesterId: string;
+  requesterName?: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  rejectionReason?: string;
 }
 
 export interface ForumSearchResult extends ForumTopic {
@@ -65,15 +86,32 @@ export interface IForumRepository {
   getPendingTopics(limit: number, offset: number): Promise<ForumTopic[]>;
   createTopic(data: Omit<ForumTopic, "id" | "createdAt" | "commentCount">): Promise<ForumTopic>;
   updateTopicStatus(id: string, status: ForumTopic["status"], reason?: string): Promise<void>;
+  updateTopic(id: string, data: { title?: string; content?: string }): Promise<void>;
+  softDeleteTopic(id: string, deletedBy: string): Promise<void>;
   pinTopic(id: string, isPinned: boolean): Promise<void>;
   countTopics(): Promise<number>;
 
   // Upvotes
   upvoteTopic(topicId: string, userId: string): Promise<{ upvotes: number; hasVoted: boolean }>;
 
+  // Favorites (FRM-TPC-008)
+  toggleFavoriteTopic(topicId: string, userId: string): Promise<{ favorited: boolean }>;
+  isTopicFavorited(topicId: string, userId: string): Promise<boolean>;
+  getFavoritesByUser(userId: string, limit: number, offset: number): Promise<ForumTopic[]>;
+
+  // Deletion requests (FRM-TPC-006)
+  createDeletionRequest(data: { topicId: string; requesterId: string; reason: string }): Promise<TopicDeletionRequest>;
+  getDeletionRequestByTopic(topicId: string): Promise<TopicDeletionRequest | null>;
+  getPendingDeletionRequests(limit: number, offset: number): Promise<TopicDeletionRequest[]>;
+  resolveDeletionRequest(id: string, status: "approved" | "rejected", resolvedBy: string, rejectionReason?: string): Promise<TopicDeletionRequest | null>;
+
   // Comments
-  getComments(topicId: string): Promise<ForumComment[]>;
-  createComment(data: Omit<ForumComment, "id" | "createdAt" | "authorDisplayName">): Promise<ForumComment>;
+  getComments(topicId: string, viewerId?: string): Promise<ForumComment[]>;
+  getCommentById(id: string): Promise<ForumComment | null>;
+  createComment(data: Omit<ForumComment, "id" | "createdAt" | "authorDisplayName" | "likesCount" | "hasLiked">): Promise<ForumComment>;
+  updateComment(id: string, content: string): Promise<void>;
+  softDeleteComment(id: string, deletedBy: string): Promise<void>;
+  toggleCommentLike(commentId: string, userId: string): Promise<{ likes: number; hasLiked: boolean }>;
   countComments(): Promise<number>;
 
   // Stats

@@ -10,6 +10,7 @@ import { paymentRoutes } from "./routes/payment";
 import { adminRoutes } from "./routes/admin";
 import { userRoutes } from "./routes/users";
 import { notificationRoutes } from "./routes/notifications";
+import { reportRoutes } from "./routes/reports";
 
 const CREDITS_GRANT: Record<string, number> = {
   credits_50: 50,
@@ -88,6 +89,7 @@ export function createApp(options: { skipRateLimit?: boolean } = {}) {
   app.use("/api/admin", adminRoutes(repos));
   app.use("/api/users", userRoutes(repos));
   app.use("/api/notifications", notificationRoutes(repos));
+  app.use("/api/reports", reportRoutes(repos));
 
   app.get("/", (_req, res) => res.json({ name: config.app.name, version: config.app.version }));
   app.get("/api/health", (_req, res) => res.json({ status: "ok" }));

@@ -10,6 +10,10 @@ export const COLL = {
   FORUM_TOPICS:             "forumTopics",
   FORUM_COMMENTS:           "forumComments",
   FORUM_TOPIC_UPVOTES:      "forumTopicUpvotes",
+  FORUM_TOPIC_FAVORITES:    "forumTopicFavorites",
+  FORUM_COMMENT_LIKES:      "forumCommentLikes",
+  FORUM_DELETION_REQUESTS:  "forumDeletionRequests",
+  CONTENT_REPORTS:          "contentReports",
   GUIDE_STEPS:              "guideSteps",
   USER_GUIDE_PROGRESS:      "userGuideProgress",
   NOTIFICATIONS:            "notifications",
@@ -58,10 +62,14 @@ export interface ForumTopicDoc {
   _id: string;
   categoryId: string;
   title: string;
+  content?: string;
   authorId: string;
   isPinned: boolean;
   status: "pending" | "approved" | "rejected";
   rejectionReason?: string;
+  editedAt?: string;
+  deletedAt?: string;
+  deletedBy?: string;
   createdAt: string;
 }
 
@@ -70,7 +78,49 @@ export interface ForumCommentDoc {
   topicId: string;
   authorId: string;
   content: string;
+  parentCommentId?: string | null;
+  editedAt?: string;
+  deletedAt?: string;
+  deletedBy?: string;
   createdAt: string;
+}
+
+export interface ForumTopicFavoriteDoc {
+  userId: string;
+  topicId: string;
+  createdAt: string;
+}
+
+export interface ForumCommentLikeDoc {
+  commentId: string;
+  userId: string;
+  createdAt: string;
+}
+
+export interface ForumDeletionRequestDoc {
+  _id: string;
+  topicId: string;
+  requesterId: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  rejectionReason?: string;
+}
+
+export interface ContentReportDoc {
+  _id: string;
+  reporterId: string;
+  targetType: "topic" | "comment";
+  targetId: string;
+  reason: "spam" | "abuse" | "misleading" | "copyright" | "other";
+  description?: string;
+  status: "pending" | "resolved" | "dismissed";
+  createdAt: string;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  resolution?: string;
 }
 
 export interface ForumTopicUpvoteDoc {
@@ -150,6 +200,10 @@ export interface AppCollections {
   forumTopics:              Collection<ForumTopicDoc>;
   forumComments:            Collection<ForumCommentDoc>;
   forumTopicUpvotes:        Collection<ForumTopicUpvoteDoc>;
+  forumTopicFavorites:      Collection<ForumTopicFavoriteDoc>;
+  forumCommentLikes:        Collection<ForumCommentLikeDoc>;
+  forumDeletionRequests:    Collection<ForumDeletionRequestDoc>;
+  contentReports:           Collection<ContentReportDoc>;
   guideSteps:               Collection<GuideStepDoc>;
   userGuideProgress:        Collection<UserGuideProgressDoc>;
   notifications:            Collection<NotificationDoc>;
@@ -183,6 +237,10 @@ export async function getCollections(): Promise<AppCollections> {
     forumTopics:              d.collection<ForumTopicDoc>(COLL.FORUM_TOPICS),
     forumComments:            d.collection<ForumCommentDoc>(COLL.FORUM_COMMENTS),
     forumTopicUpvotes:        d.collection<ForumTopicUpvoteDoc>(COLL.FORUM_TOPIC_UPVOTES),
+    forumTopicFavorites:      d.collection<ForumTopicFavoriteDoc>(COLL.FORUM_TOPIC_FAVORITES),
+    forumCommentLikes:        d.collection<ForumCommentLikeDoc>(COLL.FORUM_COMMENT_LIKES),
+    forumDeletionRequests:    d.collection<ForumDeletionRequestDoc>(COLL.FORUM_DELETION_REQUESTS),
+    contentReports:           d.collection<ContentReportDoc>(COLL.CONTENT_REPORTS),
     guideSteps:               d.collection<GuideStepDoc>(COLL.GUIDE_STEPS),
     userGuideProgress:        d.collection<UserGuideProgressDoc>(COLL.USER_GUIDE_PROGRESS),
     notifications:            d.collection<NotificationDoc>(COLL.NOTIFICATIONS),
@@ -204,6 +262,15 @@ async function ensureIndexes(d: Db): Promise<void> {
   await d.collection(COLL.FORUM_COMMENTS).createIndex({ topicId: 1 });
   await d.collection(COLL.FORUM_COMMENTS).createIndex({ authorId: 1 });
   await d.collection(COLL.FORUM_TOPIC_UPVOTES).createIndex({ topicId: 1, userId: 1 }, { unique: true });
+  await d.collection(COLL.FORUM_TOPIC_FAVORITES).createIndex({ userId: 1, topicId: 1 }, { unique: true });
+  await d.collection(COLL.FORUM_TOPIC_FAVORITES).createIndex({ userId: 1, createdAt: -1 });
+  await d.collection(COLL.FORUM_COMMENT_LIKES).createIndex({ commentId: 1, userId: 1 }, { unique: true });
+  await d.collection(COLL.FORUM_COMMENT_LIKES).createIndex({ commentId: 1 });
+  await d.collection(COLL.FORUM_DELETION_REQUESTS).createIndex({ topicId: 1 });
+  await d.collection(COLL.FORUM_DELETION_REQUESTS).createIndex({ status: 1, createdAt: -1 });
+  await d.collection(COLL.CONTENT_REPORTS).createIndex({ status: 1, createdAt: -1 });
+  await d.collection(COLL.CONTENT_REPORTS).createIndex({ reporterId: 1, targetType: 1, targetId: 1 }, { unique: true });
+  await d.collection(COLL.CONTENT_REPORTS).createIndex({ targetType: 1, targetId: 1 });
   await d.collection(COLL.GUIDE_STEPS).createIndex({ countryId: 1 });
   await d.collection(COLL.USER_GUIDE_PROGRESS).createIndex({ userId: 1, stepId: 1 }, { unique: true });
   await d.collection(COLL.NOTIFICATIONS).createIndex({ userId: 1, createdAt: -1 });

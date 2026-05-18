@@ -29,3 +29,21 @@ export function requireRole(...roles: string[]) {
     next();
   };
 }
+
+/**
+ * Optional auth: populates req.userId/userRole if a valid token is present,
+ * but does NOT reject anonymous requests. Useful for endpoints that work for
+ * both authenticated and anonymous users but customize output (e.g. hasLiked).
+ */
+export function optionalAuthMiddleware(req: AuthRequest, _res: Response, next: NextFunction) {
+  const token = req.headers.authorization?.replace("Bearer ", "");
+  if (!token) return next();
+  try {
+    const decoded = jwt.verify(token, config.jwtSecret) as { id: string; role: string };
+    req.userId = decoded.id;
+    req.userRole = decoded.role;
+  } catch {
+    /* ignore invalid token — treat as anonymous */
+  }
+  next();
+}

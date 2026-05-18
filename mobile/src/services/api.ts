@@ -38,6 +38,8 @@ export interface AuthUser {
   displayName: string;
   role: "admin" | "moderator" | "user";
   userType?: "emigrant" | "consultant" | "diaspora";
+  isPremium?: boolean;
+  premiumUntil?: string;
 }
 
 export interface AuthResponse {
@@ -139,6 +141,13 @@ export const api = {
         { token }
       ),
 
+    // FRM-TPC-008
+    myFavorites: (token: string, limit = 20, offset = 0) =>
+      request<{ id: string; title: string; content?: string; commentCount: number; createdAt: string }[]>(
+        `/users/me/favorites?limit=${limit}&offset=${offset}`,
+        { token }
+      ),
+
     myActivity: (token: string) =>
       request<{
         type: "comment" | "guide";
@@ -175,23 +184,93 @@ export const api = {
         `/forum/categories/${categoryId}/topics?page=${page}&limit=${limit}`,
         { token }
       ),
-    getComments: (topicId: string, token: string) =>
-      request<{ id: string; authorId: string; authorDisplayName: string; content: string; createdAt: string }[]>(
-        `/forum/topics/${topicId}/comments`,
-        { token }
-      ),
-    createComment: (topicId: string, content: string, token: string) =>
+    // FRM-TPC-003: Tek konu detayı (content + favori durumu dahil)
+    getTopic: (topicId: string, token?: string) =>
+      request<{
+        id: string;
+        categoryId: string;
+        title: string;
+        content?: string;
+        authorId: string;
+        authorDisplayName?: string;
+        status: string;
+        isPinned: boolean;
+        createdAt: string;
+        editedAt?: string;
+        upvotes?: number;
+        hasUpvoted?: boolean;
+        commentCount: number;
+        favorited: boolean;
+      }>(`/forum/topics/${topicId}`, token ? { token } : {}),
+    getComments: (topicId: string, token?: string) =>
+      request<{
+        id: string;
+        authorId: string;
+        authorDisplayName: string;
+        content: string;
+        parentCommentId?: string | null;
+        createdAt: string;
+        editedAt?: string;
+        deletedAt?: string;
+        likesCount?: number;
+        hasLiked?: boolean;
+      }[]>(`/forum/topics/${topicId}/comments`, token ? { token } : {}),
+    createComment: (topicId: string, content: string, token: string, parentCommentId?: string) =>
       request<{ id: string }>(`/forum/topics/${topicId}/comments`, {
         method: "POST",
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, ...(parentCommentId ? { parentCommentId } : {}) }),
         token,
       }),
+    // FRM-CMT-003
+    updateComment: (topicId: string, commentId: string, content: string, token: string) =>
+      request<{ id: string; content: string; editedAt?: string }>(
+        `/forum/topics/${topicId}/comments/${commentId}`,
+        { method: "PATCH", body: JSON.stringify({ content }), token }
+      ),
+    // FRM-CMT-004
+    deleteComment: (topicId: string, commentId: string, token: string) =>
+      request<{ ok: boolean }>(`/forum/topics/${topicId}/comments/${commentId}`, {
+        method: "DELETE",
+        token,
+      }),
+    // FRM-CMT-005
+    likeComment: (topicId: string, commentId: string, token: string) =>
+      request<{ likes: number; hasLiked: boolean }>(
+        `/forum/topics/${topicId}/comments/${commentId}/like`,
+        { method: "POST", token }
+      ),
     createTopic: (categoryId: string, title: string, token: string, content?: string) =>
       request<{ id: string; status: string }>("/forum/topics", {
         method: "POST",
         body: JSON.stringify({ categoryId, title, ...(content ? { content } : {}) }),
         token,
       }),
+    // FRM-TPC-005
+    updateTopic: (topicId: string, data: { title?: string; content?: string }, token: string) =>
+      request<{ id: string; title: string; content?: string; editedAt?: string }>(
+        `/forum/topics/${topicId}`,
+        { method: "PATCH", body: JSON.stringify(data), token }
+      ),
+    // FRM-TPC-006
+    requestTopicDeletion: (topicId: string, reason: string, token: string) =>
+      request<{ id: string; status: string }>(`/forum/topics/${topicId}/deletion-request`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+        token,
+      }),
+    getTopicDeletionRequest: (topicId: string, token: string) =>
+      request<{ id: string; status: string; reason: string } | null>(
+        `/forum/topics/${topicId}/deletion-request`,
+        { token }
+      ),
+    // FRM-TPC-008
+    toggleFavorite: (topicId: string, token: string) =>
+      request<{ favorited: boolean }>(`/forum/topics/${topicId}/favorite`, {
+        method: "POST",
+        token,
+      }),
+    getFavoriteStatus: (topicId: string, token: string) =>
+      request<{ favorited: boolean }>(`/forum/topics/${topicId}/favorite`, { token }),
     search: (q: string, countryId?: string) => {
       const params = new URLSearchParams({ q });
       if (countryId) params.set("countryId", countryId);
@@ -202,6 +281,24 @@ export const api = {
     upvoteTopic: (topicId: string, token: string) =>
       request<{ upvotes: number; hasVoted: boolean }>(`/forum/topics/${topicId}/upvote`, {
         method: "POST",
+        token,
+      }),
+  },
+
+  reports: {
+    // MOD-REP-001 / FRM-CMT-007
+    create: (
+      data: {
+        targetType: "topic" | "comment";
+        targetId: string;
+        reason: "spam" | "abuse" | "misleading" | "copyright" | "other";
+        description?: string;
+      },
+      token: string
+    ) =>
+      request<{ id: string; status: string }>("/reports", {
+        method: "POST",
+        body: JSON.stringify(data),
         token,
       }),
   },
@@ -237,10 +334,22 @@ export const api = {
     getAll: (token: string) =>
       request<{
         id: string;
-        type: "topic_approved" | "topic_rejected" | "comment_reply" | "system";
+        type:
+          | "topic_approved"
+          | "topic_rejected"
+          | "comment_reply"
+          | "system"
+          | "topic_new"
+          | "new_comment"
+          | "comment_like"
+          | "admin_new_pending"
+          | "admin_deletion_request"
+          | "admin_new_report"
+          | "deletion_approved"
+          | "deletion_rejected";
         title: string;
         message: string;
-        targetType?: "forum_topic" | null;
+        targetType?: "forum_topic" | "admin_queue" | "forum_comment" | null;
         targetId?: string | null;
         read: boolean;
         createdAt: string;

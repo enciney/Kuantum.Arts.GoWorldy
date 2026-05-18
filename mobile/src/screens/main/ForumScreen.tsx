@@ -76,6 +76,8 @@ export function ForumScreen() {
         categoryName: "",
         topicId: params.openTopicId,
         topicTitle: params.openTopicTitle ?? "Konu",
+        topicUpvotes: 0,
+        topicHasUpvoted: false,
       });
     }
   }, [route.params]);

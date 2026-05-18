@@ -2,10 +2,22 @@ import { api as defaultApi } from "../../services/api";
 
 export interface Notif {
   id: string;
-  type: "topic_approved" | "topic_rejected" | "comment_reply" | "system";
+  type:
+    | "topic_approved"
+    | "topic_rejected"
+    | "comment_reply"
+    | "comment_like"
+    | "topic_new"
+    | "new_comment"
+    | "admin_new_pending"
+    | "admin_deletion_request"
+    | "admin_new_report"
+    | "deletion_approved"
+    | "deletion_rejected"
+    | "system";
   title: string;
   message: string;
-  targetType?: "forum_topic" | null;
+  targetType?: "forum_topic" | "admin_queue" | "forum_comment" | null;
   targetId?: string | null;
   read: boolean;
   createdAt: string;

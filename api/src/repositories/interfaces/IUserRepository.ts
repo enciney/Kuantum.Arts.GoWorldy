@@ -43,4 +43,5 @@ export interface IUserRepository {
   getUserTypeStats(): Promise<UserTypeStats[]>;
   getRecent(limit: number): Promise<User[]>;
   search(params: UserSearchParams): Promise<User[]>;
+  findByRole(role: User["role"]): Promise<User[]>;
 }

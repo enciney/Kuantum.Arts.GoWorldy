@@ -288,5 +288,101 @@ export function adminRoutes(repos: Repositories): Router {
     }
   });
 
+  // ── FRM-TPC-006: Konu silme talebi kuyruğu ─────────────────────────────────
+  router.get("/forum/deletion-requests", authMiddleware, requireRole("admin", "moderator"), async (req, res) => {
+    try {
+      const limit = Math.min(Number(req.query.limit) || 50, 100);
+      const offset = Number(req.query.offset) || 0;
+      const requests = await repos.forum.getPendingDeletionRequests(limit, offset);
+      res.json(requests);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.patch("/forum/deletion-requests/:id", authMiddleware, requireRole("admin", "moderator"), async (req: AuthRequest, res) => {
+    try {
+      const { status, rejectionReason } = req.body;
+      if (status !== "approved" && status !== "rejected") {
+        return res.status(400).json({ error: "status 'approved' veya 'rejected' olmalı." });
+      }
+      if (status === "rejected" && (typeof rejectionReason !== "string" || rejectionReason.trim().length < 5)) {
+        return res.status(400).json({ error: "Reddetme sebebi en az 5 karakter olmalı." });
+      }
+
+      const resolved = await repos.forum.resolveDeletionRequest(
+        req.params.id as string,
+        status,
+        req.userId!,
+        status === "rejected" ? rejectionReason.trim() : undefined
+      );
+      if (!resolved) return res.status(404).json({ error: "Talep bulunamadı." });
+
+      const topic = await repos.forum.getTopicById(resolved.topicId);
+
+      if (status === "approved" && topic) {
+        await repos.forum.softDeleteTopic(resolved.topicId, req.userId!);
+        repos.notifications.create({
+          userId: resolved.requesterId,
+          type: "deletion_approved",
+          title: "Konunuz silindi",
+          message: `"${topic.title}" başlıklı konu silme talebiniz onaylandı.`,
+          targetType: "forum_topic",
+          targetId: resolved.topicId,
+        }).catch(() => {});
+      } else if (status === "rejected" && topic) {
+        repos.notifications.create({
+          userId: resolved.requesterId,
+          type: "deletion_rejected",
+          title: "Silme talebiniz reddedildi",
+          message: `"${topic.title}" konusu için silme talebiniz reddedildi. Sebep: ${rejectionReason}`,
+          targetType: "forum_topic",
+          targetId: resolved.topicId,
+        }).catch(() => {});
+      }
+
+      res.json(resolved);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── MOD-REP-002: Rapor kuyruğu ─────────────────────────────────────────────
+  router.get("/reports", authMiddleware, requireRole("admin", "moderator"), async (req, res) => {
+    try {
+      const status = (req.query.status as string) || "pending";
+      if (!["pending", "resolved", "dismissed"].includes(status)) {
+        return res.status(400).json({ error: "Geçersiz status." });
+      }
+      const limit = Math.min(Number(req.query.limit) || 50, 100);
+      const offset = Number(req.query.offset) || 0;
+      const reports = await repos.reports.getByStatus(status as "pending" | "resolved" | "dismissed", limit, offset);
+      res.json(reports);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.patch("/reports/:id", authMiddleware, requireRole("admin", "moderator"), async (req: AuthRequest, res) => {
+    try {
+      const { status, resolution } = req.body;
+      if (status !== "resolved" && status !== "dismissed") {
+        return res.status(400).json({ error: "status 'resolved' veya 'dismissed' olmalı." });
+      }
+      const report = await repos.reports.getById(req.params.id as string);
+      if (!report) return res.status(404).json({ error: "Rapor bulunamadı." });
+
+      await repos.reports.resolve(
+        req.params.id as string,
+        status,
+        req.userId!,
+        typeof resolution === "string" ? resolution.trim() : undefined
+      );
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   return router;
 }

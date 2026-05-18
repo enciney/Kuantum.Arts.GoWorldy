@@ -8,6 +8,7 @@ import {
   ForumComment,
   ForumStats,
   ForumSearchResult,
+  TopicDeletionRequest,
 } from "../interfaces";
 import { WithId } from "mongodb";
 import { ForumTopicDoc } from "./db";
@@ -76,7 +77,7 @@ export class MongoForumRepository implements IForumRepository {
 
   async getTopics(categoryId: string, options?: { onlyApproved?: boolean; page?: number; limit?: number }): Promise<{ data: ForumTopic[]; total: number; page: number; totalPages: number }> {
     const { forumTopics, forumComments } = await getCollections();
-    const filter: Record<string, unknown> = { categoryId };
+    const filter: Record<string, unknown> = { categoryId, deletedAt: { $exists: false } };
     if (options?.onlyApproved) filter.status = "approved";
     const page = Math.max(1, options?.page ?? 1);
     const limit = Math.min(100, Math.max(1, options?.limit ?? 20));
@@ -123,9 +124,27 @@ export class MongoForumRepository implements IForumRepository {
     await forumTopics.updateOne({ _id: id }, { $set: { isPinned } });
   }
 
+  // FRM-TPC-005: Konu düzenleme
+  async updateTopic(id: string, data: { title?: string; content?: string }): Promise<void> {
+    const { forumTopics } = await getCollections();
+    const update: Record<string, unknown> = { editedAt: new Date().toISOString() };
+    if (data.title !== undefined) update.title = data.title;
+    if (data.content !== undefined) update.content = data.content;
+    await forumTopics.updateOne({ _id: id }, { $set: update });
+  }
+
+  // FRM-TPC-006: Soft delete (admin onayı ile)
+  async softDeleteTopic(id: string, deletedBy: string): Promise<void> {
+    const { forumTopics } = await getCollections();
+    await forumTopics.updateOne(
+      { _id: id },
+      { $set: { deletedAt: new Date().toISOString(), deletedBy } }
+    );
+  }
+
   async countTopics(): Promise<number> {
     const { forumTopics } = await getCollections();
-    return forumTopics.countDocuments();
+    return forumTopics.countDocuments({ deletedAt: { $exists: false } });
   }
 
   async searchTopics(query: string, countryId?: string): Promise<ForumSearchResult[]> {
@@ -180,34 +199,208 @@ export class MongoForumRepository implements IForumRepository {
     return { upvotes, hasVoted: !existing };
   }
 
-  // ── Comments ───────────────────────────────────────────────────────────────
+  // ── Favorites (FRM-TPC-008) ────────────────────────────────────────────────
 
-  async getComments(topicId: string): Promise<ForumComment[]> {
-    const { forumComments, users } = await getCollections();
-    const comments = await forumComments.find({ topicId }).sort({ createdAt: 1 }).toArray();
+  async toggleFavoriteTopic(topicId: string, userId: string): Promise<{ favorited: boolean }> {
+    const { forumTopicFavorites } = await getCollections();
+    const existing = await forumTopicFavorites.findOne({ userId, topicId });
+    if (existing) {
+      await forumTopicFavorites.deleteOne({ userId, topicId });
+      return { favorited: false };
+    }
+    await forumTopicFavorites.insertOne({ userId, topicId, createdAt: new Date().toISOString() });
+    return { favorited: true };
+  }
+
+  async isTopicFavorited(topicId: string, userId: string): Promise<boolean> {
+    const { forumTopicFavorites } = await getCollections();
+    const doc = await forumTopicFavorites.findOne({ userId, topicId });
+    return doc !== null;
+  }
+
+  async getFavoritesByUser(userId: string, limit: number, offset: number): Promise<ForumTopic[]> {
+    const { forumTopicFavorites, forumTopics, forumComments } = await getCollections();
+    const favs = await forumTopicFavorites.find({ userId }).sort({ createdAt: -1 }).skip(offset).limit(limit).toArray();
+    if (!favs.length) return [];
+    const topicIds = favs.map((f) => f.topicId);
+    const topics = await forumTopics.find({ _id: { $in: topicIds }, deletedAt: { $exists: false } }).toArray();
+    // Sort topics in same order as favorites
+    const topicMap = new Map(topics.map((t) => [t._id, t]));
+    const ordered = topicIds.map((id) => topicMap.get(id)).filter(Boolean) as typeof topics;
+    return attachCommentCounts(forumComments, ordered);
+  }
+
+  // ── Deletion requests (FRM-TPC-006) ────────────────────────────────────────
+
+  async createDeletionRequest(data: { topicId: string; requesterId: string; reason: string }): Promise<TopicDeletionRequest> {
+    const { forumDeletionRequests } = await getCollections();
+    const id = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    await forumDeletionRequests.insertOne({
+      _id: id,
+      topicId: data.topicId,
+      requesterId: data.requesterId,
+      reason: data.reason,
+      status: "pending",
+      createdAt,
+    });
+    return {
+      id,
+      topicId: data.topicId,
+      requesterId: data.requesterId,
+      reason: data.reason,
+      status: "pending",
+      createdAt,
+    };
+  }
+
+  async getDeletionRequestByTopic(topicId: string): Promise<TopicDeletionRequest | null> {
+    const { forumDeletionRequests } = await getCollections();
+    const doc = await forumDeletionRequests.findOne({ topicId, status: "pending" });
+    if (!doc) return null;
+    return toDoc<TopicDeletionRequest>(doc);
+  }
+
+  async getPendingDeletionRequests(limit: number, offset: number): Promise<TopicDeletionRequest[]> {
+    const { forumDeletionRequests, forumTopics, users } = await getCollections();
+    const docs = await forumDeletionRequests
+      .find({ status: "pending" })
+      .sort({ createdAt: -1 })
+      .skip(offset)
+      .limit(limit)
+      .toArray();
     return Promise.all(
-      comments.map(async (c) => {
-        const user = await users.findOne({ _id: c.authorId }, { projection: { displayName: 1 } });
+      docs.map(async (d) => {
+        const topic = await forumTopics.findOne({ _id: d.topicId }, { projection: { title: 1 } });
+        const requester = await users.findOne({ _id: d.requesterId }, { projection: { displayName: 1 } });
         return {
-          ...toDoc<ForumComment>(c),
-          authorDisplayName: user?.displayName ?? "",
+          ...toDoc<TopicDeletionRequest>(d),
+          topicTitle: topic?.title ?? "",
+          requesterName: requester?.displayName ?? "",
         };
       })
     );
   }
 
-  async createComment(data: Omit<ForumComment, "id" | "createdAt" | "authorDisplayName">): Promise<ForumComment> {
+  async resolveDeletionRequest(id: string, status: "approved" | "rejected", resolvedBy: string, rejectionReason?: string): Promise<TopicDeletionRequest | null> {
+    const { forumDeletionRequests } = await getCollections();
+    const update: Record<string, unknown> = {
+      status,
+      resolvedBy,
+      resolvedAt: new Date().toISOString(),
+    };
+    if (rejectionReason !== undefined) update.rejectionReason = rejectionReason;
+    await forumDeletionRequests.updateOne({ _id: id }, { $set: update });
+    const doc = await forumDeletionRequests.findOne({ _id: id });
+    return doc ? toDoc<TopicDeletionRequest>(doc) : null;
+  }
+
+  // ── Comments ───────────────────────────────────────────────────────────────
+
+  async getComments(topicId: string, viewerId?: string): Promise<ForumComment[]> {
+    const { forumComments, users, forumCommentLikes } = await getCollections();
+    const comments = await forumComments
+      .find({ topicId })
+      .sort({ createdAt: 1 })
+      .toArray();
+
+    // Fetch like counts (all in one query)
+    const ids = comments.map((c) => c._id);
+    const likeAgg = await forumCommentLikes
+      .aggregate([{ $match: { commentId: { $in: ids } } }, { $group: { _id: "$commentId", cnt: { $sum: 1 } } }])
+      .toArray();
+    const likeMap = new Map(likeAgg.map((r) => [r._id as unknown as string, r.cnt as number]));
+
+    // Fetch viewer's likes (if logged in)
+    const likedSet = new Set<string>();
+    if (viewerId) {
+      const myLikes = await forumCommentLikes.find({ userId: viewerId, commentId: { $in: ids } }).toArray();
+      myLikes.forEach((l) => likedSet.add(l.commentId));
+    }
+
+    return Promise.all(
+      comments.map(async (c) => {
+        const user = await users.findOne({ _id: c.authorId }, { projection: { displayName: 1 } });
+        const isDeleted = !!c.deletedAt;
+        return {
+          ...toDoc<ForumComment>(c),
+          authorDisplayName: user?.displayName ?? "",
+          content: isDeleted ? "[Bu yorum kaldırıldı]" : c.content,
+          likesCount: likeMap.get(c._id) ?? 0,
+          hasLiked: likedSet.has(c._id),
+        };
+      })
+    );
+  }
+
+  async getCommentById(id: string): Promise<ForumComment | null> {
+    const { forumComments, users } = await getCollections();
+    const c = await forumComments.findOne({ _id: id });
+    if (!c) return null;
+    const user = await users.findOne({ _id: c.authorId }, { projection: { displayName: 1 } });
+    return {
+      ...toDoc<ForumComment>(c),
+      authorDisplayName: user?.displayName ?? "",
+    };
+  }
+
+  async createComment(data: Omit<ForumComment, "id" | "createdAt" | "authorDisplayName" | "likesCount" | "hasLiked">): Promise<ForumComment> {
     const { forumComments, users } = await getCollections();
     const id = crypto.randomUUID();
-    const doc = { _id: id, ...data, createdAt: new Date().toISOString() };
-    await forumComments.insertOne(doc);
+    const doc: Record<string, unknown> = {
+      _id: id,
+      topicId: data.topicId,
+      authorId: data.authorId,
+      content: data.content,
+      createdAt: new Date().toISOString(),
+    };
+    if (data.parentCommentId) doc.parentCommentId = data.parentCommentId;
+    await forumComments.insertOne(doc as never);
     const user = await users.findOne({ _id: data.authorId }, { projection: { displayName: 1 } });
-    return { ...toDoc<ForumComment>(doc), authorDisplayName: user?.displayName ?? "" };
+    return {
+      id,
+      topicId: data.topicId,
+      authorId: data.authorId,
+      content: data.content,
+      parentCommentId: data.parentCommentId ?? null,
+      createdAt: doc.createdAt as string,
+      authorDisplayName: user?.displayName ?? "",
+      likesCount: 0,
+      hasLiked: false,
+    };
+  }
+
+  async updateComment(id: string, content: string): Promise<void> {
+    const { forumComments } = await getCollections();
+    await forumComments.updateOne(
+      { _id: id },
+      { $set: { content, editedAt: new Date().toISOString() } }
+    );
+  }
+
+  async softDeleteComment(id: string, deletedBy: string): Promise<void> {
+    const { forumComments } = await getCollections();
+    await forumComments.updateOne(
+      { _id: id },
+      { $set: { deletedAt: new Date().toISOString(), deletedBy } }
+    );
+  }
+
+  async toggleCommentLike(commentId: string, userId: string): Promise<{ likes: number; hasLiked: boolean }> {
+    const { forumCommentLikes } = await getCollections();
+    const existing = await forumCommentLikes.findOne({ commentId, userId });
+    if (existing) {
+      await forumCommentLikes.deleteOne({ commentId, userId });
+    } else {
+      await forumCommentLikes.insertOne({ commentId, userId, createdAt: new Date().toISOString() });
+    }
+    const likes = await forumCommentLikes.countDocuments({ commentId });
+    return { likes, hasLiked: !existing };
   }
 
   async countComments(): Promise<number> {
     const { forumComments } = await getCollections();
-    return forumComments.countDocuments();
+    return forumComments.countDocuments({ deletedAt: { $exists: false } });
   }
 
   // ── Stats ──────────────────────────────────────────────────────────────────

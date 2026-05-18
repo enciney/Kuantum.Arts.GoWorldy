@@ -1,10 +1,22 @@
 export interface Notification {
   id: string;
   userId: string;
-  type: "topic_approved" | "topic_rejected" | "comment_reply" | "system" | "topic_new" | "new_comment";
+  type:
+    | "topic_approved"
+    | "topic_rejected"
+    | "comment_reply"
+    | "system"
+    | "topic_new"
+    | "new_comment"
+    | "comment_like"
+    | "admin_new_pending"
+    | "admin_deletion_request"
+    | "admin_new_report"
+    | "deletion_approved"
+    | "deletion_rejected";
   title: string;
   message: string;
-  targetType?: "forum_topic" | null;
+  targetType?: "forum_topic" | "admin_queue" | "forum_comment" | null;
   targetId?: string | null;
   read: boolean;
   createdAt: string;
@@ -55,4 +67,28 @@ export interface INotificationRepository {
     commenterName: string,
     commentAuthorId: string
   ): Promise<void>;
+  /** NTF-EVT-005: All admins & moderators get an in-app notification when a topic enters the pending queue. */
+  notifyStaffOfPendingTopic(
+    topicId: string,
+    topicTitle: string,
+    authorName: string,
+    staffUserIds: string[]
+  ): Promise<void>;
+  /** Notify staff when a topic deletion request is created. */
+  notifyStaffOfDeletionRequest(
+    topicId: string,
+    topicTitle: string,
+    requesterName: string,
+    staffUserIds: string[]
+  ): Promise<void>;
+  /** Notify staff when a content report is created. */
+  notifyStaffOfReport(
+    targetType: "topic" | "comment",
+    targetId: string,
+    reason: string,
+    reporterName: string,
+    staffUserIds: string[]
+  ): Promise<void>;
+  /** Bulk create notifications (used internally by fan-out helpers). */
+  createMany(notifications: Omit<Notification, "id" | "createdAt" | "read">[]): Promise<void>;
 }

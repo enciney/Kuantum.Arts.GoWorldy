@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
+import { validatePhoneTR } from "../../utils/phone";
 
 interface Props {
   onBack: () => void;
@@ -46,14 +47,23 @@ export function PrivacyScreen({ onBack, onPhoneSettingsChange }: Props) {
 
   const handleSavePhone = async () => {
     if (!token) return;
+    // USR-PRV-002: client-side hızlı validasyon
+    const clientError = validatePhoneTR(phoneNumber);
+    if (clientError) {
+      setPhoneError(clientError);
+      return;
+    }
     setPhoneError(null);
     setPhoneSaving(true);
     try {
-      await api.users.updateMe({ phoneNumber }, token);
-      setPhoneSaved(phoneNumber);
+      const updated = await api.users.updateMe({ phoneNumber }, token);
+      // Backend normalize edilmiş halini döner — UI'a yansıt
+      const normalized = (updated as { phoneNumber?: string }).phoneNumber ?? phoneNumber;
+      setPhoneNumber(normalized);
+      setPhoneSaved(normalized);
       setPhoneSaveSuccess(true);
       setTimeout(() => setPhoneSaveSuccess(false), 2000);
-      onPhoneSettingsChange?.(phoneNumber, sharePhone);
+      onPhoneSettingsChange?.(normalized, sharePhone);
     } catch (e: unknown) {
       setPhoneError(e instanceof Error ? e.message : "Kaydedilemedi.");
     } finally {

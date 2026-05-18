@@ -82,4 +82,10 @@ export class MongoUserRepository implements IUserRepository {
     const docs = await users.find(filter).sort({ createdAt: -1 }).skip(params.offset).limit(params.limit).toArray();
     return docs.map((d) => toDoc<User>(d));
   }
+
+  async findByRole(role: User["role"]): Promise<User[]> {
+    const { users } = await getCollections();
+    const docs = await users.find({ role }).toArray();
+    return docs.map((d) => toDoc<User>(d));
+  }
 }

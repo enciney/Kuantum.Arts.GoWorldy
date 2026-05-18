@@ -197,4 +197,83 @@ export class MongoNotificationRepository implements INotificationRepository {
 
     if (docs.length) await notifications.insertMany(docs);
   }
+
+  // ── NTF-EVT-005: Staff fan-out ──────────────────────────────────────────────
+
+  async createMany(items: Omit<Notification, "id" | "createdAt" | "read">[]): Promise<void> {
+    if (!items.length) return;
+    const { notifications } = await getCollections();
+    const now = new Date().toISOString();
+    const docs = items.map((n) => ({
+      _id: crypto.randomUUID(),
+      userId: n.userId,
+      type: n.type,
+      title: n.title,
+      message: n.message,
+      targetType: n.targetType ?? null,
+      targetId: n.targetId ?? null,
+      read: false,
+      createdAt: now,
+    }));
+    await notifications.insertMany(docs);
+  }
+
+  async notifyStaffOfPendingTopic(
+    topicId: string,
+    topicTitle: string,
+    authorName: string,
+    staffUserIds: string[]
+  ): Promise<void> {
+    if (!staffUserIds.length) return;
+    await this.createMany(
+      staffUserIds.map((userId) => ({
+        userId,
+        type: "admin_new_pending" as const,
+        title: "Yeni onay bekleyen konu",
+        message: `${authorName}: "${topicTitle}"`,
+        targetType: "admin_queue" as const,
+        targetId: topicId,
+      }))
+    );
+  }
+
+  async notifyStaffOfDeletionRequest(
+    topicId: string,
+    topicTitle: string,
+    requesterName: string,
+    staffUserIds: string[]
+  ): Promise<void> {
+    if (!staffUserIds.length) return;
+    await this.createMany(
+      staffUserIds.map((userId) => ({
+        userId,
+        type: "admin_deletion_request" as const,
+        title: "Konu silme talebi",
+        message: `${requesterName} "${topicTitle}" konusunun silinmesini istedi`,
+        targetType: "admin_queue" as const,
+        targetId: topicId,
+      }))
+    );
+  }
+
+  async notifyStaffOfReport(
+    targetType: "topic" | "comment",
+    targetId: string,
+    reason: string,
+    reporterName: string,
+    staffUserIds: string[]
+  ): Promise<void> {
+    if (!staffUserIds.length) return;
+    const targetLabel = targetType === "topic" ? "konuyu" : "yorumu";
+    await this.createMany(
+      staffUserIds.map((userId) => ({
+        userId,
+        type: "admin_new_report" as const,
+        title: "Yeni içerik raporu",
+        message: `${reporterName} bir ${targetLabel} "${reason}" sebebiyle raporladı`,
+        targetType: "admin_queue" as const,
+        targetId,
+      }))
+    );
+  }
 }

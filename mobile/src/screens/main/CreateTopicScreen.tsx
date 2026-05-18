@@ -29,6 +29,7 @@ interface Props {
 export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreated, onNavigatePremium }: Props) {
   const { token, user } = useAuth();
   const [title, setTitle] = useState("");
+  const [content, setContent] = useState(""); // FRM-TPC-003
   const [submitting, setSubmitting] = useState(false);
   const [userCredits, setUserCredits] = useState(0);
   const [gateVisible, setGateVisible] = useState(false);
@@ -67,7 +68,7 @@ export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreate
     setGateVisible(false);
     setSubmitting(true);
     try {
-      await api.forum.createTopic(categoryId, title.trim(), token);
+      await api.forum.createTopic(categoryId, title.trim(), token, content.trim() || undefined);
       Alert.alert(
         isStaff ? "Konu yayınlandı ✓" : "Konunuz alındı",
         isStaff
@@ -125,6 +126,20 @@ export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreate
             multiline
           />
           <Text style={styles.charCount}>{title.length} / 120</Text>
+
+          {/* FRM-TPC-003: Konu içeriği (opsiyonel) */}
+          <Text style={[styles.label, { marginTop: Spacing.md }]}>Konu İçeriği (opsiyonel)</Text>
+          <TextInput
+            style={[styles.input, styles.bodyInput]}
+            placeholder="Detaylı anlatımını buraya yazabilirsin..."
+            placeholderTextColor={Colors.textMuted}
+            value={content}
+            onChangeText={setContent}
+            maxLength={5000}
+            multiline
+            textAlignVertical="top"
+          />
+          <Text style={styles.charCount}>{content.length} / 5000</Text>
 
           {isStaff ? (
             <View style={[styles.infoBox, styles.infoBoxStaff]}>
@@ -240,6 +255,7 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   charCount: { ...Typography.small, color: Colors.textMuted, textAlign: "right", marginTop: 4 },
+  bodyInput: { minHeight: 140, paddingTop: 12 },
   infoBox: {
     flexDirection: "row",
     backgroundColor: Colors.warningLight,

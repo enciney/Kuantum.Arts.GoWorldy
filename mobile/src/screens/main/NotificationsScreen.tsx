@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -8,21 +8,34 @@ import {
   Switch,
   FlatList,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 
-type NotifType = "topic_approved" | "topic_rejected" | "comment_reply" | "system";
+type NotifType =
+  | "topic_approved"
+  | "topic_rejected"
+  | "comment_reply"
+  | "comment_like"
+  | "topic_new"
+  | "new_comment"
+  | "admin_new_pending"
+  | "admin_deletion_request"
+  | "admin_new_report"
+  | "deletion_approved"
+  | "deletion_rejected"
+  | "system";
 
 interface Notif {
   id: string;
   type: NotifType;
   title: string;
   message: string;
-  targetType?: "forum_topic" | null;
+  targetType?: "forum_topic" | "admin_queue" | "forum_comment" | null;
   targetId?: string | null;
   read: boolean;
   createdAt: string;
@@ -47,6 +60,7 @@ export function NotificationsScreen() {
   const [notifs, setNotifs] = useState<Notif[]>([]);
   const [subs, setSubs] = useState<CountrySub[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const loadFeed = useCallback(async () => {
@@ -69,12 +83,27 @@ export function NotificationsScreen() {
     }
   }, [token]);
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      await Promise.all([loadFeed(), loadSubs()]);
-      setLoading(false);
-    })();
+  // NTF-EVT-001..005: ekran her odaklandığında bildirimleri yenile —
+  // useEffect sadece mount'ta çalıştığı için yeni bildirimler eskiden görünmüyordu.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        if (!active) return;
+        setLoading(true);
+        await Promise.all([loadFeed(), loadSubs()]);
+        if (active) setLoading(false);
+      })();
+      return () => {
+        active = false;
+      };
+    }, [loadFeed, loadSubs])
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([loadFeed(), loadSubs()]);
+    setRefreshing(false);
   }, [loadFeed, loadSubs]);
 
   const markAllRead = async () => {
@@ -167,6 +196,9 @@ export function NotificationsScreen() {
           data={notifs}
           keyExtractor={(n) => n.id}
           contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
+          }
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="notifications-off-outline" size={48} color={Colors.textMuted} />
@@ -223,6 +255,14 @@ const ICON_MAP: Record<NotifType, { name: React.ComponentProps<typeof Ionicons>[
   topic_approved: { name: "checkmark-circle", color: Colors.secondary },
   topic_rejected: { name: "close-circle", color: Colors.danger },
   comment_reply: { name: "chatbubble", color: Colors.primary },
+  comment_like: { name: "heart", color: Colors.danger },
+  topic_new: { name: "newspaper", color: Colors.primary },
+  new_comment: { name: "chatbubbles", color: Colors.primary },
+  admin_new_pending: { name: "shield-checkmark", color: Colors.warning },
+  admin_deletion_request: { name: "trash", color: Colors.warning },
+  admin_new_report: { name: "flag", color: Colors.danger },
+  deletion_approved: { name: "checkmark-done-circle", color: Colors.secondary },
+  deletion_rejected: { name: "close-circle", color: Colors.textMuted },
   system: { name: "megaphone", color: Colors.warning },
 };
 

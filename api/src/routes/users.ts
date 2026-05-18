@@ -2,6 +2,22 @@ import { Router } from "express";
 import { Repositories } from "../repositories";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
 
+/**
+ * USR-PRV-002: Türkiye telefon numarası normalizasyonu.
+ * Geçerli formatlar: +905XXXXXXXXX, 05XXXXXXXXX, 5XXXXXXXXX, +90 5XX XXX XX XX (boşluklu/dash'li)
+ * Hepsi normalize edilir → "+905XXXXXXXXX" (E.164).
+ * Geçersizse null döner.
+ */
+export function normalizePhoneTR(input: string): string | null {
+  const digits = input.replace(/\D/g, "");
+  if (!digits) return null;
+  // +90 5XX XXX XX XX → 905XXXXXXXXX
+  if (digits.length === 12 && digits.startsWith("90") && digits[2] === "5") return "+" + digits;
+  if (digits.length === 11 && digits.startsWith("0") && digits[1] === "5") return "+90" + digits.slice(1);
+  if (digits.length === 10 && digits[0] === "5") return "+90" + digits;
+  return null;
+}
+
 export function userRoutes(repos: Repositories): Router {
   const router = Router();
 
@@ -29,7 +45,21 @@ export function userRoutes(repos: Repositories): Router {
         allowed.bio = bio;
       }
       if (typeof phoneNumber === "string") {
-        allowed.phoneNumber = phoneNumber;
+        // USR-PRV-002: telefon format validasyonu (TR)
+        const trimmed = phoneNumber.trim();
+        if (trimmed === "") {
+          // boş string → telefonu temizle
+          allowed.phoneNumber = "";
+        } else {
+          const normalized = normalizePhoneTR(trimmed);
+          if (!normalized) {
+            return res.status(400).json({
+              error: "Geçerli bir Türkiye telefon numarası giriniz (örn: +905XXXXXXXXX veya 05XXXXXXXXX).",
+              code: "INVALID_PHONE",
+            });
+          }
+          allowed.phoneNumber = normalized;
+        }
       }
       if (typeof sharePhoneNumber === "number" || typeof sharePhoneNumber === "boolean") {
         allowed.sharePhoneNumber = Boolean(sharePhoneNumber);
@@ -135,6 +165,18 @@ export function userRoutes(repos: Repositories): Router {
       const offset = Number(req.query.offset) || 0;
       const comments = await repos.forum.getCommentsByAuthor(req.userId!, limit, offset);
       res.json(comments);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // FRM-TPC-008: Kullanıcının favorilediği konular
+  router.get("/me/favorites", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const limit = Math.min(Number(req.query.limit) || 20, 50);
+      const offset = Number(req.query.offset) || 0;
+      const topics = await repos.forum.getFavoritesByUser(req.userId!, limit, offset);
+      res.json(topics);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
