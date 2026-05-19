@@ -33,6 +33,159 @@ export async function postComment(
   return apiForum.createComment(topicId, content.trim(), token);
 }
 
+export type TopicMenuAction = "edit" | "delete" | "report" | "cancel";
+
+export interface TopicMenuOption {
+  text: string;
+  action: TopicMenuAction;
+  style?: "destructive" | "cancel";
+}
+
+export interface TopicMenuContext {
+  isOwner: boolean;
+  canEditTopic: boolean;
+  canStaffEdit: boolean;
+  loggedIn: boolean;
+}
+
+// FRM-TPC-005 + FRM-TPC-006: konu başlığı 3-nokta menüsünün opsiyonlarını
+// derleyen pure function. Component'tan ayrılarak unit-test edilebilir.
+export function buildTopicMenuOptions(ctx: TopicMenuContext): TopicMenuOption[] {
+  const opts: TopicMenuOption[] = [];
+  if (ctx.canEditTopic || ctx.canStaffEdit) {
+    opts.push({ text: "Konuyu düzenle", action: "edit" });
+  }
+  if (ctx.isOwner) {
+    opts.push({ text: "Silme talebi gönder", action: "delete", style: "destructive" });
+  }
+  if (!ctx.isOwner && ctx.loggedIn) {
+    opts.push({ text: "Raporla", action: "report" });
+  }
+  opts.push({ text: "İptal", action: "cancel", style: "cancel" });
+  return opts;
+}
+
+export type CommentMenuAction = "edit" | "delete" | "report" | "cancel";
+
+export interface CommentMenuOption {
+  text: string;
+  action: CommentMenuAction;
+  style?: "destructive" | "cancel";
+}
+
+export interface CommentMenuContext {
+  isOwner: boolean;
+  isStaff: boolean;
+  loggedIn: boolean;
+  isDeleted: boolean;
+  // Owner edit penceresi (backend: 15 dakika). Staff her zaman düzenleyebilir.
+  canEditComment: boolean;
+}
+
+// FRM-CMT-003 + FRM-CMT-004: yorum 3-nokta menüsünün opsiyonlarını derleyen
+// pure function. buildTopicMenuOptions ile aynı pattern.
+// Anonim veya silinmiş yorum için boş dizi döner (menü hiç açılmamalı).
+export function buildCommentMenuOptions(ctx: CommentMenuContext): CommentMenuOption[] {
+  if (!ctx.loggedIn || ctx.isDeleted) return [];
+  const opts: CommentMenuOption[] = [];
+  if (ctx.canEditComment) {
+    opts.push({ text: "Düzenle", action: "edit" });
+  }
+  if (ctx.isOwner || ctx.isStaff) {
+    opts.push({ text: "Sil", action: "delete", style: "destructive" });
+  }
+  if (!ctx.isOwner) {
+    opts.push({ text: "Raporla", action: "report" });
+  }
+  opts.push({ text: "İptal", action: "cancel", style: "cancel" });
+  return opts;
+}
+
+export type ReplyCollapseState = "collapsed" | "partial" | "expanded";
+
+export const REPLY_PARTIAL_LIMIT = 2;
+
+export function getVisibleReplies<T>(replies: T[], state: ReplyCollapseState): T[] {
+  if (state === "collapsed") return [];
+  if (state === "expanded") return replies.slice();
+  return replies.slice(0, REPLY_PARTIAL_LIMIT);
+}
+
+export interface ReplyToggleInfo {
+  label: string;
+  nextState: ReplyCollapseState;
+}
+
+export function getReplyToggleLabel<T>(
+  replies: T[],
+  state: ReplyCollapseState
+): ReplyToggleInfo | null {
+  const total = replies.length;
+  if (total === 0) return null;
+  if (state === "partial") {
+    if (total <= REPLY_PARTIAL_LIMIT) {
+      return { label: "Yanıtları gizle", nextState: "collapsed" };
+    }
+    const remaining = total - REPLY_PARTIAL_LIMIT;
+    return { label: `${remaining} yanıtı daha göster`, nextState: "expanded" };
+  }
+  if (state === "expanded") {
+    return { label: "Yanıtları gizle", nextState: "collapsed" };
+  }
+  return { label: `${total} yanıtı göster`, nextState: "expanded" };
+}
+
+export interface ShareContent {
+  message: string;
+  url: string;
+  title: string;
+}
+
+export function buildShareContent(
+  topic: { id: string; title: string },
+  baseUrls: { web: string }
+): ShareContent {
+  const title = topic.title ?? "";
+  const webBase = (baseUrls.web ?? "").replace(/\/+$/, "");
+  const url = `${webBase}/topic/${topic.id}`;
+  const deepLink = `goworldy://topic/${topic.id}`;
+  const message = `${title}\n\nGoWorldy'de oku: ${deepLink}`;
+  return { message, url, title };
+}
+
+// FRM-TPC-005/006: ActionMenuModal'dan gelen seçim id'sini topic-menu
+// callback'lerine yönlendirir. "cancel" id'si modal tarafından zaten
+// onSelect'e gönderilmediği için burada handle edilmez.
+export interface TopicMenuCallbacks {
+  onEdit: () => void;
+  onDelete: () => void;
+  onReport: () => void;
+}
+export function dispatchTopicMenuSelect(
+  action: TopicMenuAction | string,
+  cb: TopicMenuCallbacks
+): void {
+  if (action === "edit") cb.onEdit();
+  else if (action === "delete") cb.onDelete();
+  else if (action === "report") cb.onReport();
+}
+
+// FRM-CMT-003/004: ActionMenuModal seçim id'sini comment-menu callback'lerine
+// yönlendirir.
+export interface CommentMenuCallbacks {
+  onEdit: () => void;
+  onDelete: () => void;
+  onReport: () => void;
+}
+export function dispatchCommentMenuSelect(
+  action: CommentMenuAction | string,
+  cb: CommentMenuCallbacks
+): void {
+  if (action === "edit") cb.onEdit();
+  else if (action === "delete") cb.onDelete();
+  else if (action === "report") cb.onReport();
+}
+
 export async function upvoteTopic(
   topicId: string,
   token: string,

@@ -322,6 +322,11 @@ export function ProfileScreen() {
         {/* Menu */}
         <View style={styles.menuList}>
           <MenuRow
+            icon={<Ionicons name="bookmark-outline" size={22} color={Colors.neutral} />}
+            label="Favorilerim"
+            onPress={() => navigation.navigate("Favorites")}
+          />
+          <MenuRow
             icon={<MaterialCommunityIcons name="bell-outline" size={22} color={Colors.neutral} />}
             label="Bildirim Ayarları"
             onPress={() => navigation.getParent()?.navigate("Home", { screen: "Notifications" })}

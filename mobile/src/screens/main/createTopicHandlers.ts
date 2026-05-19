@@ -11,7 +11,6 @@ export function validateTopicTitle(title: string): TitleValidation {
   return { valid: true };
 }
 
-/** Admin, moderatör veya premium üye → kredi gerektirmez. */
 export function canCreateTopicFree(role?: string, isPremium?: boolean): boolean {
   return role === "admin" || role === "moderator" || isPremium === true;
 }
@@ -25,9 +24,34 @@ export async function createTopic(
   categoryId: string,
   title: string,
   token: string,
-  apiForum: typeof defaultApi.forum = defaultApi.forum
+  apiForum: typeof defaultApi.forum = defaultApi.forum,
+  content?: string
 ): Promise<CreateTopicResult> {
   if (!token) throw new Error("Token gerekli");
   if (!categoryId) throw new Error("Kategori gerekli");
-  return apiForum.createTopic(categoryId, title.trim(), token);
+  return apiForum.createTopic(categoryId, title.trim(), token, content?.trim() || undefined);
+}
+
+export interface PostCreateAction {
+  toast: { variant: "success" | "info"; message: string };
+  navigate: "goBack";
+}
+
+export function buildPostCreateAction(
+  topic: { status?: string },
+  isStaff: boolean
+): PostCreateAction {
+  if (isStaff || topic.status === "approved") {
+    return {
+      toast: { variant: "success", message: "Konunuz yayınlandı." },
+      navigate: "goBack",
+    };
+  }
+  return {
+    toast: {
+      variant: "info",
+      message: "Konunuz incelemeye alındı. Onaylanınca bildirim göndereceğiz.",
+    },
+    navigate: "goBack",
+  };
 }

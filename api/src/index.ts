@@ -18,20 +18,18 @@ const allowedOrigins: string[] | boolean = process.env.CORS_ALLOWED_ORIGINS
   : true; // dev: tüm origin'lere izin ver; prod'da CORS_ALLOWED_ORIGINS env ile kısıtla
 app.use(cors({ origin: allowedOrigins }));
 
-// SEC-03: Rate limiting
-// Auth endpoint'leri için sıkı limit: 10 istek/dakika
+// SEC-03: Rate limiting — RATE_LIMIT_AUTH_MAX / RATE_LIMIT_MAX env ile override edilebilir
 const authRateLimit = rateLimit({
-  windowMs: 60 * 1000, // 1 dakika
-  max: 10,
+  windowMs: 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_AUTH_MAX ?? "10"),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Çok fazla istek gönderildi. Lütfen bir dakika sonra tekrar deneyin." },
 });
 
-// Genel API için: 100 istek/dakika
 const generalRateLimit = rateLimit({
   windowMs: 60 * 1000,
-  max: 100,
+  max: parseInt(process.env.RATE_LIMIT_MAX ?? "100"),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Çok fazla istek gönderildi. Lütfen bir dakika sonra tekrar deneyin." },

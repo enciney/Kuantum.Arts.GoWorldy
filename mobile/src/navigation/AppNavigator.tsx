@@ -20,6 +20,7 @@ import { GuideScreen } from "../screens/main/GuideScreen";
 import { ProfileScreen } from "../screens/main/ProfileScreen";
 import { MyTopicsScreen } from "../screens/main/MyTopicsScreen";
 import { MyCommentsScreen } from "../screens/main/MyCommentsScreen";
+import { FavoritesScreen } from "../screens/main/FavoritesScreen";
 import { NotificationsScreen } from "../screens/main/NotificationsScreen";
 import { PremiumScreen } from "../screens/main/PremiumScreen";
 import { PaymentScreen, PaymentScreenParams } from "../screens/main/PaymentScreen";
@@ -42,6 +43,7 @@ export type ProfileStackParamList = {
   ProfileMain: undefined;
   MyTopics: undefined;
   MyComments: undefined;
+  Favorites: undefined;
 };
 
 export type MainTabParamList = {
@@ -115,6 +117,7 @@ function ProfileStackNavigator() {
       <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} />
       <ProfileStack.Screen name="MyTopics" component={MyTopicsScreen} />
       <ProfileStack.Screen name="MyComments" component={MyCommentsScreen} />
+      <ProfileStack.Screen name="Favorites" component={FavoritesScreen} />
     </ProfileStack.Navigator>
   );
 }

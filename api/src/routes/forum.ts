@@ -17,8 +17,8 @@ async function notifyStaff(repos: Repositories, fn: (staffIds: string[]) => Prom
     ]);
     const ids = [...admins, ...mods].map((u) => u.id);
     await fn(ids);
-  } catch {
-    /* fan-out best-effort */
+  } catch (err) {
+    console.error("[notifyStaff] fan-out failed", err);
   }
 }
 
@@ -41,15 +41,16 @@ export function forumRoutes(repos: Repositories): Router {
     res.json(await repos.forum.createCategory(req.body));
   });
 
-  router.get("/categories/:categoryId/topics", async (req, res) => {
+  router.get("/categories/:categoryId/topics", optionalAuthMiddleware, async (req: AuthRequest, res) => {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
-    res.json(await repos.forum.getTopics(req.params.categoryId, { onlyApproved: true, page, limit }));
+    const filterParam = typeof req.query.filter === "string" && req.query.filter === "popular" ? "popular" : undefined;
+    res.json(await repos.forum.getTopics(req.params.categoryId as string, { onlyApproved: true, page, limit, filter: filterParam, viewerId: req.userId }));
   });
 
   // FRM-TPC-003: Tek konu detayını içerikle birlikte döndür (mobile detay ekranı için)
   router.get("/topics/:id", optionalAuthMiddleware, async (req: AuthRequest, res) => {
-    const topic = await repos.forum.getTopicById(req.params.id as string);
+    const topic = await repos.forum.getTopicById(req.params.id as string, req.userId);
     if (!topic || topic.deletedAt) return res.status(404).json({ error: "Konu bulunamadı." });
 
     // Favori durumu — yalnız tokenlı kullanıcı için
@@ -112,21 +113,26 @@ export function forumRoutes(repos: Repositories): Router {
     }
 
     if (status === "approved") {
-      // Staff created → notify country subscribers immediately
-      repos.notifications.notifyCountrySubscribers(categoryId, topic.id, title, req.userId!).catch(() => {});
+      repos.notifications
+        .notifyCountrySubscribers(categoryId, topic.id, title, req.userId!)
+        .catch((err) => console.error("[forum.create] notifyCountrySubscribers failed", err));
     } else {
-      // NTF-EVT-001: notify author that review started
-      broadcastPendingTopic({ type: "new_pending", topic });
-      repos.notifications.create({
-        userId: req.userId!,
-        type: "system",
-        title: "Konunuz alındı",
-        message: `"${title}" başlıklı konunuz moderatör incelemesine alındı. Onaylandığında size haber vereceğiz.`,
-        targetType: "forum_topic",
-        targetId: topic.id,
-      }).catch(() => {});
+      try {
+        broadcastPendingTopic({ type: "new_pending", topic });
+      } catch (err) {
+        console.error("[forum.create] broadcastPendingTopic failed", err);
+      }
+      repos.notifications
+        .create({
+          userId: req.userId!,
+          type: "system",
+          title: "Konunuz alındı",
+          message: `"${title}" başlıklı konunuz moderatör incelemesine alındı. Onaylandığında size haber vereceğiz.`,
+          targetType: "forum_topic",
+          targetId: topic.id,
+        })
+        .catch((err) => console.error("[forum.create] author notification failed", err));
 
-      // NTF-EVT-005: fan-out to all admins/moderators
       const author = await repos.users.findById(req.userId!).catch(() => null);
       const authorName = author?.displayName ?? "Bir kullanıcı";
       notifyStaff(repos, (staffIds) =>

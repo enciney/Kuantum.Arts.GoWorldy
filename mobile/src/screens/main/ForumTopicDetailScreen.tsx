@@ -4,6 +4,7 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   ActivityIndicator,
   TextInput,
@@ -11,11 +12,24 @@ import {
   Platform,
   Alert,
   Modal,
+  Share,
 } from "react-native";
+import {
+  buildTopicMenuOptions,
+  buildCommentMenuOptions,
+  dispatchTopicMenuSelect,
+  dispatchCommentMenuSelect,
+  getVisibleReplies,
+  getReplyToggleLabel,
+  buildShareContent,
+  type ReplyCollapseState,
+} from "./forumTopicDetailHandlers";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
+import { ActionMenuModal, type ActionMenuOption } from "../../components/ActionMenuModal";
+import { WEB_BASE_URL } from "../../config/env";
 
 interface Comment {
   id: string;
@@ -45,6 +59,7 @@ interface TopicDetail {
 interface Props {
   topicId: string;
   topicTitle: string;
+  topicAuthorId?: string;
   topicUpvotes?: number;
   topicHasUpvoted?: boolean;
   onBack: () => void;
@@ -60,15 +75,21 @@ const REPORT_REASONS: { value: ReportReason; label: string }[] = [
 ];
 
 const TOPIC_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+// Backend: FRM-CMT-003 owner için 15 dakikalık düzenleme penceresi (staff sınırsız).
+const COMMENT_EDIT_WINDOW_MS = 15 * 60 * 1000;
 
-export function ForumTopicDetailScreen({ topicId, topicTitle, topicUpvotes = 0, topicHasUpvoted = false, onBack }: Props) {
-  const { token, user } = useAuth();
+export function ForumTopicDetailScreen({ topicId, topicTitle, topicAuthorId = "", topicUpvotes = 0, topicHasUpvoted = false, onBack }: Props) {
+  const { token, user, refreshUser } = useAuth();
   const isStaff = user?.role === "admin" || user?.role === "moderator";
+
+  useEffect(() => {
+    if (token && !user) refreshUser();
+  }, [token, user, refreshUser]);
 
   const [topic, setTopic] = useState<TopicDetail>({
     id: topicId,
     title: topicTitle,
-    authorId: "",
+    authorId: topicAuthorId,
     createdAt: new Date().toISOString(),
     upvotes: topicUpvotes,
     hasUpvoted: topicHasUpvoted,
@@ -87,8 +108,8 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, topicUpvotes = 0, 
   const [upvoting, setUpvoting] = useState(false);
   const [faving, setFaving] = useState(false);
 
-  // Collapse state for top-level comment replies
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // Collapse state for top-level comment replies (3-state: collapsed | partial | expanded)
+  const [replyStates, setReplyStates] = useState<Record<string, ReplyCollapseState>>({});
 
   // Edit comment modal
   const [editing, setEditing] = useState<Comment | null>(null);
@@ -111,6 +132,12 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, topicUpvotes = 0, 
   const [delOpen, setDelOpen] = useState(false);
   const [delReason, setDelReason] = useState("");
   const [delSubmitting, setDelSubmitting] = useState(false);
+
+  // Action menu (replaces Alert.alert for topic + comment 3-dot menus)
+  type ActiveMenu =
+    | { kind: "topic"; title: string; options: ActionMenuOption[] }
+    | { kind: "comment"; title: string; options: ActionMenuOption[]; comment: Comment };
+  const [activeMenu, setActiveMenu] = useState<ActiveMenu | null>(null);
 
   const loadTopic = useCallback(async () => {
     try {
@@ -246,22 +273,45 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, topicUpvotes = 0, 
   };
 
   const showTopicMenu = () => {
-    const opts: { text: string; onPress?: () => void; style?: "destructive" | "cancel" }[] = [];
-    if (canEditTopic || canStaffEdit) opts.push({ text: "Konuyu düzenle", onPress: openEditTopic });
-    if (isTopicOwner) opts.push({ text: "Silme talebi gönder", style: "destructive", onPress: openDeletionRequest });
-    if (!isTopicOwner && token) opts.push({ text: "Raporla", onPress: () => openReportTopic() });
-    opts.push({ text: "İptal", style: "cancel" });
-    if (opts.length === 1) {
-      // Hiçbir aksiyon yoksa menüyü gösterme
-      return;
-    }
-    Alert.alert("Konu", undefined, opts);
+    const opts = buildTopicMenuOptions({
+      isOwner: isTopicOwner,
+      canEditTopic,
+      canStaffEdit,
+      loggedIn: !!token,
+    });
+    if (opts.length <= 1) return;
+    setActiveMenu({
+      kind: "topic",
+      title: "Konu",
+      options: opts.map((o) => ({ id: o.action, text: o.text, style: o.style })),
+    });
   };
 
-  const showTopicMenuVisible =
-    (isTopicOwner && (canEditTopic || true)) || // owner her zaman silme talebi gönderebilir
-    canStaffEdit ||
-    !!token; // login olmuş herkes raporlayabilir
+  const handleTopicMenuSelect = (action: string) => {
+    dispatchTopicMenuSelect(action, {
+      onEdit: openEditTopic,
+      onDelete: openDeletionRequest,
+      onReport: openReportTopic,
+    });
+  };
+
+  const showTopicMenuVisible = !!token;
+
+  const handleShare = async () => {
+    try {
+      const content = buildShareContent(
+        { id: topic.id, title: topic.title },
+        { web: WEB_BASE_URL }
+      );
+      await Share.share({
+        message: content.message,
+        url: content.url,
+        title: content.title,
+      });
+    } catch {
+      /* user cancel or share failure — no-op */
+    }
+  };
 
   // ── Comment actions ────────────────────────────────────────────────────────
 
@@ -274,7 +324,7 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, topicUpvotes = 0, 
       // Yanıt verildiğinde parent thread'i açık tut
       if (replyingTo) {
         const parentId = replyingTo.parentCommentId ?? replyingTo.id;
-        setCollapsed((c) => ({ ...c, [parentId]: false }));
+        setReplyStates((c) => ({ ...c, [parentId]: "expanded" }));
       }
       setReplyingTo(null);
       await loadComments();
@@ -389,17 +439,34 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, topicUpvotes = 0, 
   };
 
   const showCommentMenu = (c: Comment) => {
-    const isOwner = c.authorId === user?.id;
-    const canEdit = isOwner && !c.deletedAt;
-    const canDelete = (isOwner || isStaff) && !c.deletedAt;
+    const isOwner = !!user && c.authorId === user.id;
+    const ageMs = Date.now() - new Date(c.createdAt).getTime();
+    const ownerWithinWindow = isOwner && ageMs < COMMENT_EDIT_WINDOW_MS;
+    // Staff her zaman düzenleyebilir; owner ise 15 dk içinde.
+    const canEditComment = ownerWithinWindow || isStaff;
 
-    const options: { text: string; onPress?: () => void; style?: "destructive" | "cancel" }[] = [];
-    if (canEdit) options.push({ text: "Düzenle", onPress: () => openEdit(c) });
-    if (canDelete) options.push({ text: "Sil", style: "destructive", onPress: () => handleDelete(c) });
-    if (!isOwner) options.push({ text: "Raporla", onPress: () => openReportComment(c) });
-    options.push({ text: "İptal", style: "cancel" });
+    const opts = buildCommentMenuOptions({
+      isOwner,
+      isStaff,
+      loggedIn: !!token,
+      isDeleted: !!c.deletedAt,
+      canEditComment,
+    });
+    if (opts.length === 0) return;
+    setActiveMenu({
+      kind: "comment",
+      title: "Yorum",
+      comment: c,
+      options: opts.map((o) => ({ id: o.action, text: o.text, style: o.style })),
+    });
+  };
 
-    Alert.alert("Yorum", undefined, options);
+  const handleCommentMenuSelect = (action: string, c: Comment) => {
+    dispatchCommentMenuSelect(action, {
+      onEdit: () => openEdit(c),
+      onDelete: () => handleDelete(c),
+      onReport: () => openReportComment(c),
+    });
   };
 
   // ── Comment tree (top-level + grouped replies) ────────────────────────────
@@ -422,8 +489,8 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, topicUpvotes = 0, 
     }));
   }, [comments]);
 
-  const toggleCollapse = (parentId: string) =>
-    setCollapsed((c) => ({ ...c, [parentId]: !c[parentId] }));
+  const setReplyState = (parentId: string, next: ReplyCollapseState) =>
+    setReplyStates((c) => ({ ...c, [parentId]: next }));
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -439,13 +506,16 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, topicUpvotes = 0, 
         </TouchableOpacity>
         <Text style={styles.title} numberOfLines={2}>{topic.title}</Text>
         {showTopicMenuVisible && (
-          <TouchableOpacity
+          <Pressable
             onPress={showTopicMenu}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            style={styles.topicMenuBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={({ pressed }) => [styles.topicMenuBtn, pressed && { opacity: 0.6 }]}
+            accessibilityLabel="Konu menüsü"
+            accessibilityRole="button"
+            testID="topic-menu-btn"
           >
             <Ionicons name="ellipsis-vertical" size={22} color={Colors.textSecondary} />
-          </TouchableOpacity>
+          </Pressable>
         )}
       </View>
 
@@ -490,6 +560,18 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, topicUpvotes = 0, 
             {topic.favorited ? "Favorimde" : "Favorile"}
           </Text>
         </TouchableOpacity>
+
+        <Pressable
+          onPress={handleShare}
+          hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
+          style={({ pressed }) => [styles.favBtn, pressed && { opacity: 0.6 }]}
+          accessibilityLabel="Konuyu paylaş"
+          accessibilityRole="button"
+          testID="topic-share-btn"
+        >
+          <Ionicons name="share-outline" size={18} color={Colors.textMuted} />
+          <Text style={styles.favLabel}>Paylaş</Text>
+        </Pressable>
       </View>
 
       {loading ? (
@@ -512,8 +594,9 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, topicUpvotes = 0, 
             </View>
           }
           renderItem={({ item }) => {
-            const isCollapsed = collapsed[item.top.id] === true;
-            const replyCount = item.replies.length;
+            const state: ReplyCollapseState = replyStates[item.top.id] ?? "partial";
+            const visibleReplies = getVisibleReplies(item.replies, state);
+            const toggle = getReplyToggleLabel(item.replies, state);
             return (
               <View>
                 <CommentRow
@@ -524,35 +607,32 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, topicUpvotes = 0, 
                   onMenu={() => showCommentMenu(item.top)}
                   loggedIn={!!token}
                 />
-                {replyCount > 0 && (
+                {visibleReplies.map((r) => (
+                  <CommentRow
+                    key={r.id}
+                    comment={r}
+                    isMine={r.authorId === user?.id}
+                    onLike={() => handleLike(r)}
+                    onReply={() => setReplyingTo(r)}
+                    onMenu={() => showCommentMenu(r)}
+                    loggedIn={!!token}
+                    isReply
+                  />
+                ))}
+                {toggle && (
                   <TouchableOpacity
                     style={styles.collapseBtn}
-                    onPress={() => toggleCollapse(item.top.id)}
+                    onPress={() => setReplyState(item.top.id, toggle.nextState)}
                     activeOpacity={0.7}
                   >
                     <Ionicons
-                      name={isCollapsed ? "chevron-down" : "chevron-up"}
+                      name={toggle.nextState === "collapsed" ? "chevron-up" : "chevron-down"}
                       size={14}
                       color={Colors.primary}
                     />
-                    <Text style={styles.collapseText}>
-                      {isCollapsed ? `${replyCount} yanıtı göster` : `${replyCount} yanıtı gizle`}
-                    </Text>
+                    <Text style={styles.collapseText}>{toggle.label}</Text>
                   </TouchableOpacity>
                 )}
-                {!isCollapsed &&
-                  item.replies.map((r) => (
-                    <CommentRow
-                      key={r.id}
-                      comment={r}
-                      isMine={r.authorId === user?.id}
-                      onLike={() => handleLike(r)}
-                      onReply={() => setReplyingTo(r)}
-                      onMenu={() => showCommentMenu(r)}
-                      loggedIn={!!token}
-                      isReply
-                    />
-                  ))}
               </View>
             );
           }}
@@ -695,6 +775,23 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, topicUpvotes = 0, 
         </View>
       </Modal>
 
+      {/* Action menu (3-dot) for topic + comment — FRM-TPC-005/006 + FRM-CMT-003/004 */}
+      <ActionMenuModal
+        visible={!!activeMenu}
+        title={activeMenu?.title}
+        options={activeMenu?.options ?? []}
+        onSelect={(id) => {
+          if (!activeMenu) return;
+          if (activeMenu.kind === "topic") {
+            handleTopicMenuSelect(id);
+          } else {
+            handleCommentMenuSelect(id, activeMenu.comment);
+          }
+        }}
+        onClose={() => setActiveMenu(null)}
+        testID="action-menu-modal"
+      />
+
       {/* Deletion request modal (FRM-TPC-006) */}
       <Modal visible={delOpen} transparent animationType="fade" onRequestClose={() => setDelOpen(false)}>
         <View style={styles.modalBackdrop}>
@@ -760,14 +857,17 @@ function CommentRow({
           <Text style={styles.authorLabel}>{name}</Text>
           <View style={styles.commentHeaderRight}>
             <Text style={styles.commentDate}>{dateLabel}</Text>
-            {loggedIn && !comment.deletedAt && (
-              <TouchableOpacity
+            {!!loggedIn && !comment.deletedAt && (
+              <Pressable
                 onPress={onMenu}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                style={styles.menuBtn}
+                style={({ pressed }) => [styles.menuBtn, pressed && { opacity: 0.6 }]}
+                accessibilityLabel="Yorum menüsü"
+                accessibilityRole="button"
+                testID="comment-menu-btn"
               >
                 <Ionicons name="ellipsis-vertical" size={18} color={Colors.textSecondary} />
-              </TouchableOpacity>
+              </Pressable>
             )}
           </View>
         </View>
@@ -819,6 +919,8 @@ const styles = StyleSheet.create({
     minHeight: MinTapTarget,
     justifyContent: "center",
     alignItems: "center",
+    zIndex: 10,
+    elevation: 10,
   },
   topicContentBox: {
     backgroundColor: Colors.surface,
@@ -886,6 +988,8 @@ const styles = StyleSheet.create({
     minHeight: 32,
     justifyContent: "center",
     alignItems: "center",
+    zIndex: 10,
+    elevation: 10,
   },
   authorLabel: { ...Typography.caption, fontWeight: "600", color: Colors.textPrimary },
   commentDate: { fontSize: 11, color: Colors.textMuted },

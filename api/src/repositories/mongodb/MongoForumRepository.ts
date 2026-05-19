@@ -75,27 +75,91 @@ export class MongoForumRepository implements IForumRepository {
 
   // ── Topics ─────────────────────────────────────────────────────────────────
 
-  async getTopics(categoryId: string, options?: { onlyApproved?: boolean; page?: number; limit?: number }): Promise<{ data: ForumTopic[]; total: number; page: number; totalPages: number }> {
-    const { forumTopics, forumComments } = await getCollections();
+  async getTopics(categoryId: string, options?: { onlyApproved?: boolean; page?: number; limit?: number; filter?: "popular" | "latest"; viewerId?: string }): Promise<{ data: ForumTopic[]; total: number; page: number; totalPages: number }> {
+    const { forumTopics, forumComments, forumTopicUpvotes } = await getCollections();
     const filter: Record<string, unknown> = { categoryId, deletedAt: { $exists: false } };
     if (options?.onlyApproved) filter.status = "approved";
     const page = Math.max(1, options?.page ?? 1);
     const limit = Math.min(100, Math.max(1, options?.limit ?? 20));
     const skip = (page - 1) * limit;
+    const viewerId = options?.viewerId;
+
+    if (options?.filter === "popular") {
+      const pipeline: Record<string, unknown>[] = [
+        { $match: filter },
+        {
+          $lookup: {
+            from: "forumComments",
+            localField: "_id",
+            foreignField: "topicId",
+            as: "_comments",
+          },
+        },
+        {
+          $lookup: {
+            from: "forumTopicUpvotes",
+            localField: "_id",
+            foreignField: "topicId",
+            as: "_upvotes",
+          },
+        },
+        {
+          $addFields: {
+            commentCount: { $size: { $ifNull: ["$_comments", []] } },
+            upvotes: { $size: { $ifNull: ["$_upvotes", []] } },
+          },
+        },
+        {
+          $addFields: {
+            score: {
+              $add: [
+                { $multiply: [{ $ifNull: ["$upvotes", 0] }, 2] },
+                { $ifNull: ["$commentCount", 0] },
+              ],
+            },
+          },
+        },
+        { $sort: { isPinned: -1, score: -1, createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+        { $project: { _comments: 0, _upvotes: 0, score: 0 } },
+      ];
+      const [raw, total] = await Promise.all([
+        forumTopics.aggregate(pipeline).toArray(),
+        forumTopics.countDocuments(filter),
+      ]);
+      const data = raw.map((t) => {
+        const upvotes = typeof (t as { upvotes?: number }).upvotes === "number" ? (t as { upvotes: number }).upvotes : 0;
+        return { ...toDoc<ForumTopic>(t as WithId<ForumTopicDoc>), upvotes };
+      });
+      const withVoted = await attachViewerUpvotes(forumTopicUpvotes, data, viewerId);
+      return { data: withVoted, total, page, totalPages: Math.ceil(total / limit) };
+    }
+
     const [topics, total] = await Promise.all([
       forumTopics.find(filter).sort({ isPinned: -1, createdAt: -1 }).skip(skip).limit(limit).toArray(),
       forumTopics.countDocuments(filter),
     ]);
     const data = await attachCommentCounts(forumComments, topics);
-    return { data, total, page, totalPages: Math.ceil(total / limit) };
+    const withUpvotes = await attachUpvoteCounts(forumTopicUpvotes, data);
+    const withVoted = await attachViewerUpvotes(forumTopicUpvotes, withUpvotes, viewerId);
+    return { data: withVoted, total, page, totalPages: Math.ceil(total / limit) };
   }
 
-  async getTopicById(id: string): Promise<ForumTopic | null> {
-    const { forumTopics, forumComments } = await getCollections();
+  async getTopicById(id: string, viewerId?: string): Promise<ForumTopic | null> {
+    const { forumTopics, forumComments, forumTopicUpvotes } = await getCollections();
     const topic = await forumTopics.findOne({ _id: id });
     if (!topic) return null;
-    const count = await forumComments.countDocuments({ topicId: id });
-    return { ...toDoc<ForumTopic>(topic), commentCount: count };
+    const [count, upvotes] = await Promise.all([
+      forumComments.countDocuments({ topicId: id }),
+      forumTopicUpvotes.countDocuments({ topicId: id }),
+    ]);
+    let hasUpvoted = false;
+    if (viewerId) {
+      const mine = await forumTopicUpvotes.findOne({ topicId: id, userId: viewerId });
+      hasUpvoted = mine !== null;
+    }
+    return { ...toDoc<ForumTopic>(topic), commentCount: count, upvotes, hasUpvoted };
   }
 
   async getPendingTopics(limit: number, offset: number): Promise<ForumTopic[]> {
@@ -486,4 +550,31 @@ async function attachCommentCounts(
     ...toDoc<ForumTopic>(t),
     commentCount: countMap.get(t._id) ?? 0,
   }));
+}
+
+async function attachUpvoteCounts(
+  forumTopicUpvotes: Cols["forumTopicUpvotes"],
+  topics: ForumTopic[]
+): Promise<ForumTopic[]> {
+  if (!topics.length) return topics;
+  const ids = topics.map((t) => t.id);
+  const agg = await forumTopicUpvotes.aggregate([
+    { $match: { topicId: { $in: ids } } },
+    { $group: { _id: "$topicId", cnt: { $sum: 1 } } },
+  ]).toArray();
+  const countMap = new Map(agg.map((r) => [r._id as unknown as string, r.cnt as number]));
+  return topics.map((t) => ({ ...t, upvotes: countMap.get(t.id) ?? 0 }));
+}
+
+async function attachViewerUpvotes(
+  forumTopicUpvotes: Cols["forumTopicUpvotes"],
+  topics: ForumTopic[],
+  viewerId?: string
+): Promise<ForumTopic[]> {
+  if (!topics.length) return topics;
+  if (!viewerId) return topics.map((t) => ({ ...t, hasUpvoted: false }));
+  const ids = topics.map((t) => t.id);
+  const mine = await forumTopicUpvotes.find({ userId: viewerId, topicId: { $in: ids } }).toArray();
+  const set = new Set(mine.map((m) => m.topicId));
+  return topics.map((t) => ({ ...t, hasUpvoted: set.has(t.id) }));
 }

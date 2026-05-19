@@ -240,7 +240,7 @@ export const api = {
         { method: "POST", token }
       ),
     createTopic: (categoryId: string, title: string, token: string, content?: string) =>
-      request<{ id: string; status: string }>("/forum/topics", {
+      request<{ id: string; title: string; authorId: string; status: string }>("/forum/topics", {
         method: "POST",
         body: JSON.stringify({ categoryId, title, ...(content ? { content } : {}) }),
         token,

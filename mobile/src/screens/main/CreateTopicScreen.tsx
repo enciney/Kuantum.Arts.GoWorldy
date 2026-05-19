@@ -14,7 +14,10 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
 import { CreditGateModal } from "../../components/CreditGateModal";
+import { Toast, ToastVariant } from "../../components/Toast";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
+import { hasActivePremium } from "../../utils/premium";
+import { buildPostCreateAction } from "./createTopicHandlers";
 
 const TOPIC_COST = 50;
 
@@ -22,25 +25,46 @@ interface Props {
   categoryId: string;
   categoryName: string;
   onCancel: () => void;
-  onCreated: () => void;
+  onCreated: (topicId?: string, topicTitle?: string, topicAuthorId?: string) => void;
   onNavigatePremium?: () => void;
 }
 
 export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreated, onNavigatePremium }: Props) {
-  const { token, user } = useAuth();
+  const { token, user, refreshUser } = useAuth();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState(""); // FRM-TPC-003
   const [submitting, setSubmitting] = useState(false);
   const [userCredits, setUserCredits] = useState(0);
   const [gateVisible, setGateVisible] = useState(false);
+  const [premiumLoading, setPremiumLoading] = useState(true);
+  const [toast, setToast] = useState<{ visible: boolean; message: string; variant: ToastVariant }>({
+    visible: false,
+    message: "",
+    variant: "success",
+  });
 
   const isStaff = user?.role === "admin" || user?.role === "moderator";
-  const isFree  = isStaff || user?.isPremium === true;
+  const hasPremium = hasActivePremium(user);
+  const isFree = isStaff || hasPremium;
 
   useEffect(() => {
-    if (!token || isFree) return;
-    api.users.me(token).then((u) => setUserCredits(u.credits)).catch(() => {});
-  }, [token, isFree]);
+    if (!token) {
+      setPremiumLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const fresh = await api.users.me(token);
+        if (!cancelled) setUserCredits(fresh.credits);
+      } catch {
+        // sessizce devam — UI yine de render eder
+      } finally {
+        if (!cancelled) setPremiumLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
 
   const validateTitle = (): boolean => {
     if (!title.trim()) {
@@ -68,16 +92,28 @@ export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreate
     setGateVisible(false);
     setSubmitting(true);
     try {
-      await api.forum.createTopic(categoryId, title.trim(), token, content.trim() || undefined);
-      Alert.alert(
-        isStaff ? "Konu yayınlandı ✓" : "Konunuz alındı",
-        isStaff
-          ? "Konunuz hemen yayına alındı."
-          : "Konunuz onay sürecine alınmıştır. Kısa süre içinde size bildirim göndereceğiz.",
-        [{ text: "Tamam", onPress: onCreated }]
+      const created = await api.forum.createTopic(
+        categoryId,
+        title.trim(),
+        token,
+        content.trim() || undefined
       );
+      const action = buildPostCreateAction(created, isStaff);
+      setToast({ visible: true, message: action.toast.message, variant: action.toast.variant });
+      setTimeout(() => {
+        onCreated(created.id, created.title, created.authorId);
+      }, 1200);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Bilinmeyen hata.";
+      try {
+        await refreshUser();
+        if (token) {
+          const fresh = await api.users.me(token);
+          setUserCredits(fresh.credits);
+        }
+      } catch {
+        // ignore refresh error
+      }
       if (msg.includes("premium") || msg.includes("kredi")) {
         Alert.alert(
           "Yetersiz Kredi",
@@ -141,7 +177,15 @@ export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreate
           />
           <Text style={styles.charCount}>{content.length} / 5000</Text>
 
-          {isStaff ? (
+          {premiumLoading ? (
+            <View style={styles.infoBox}>
+              <ActivityIndicator color={Colors.primary} />
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Text style={styles.infoTitle}>Yükleniyor…</Text>
+                <Text style={styles.infoText}>Üyelik durumunuz kontrol ediliyor.</Text>
+              </View>
+            </View>
+          ) : isStaff ? (
             <View style={[styles.infoBox, styles.infoBoxStaff]}>
               <MaterialCommunityIcons name="shield-check" size={18} color={Colors.secondary} />
               <View style={{ flex: 1, marginLeft: 8 }}>
@@ -153,7 +197,7 @@ export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreate
                 </Text>
               </View>
             </View>
-          ) : user?.isPremium ? (
+          ) : hasPremium ? (
             <View style={[styles.infoBox, styles.infoBoxPremium]}>
               <MaterialCommunityIcons name="crown" size={18} color="#7C3AED" />
               <View style={{ flex: 1, marginLeft: 8 }}>
@@ -176,9 +220,9 @@ export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreate
           )}
 
           <TouchableOpacity
-            style={[styles.btn, submitting && styles.btnDisabled]}
+            style={[styles.btn, (submitting || premiumLoading) && styles.btnDisabled]}
             onPress={handleConfirm}
-            disabled={submitting}
+            disabled={submitting || premiumLoading}
           >
             {submitting ? (
               <ActivityIndicator color={Colors.surface} />
@@ -191,6 +235,13 @@ export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreate
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        variant={toast.variant}
+        onClose={() => setToast((t) => ({ ...t, visible: false }))}
+      />
 
       <CreditGateModal
         visible={gateVisible}

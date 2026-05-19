@@ -41,6 +41,7 @@ type ScreenView =
       categoryName: string;
       topicId: string;
       topicTitle: string;
+      topicAuthorId: string;
       topicUpvotes: number;
       topicHasUpvoted: boolean;
     }
@@ -76,6 +77,7 @@ export function ForumScreen() {
         categoryName: "",
         topicId: params.openTopicId,
         topicTitle: params.openTopicTitle ?? "Konu",
+        topicAuthorId: "",
         topicUpvotes: 0,
         topicHasUpvoted: false,
       });
@@ -116,13 +118,25 @@ export function ForumScreen() {
             categoryName: view.categoryName,
           })
         }
-        onCreated={() =>
-          setView({
-            kind: "topics",
-            country: view.country,
-            categoryId: view.categoryId,
-            categoryName: view.categoryName,
-          })
+        onCreated={(topicId, topicTitle, topicAuthorId) =>
+          topicId
+            ? setView({
+                kind: "topic-detail",
+                country: view.country,
+                categoryId: view.categoryId,
+                categoryName: view.categoryName,
+                topicId,
+                topicTitle: topicTitle ?? "",
+                topicAuthorId: topicAuthorId ?? "",
+                topicUpvotes: 0,
+                topicHasUpvoted: false,
+              })
+            : setView({
+                kind: "topics",
+                country: view.country,
+                categoryId: view.categoryId,
+                categoryName: view.categoryName,
+              })
         }
         onNavigatePremium={navigateToPremium}
       />
@@ -134,6 +148,7 @@ export function ForumScreen() {
       <ForumTopicDetailScreen
         topicId={view.topicId}
         topicTitle={view.topicTitle}
+        topicAuthorId={view.topicAuthorId}
         topicUpvotes={view.topicUpvotes}
         topicHasUpvoted={view.topicHasUpvoted}
         onBack={() => {
@@ -158,7 +173,7 @@ export function ForumScreen() {
         categoryId={view.categoryId}
         categoryName={view.categoryName}
         onBack={() => setView({ kind: "categories", country: view.country })}
-        onTopicPress={(topicId, topicTitle, topicUpvotes, topicHasUpvoted) =>
+        onTopicPress={(topicId, topicTitle, topicUpvotes, topicHasUpvoted, topicAuthorId) =>
           setView({
             kind: "topic-detail",
             country: view.country,
@@ -166,6 +181,7 @@ export function ForumScreen() {
             categoryName: view.categoryName,
             topicId,
             topicTitle,
+            topicAuthorId: topicAuthorId ?? "",
             topicUpvotes: topicUpvotes ?? 0,
             topicHasUpvoted: topicHasUpvoted ?? false,
           })

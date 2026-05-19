@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api, ApiError, AuthUser, setOn401Handler } from "../services/api";
 
@@ -20,6 +20,8 @@ interface AuthContextValue extends AuthState {
   logout: () => Promise<void>;
   /** Süresi dolmuş / geçersiz JWT nedeniyle otomatik çıkış yapar. */
   logoutOnUnauthorized: () => Promise<void>;
+  /** Backend'den taze user bilgisini çeker (premium/credits stale olmasın diye). */
+  refreshUser: () => Promise<AuthUser | null>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -127,8 +129,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ user: null, token: null, isLoading: false });
   };
 
+  const refreshUser = useCallback(async (): Promise<AuthUser | null> => {
+    const currentToken = state.token;
+    if (!currentToken) return null;
+    try {
+      const fresh = await api.users.me(currentToken);
+      const merged: AuthUser = {
+        id: fresh.id,
+        email: fresh.email,
+        displayName: fresh.displayName,
+        role: fresh.role as AuthUser["role"],
+        userType: fresh.userType,
+        isPremium: fresh.isPremium,
+        premiumUntil: fresh.premiumUntil,
+      };
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(merged));
+      setState((s) => ({ ...s, user: merged }));
+      return merged;
+    } catch {
+      return state.user;
+    }
+  }, [state.token, state.user]);
+
   return (
-    <AuthContext.Provider value={{ ...state, login, loginWithGoogle, register, logout, logoutOnUnauthorized }}>
+    <AuthContext.Provider value={{ ...state, login, loginWithGoogle, register, logout, logoutOnUnauthorized, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

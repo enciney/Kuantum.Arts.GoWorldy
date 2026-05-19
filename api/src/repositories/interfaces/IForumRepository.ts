@@ -24,6 +24,7 @@ export interface ForumTopic {
   createdAt: string;
   commentCount: number;
   upvotes?: number;
+  hasUpvoted?: boolean;
   editedAt?: string;
   deletedAt?: string;
 }
@@ -81,8 +82,8 @@ export interface IForumRepository {
 
   // Topics
   searchTopics(query: string, countryId?: string): Promise<ForumSearchResult[]>;
-  getTopics(categoryId: string, options?: { onlyApproved?: boolean; page?: number; limit?: number }): Promise<{ data: ForumTopic[]; total: number; page: number; totalPages: number }>;
-  getTopicById(id: string): Promise<ForumTopic | null>;
+  getTopics(categoryId: string, options?: { onlyApproved?: boolean; page?: number; limit?: number; filter?: "popular" | "latest"; viewerId?: string }): Promise<{ data: ForumTopic[]; total: number; page: number; totalPages: number }>;
+  getTopicById(id: string, viewerId?: string): Promise<ForumTopic | null>;
   getPendingTopics(limit: number, offset: number): Promise<ForumTopic[]>;
   createTopic(data: Omit<ForumTopic, "id" | "createdAt" | "commentCount">): Promise<ForumTopic>;
   updateTopicStatus(id: string, status: ForumTopic["status"], reason?: string): Promise<void>;

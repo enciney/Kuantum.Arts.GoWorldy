@@ -109,28 +109,28 @@ Her feature **3 segment**ten oluşan benzersiz bir ID'ye sahiptir:
 | ID | Özellik | Durum |
 |----|---------|-------|
 | [FRM-CTY-001](#frm-cty-001-ülke-listesi) | Ülke listesi | ✅ |
-| [FRM-CTY-002](#frm-cty-002-ülke-arama) | Ülke arama (UI) | ❌ |
+| [FRM-CTY-002](#frm-cty-002-ülke-arama) | Ülke arama (UI) | ✅ |
 | [FRM-CAT-001](#frm-cat-001-kategori-listesi) | Kategori listesi | ✅ |
 | [FRM-CAT-002](#frm-cat-002-alt-kategori-nested) | Alt kategori (nested) | ⚠️ |
 | [FRM-TPC-001](#frm-tpc-001-konu-listesi--sayfalama) | Konu listesi + sayfalama | ✅ |
-| [FRM-TPC-002](#frm-tpc-002-konu-açma-tam-akış) | **Konu açma (Premium check + admin onay + bildirim)** | ⚠️ |
+| [FRM-TPC-002](#frm-tpc-002-konu-açma-tam-akış) | **Konu açma (Premium check + admin onay + bildirim)** | ✅ |
 | [FRM-TPC-003](#frm-tpc-003-konu-içeriği-body-alanı) | Konu içeriği (body) TextInput + detayda render | ✅ |
 | [FRM-TPC-004](#frm-tpc-004-konu-detay) | Konu detay görüntüleme | ✅ |
 | [FRM-TPC-005](#frm-tpc-005-konu-düzenleme) | Konu düzenleme (yazar tarafından) | ⚠️ |
 | [FRM-TPC-006](#frm-tpc-006-konu-silme) | Konu silme (sahibi silme talebi, admin onayı) | ⚠️ |
 | [FRM-TPC-007](#frm-tpc-007-konu-upvote) | Konu upvote (toggle) | ✅ |
-| [FRM-TPC-008](#frm-tpc-008-konu-favori--kaydet) | Konu favori / kaydet | ⚠️ |
+| [FRM-TPC-008](#frm-tpc-008-konu-favori--kaydet) | Konu favori / kaydet | ✅ |
 | [FRM-TPC-009](#frm-tpc-009-konu-takip-subscribe) | Konu takip (subscribe) | ✅ |
 | [FRM-TPC-010](#frm-tpc-010-konu-raporlama) | Konu raporlama | ❌ |
 | [FRM-TPC-011](#frm-tpc-011-konu-kilitleme-yorum-kapat) | Konu kilitleme (yorum kapat) | ❌ |
-| [FRM-TPC-012](#frm-tpc-012-konu-paylaşma-deep-link) | Konu paylaşma (deep link) | ⚠️ |
-| [FRM-TPC-013](#frm-tpc-013-popüler-filtre-upvote-dahil) | Popüler filtre (upvote dahil) | ⚠️ |
+| [FRM-TPC-012](#frm-tpc-012-konu-paylaşma-deep-link) | Konu paylaşma (deep link) | ✅ |
+| [FRM-TPC-013](#frm-tpc-013-popüler-filtre-upvote-dahil) | Popüler filtre (upvote dahil) | ✅ |
 | [FRM-CMT-001](#frm-cmt-001-yorum-listesi) | Yorum listesi | ✅ |
 | [FRM-CMT-002](#frm-cmt-002-yorum-yazma) | Yorum yazma | ✅ |
 | [FRM-CMT-003](#frm-cmt-003-yorum-düzenleme) | Yorum düzenleme | ⚠️ |
-| [FRM-CMT-004](#frm-cmt-004-yorum-silme) | Yorum silme (sahibi veya admin) | ⚠️ |
+| [FRM-CMT-004](#frm-cmt-004-yorum-silme) | Yorum silme (sahibi veya admin) | ❌ |
 | [FRM-CMT-005](#frm-cmt-005-yorum-beğenme) | Yorum beğenme | ✅ |
-| [FRM-CMT-006](#frm-cmt-006-yorum-yanıtlama-nested) | Yorum yanıtlama (nested + collapse) | ⚠️ |
+| [FRM-CMT-006](#frm-cmt-006-yorum-yanıtlama-nested) | Yorum yanıtlama (nested + collapse) | ✅ |
 | [FRM-CMT-007](#frm-cmt-007-yorum-raporlama) | Yorum raporlama | ⚠️ |
 
 ### PRM — Premium (10 feature)
@@ -178,8 +178,8 @@ Her feature **3 segment**ten oluşan benzersiz bir ID'ye sahiptir:
 | ID | Özellik | Durum |
 |----|---------|-------|
 | [NTF-INA-001](#ntf-ina-001-in-app-bildirim-listesi) | In-app bildirim listesi | ✅ |
-| [NTF-INA-002](#ntf-ina-002-okunmamış-sayısı-badge) | Okunmamış sayısı (badge) | ✅ |
-| [NTF-INA-003](#ntf-ina-003-bildirimi-okundu-işaretle) | Bildirimi okundu işaretle | ✅ |
+| [NTF-INA-002](#ntf-ina-002-okunmamış-sayısı-badge) | Okunmamış sayısı (badge) | ❌ |
+| [NTF-INA-003](#ntf-ina-003-bildirimi-okundu-işaretle) | Bildirimi okundu işaretle | ⚠️ |
 | [NTF-INA-004](#ntf-ina-004-tümünü-okundu) | Tümünü okundu işaretle | ✅ |
 | [NTF-INA-005](#ntf-ina-005-bildirimi-silme) | Bildirimi silme | ❌ |
 | [NTF-INA-006](#ntf-ina-006-bildirim-grupla-aynı-konu-için-3-kişi-yorum-yaptı) | Bildirim grupla (aynı konu için "3 kişi yorum yaptı") | ❌ |
@@ -880,16 +880,9 @@ export function normalizePhoneTR(input: string): string | null {
 
 ### FRM-CTY-002: Ülke Arama (UI)
 
-**Durum:** ❌ Yok — sadece scroll
+**Durum:** ✅ Çalışıyor (kullanıcı doğrulaması — 2026-05-19)
 
-**Çözüm:** Ülke listesi üstüne search bar:
-```tsx
-const [search, setSearch] = useState("");
-const filtered = countries.filter(c =>
-  c.name.toLowerCase().includes(search.toLowerCase()) ||
-  c.code.toLowerCase().includes(search.toLowerCase())
-);
-```
+**Uygulanan çözüm:** Ülke listesi üstündeki search bar `c.name` + `c.code` üzerinde lowercase filtreleme yapıyor.
 
 ---
 
@@ -1066,29 +1059,40 @@ const isFree  = isStaff || user?.isPremium === true;   // ← Premium burada byp
 
 ### FRM-TPC-005: Konu Düzenleme
 
-**Durum:** ⚠️ Backend + UI yazıldı, ama 3-nokta menüsü açılmıyor
+**Durum:** ⚠️ Menü çalışıyor, edit kaydediliyor — ama düzenleme "admin onayına" gitmeli, onay beklerken konu aktif kalmalı
 
 **Tamamlanan:**
 - Backend: `PATCH /forum/topics/:id` (title + content, 24h pencere, sahibi/staff yetki kontrolü)
-- Mobile: [ForumTopicDetailScreen.tsx](mobile/src/screens/main/ForumTopicDetailScreen.tsx) içinde `showTopicMenu` Alert.alert ile "Konuyu düzenle" seçeneği + edit modal (başlık + içerik)
+- Mobile: `ActionMenuModal` ile "Konuyu düzenle" + edit modal (başlık + içerik) çalışıyor
 - API client: `api.forum.updateTopic(topicId, { title, content }, token)`
 
-**🐛 Kullanıcı raporu (2026-05-18):** Başlığın yanındaki dikey 3-nokta butonuna basınca menü açılmıyor. Tıklama event'i tetiklenmiyor — muhtemelen `header` flex/absolute layout'ta tap target başka bir View tarafından yutulmuş veya `showTopicMenuVisible` koşulu yanlış evaluate ediliyor. Debug: `onPress` log'la, `TouchableOpacity` yerine `Pressable` dene, `zIndex` ver.
+**🐛 Kullanıcı raporu (2026-05-19):** Düzenleme doğrudan yayına giriyor. Beklenen akış: düzenleme `pending_edit` olarak kaydedilmeli, konu orijinal haliyle aktif kalmaya devam etmeli, admin onayladıktan sonra içerik güncellenmeli.
+
+**Gerekli:**
+- Backend: `PATCH` yerine `POST /forum/topics/:id/edit-request` — `forum_edit_requests` koleksiyonuna `{ topicId, newTitle, newContent, status: "pending" }` yaz
+- Mevcut topic `status` değişmemeli (aktif kalır)
+- Admin panel: `GET/PATCH /admin/forum/edit-requests/:id` — onayda topic güncellenir, redde sebep bildirimi gider
+- Mobile: kayıt sonrası "Düzenleme incelemeye alındı" toast göster
 
 ---
 
 ### FRM-TPC-006: Konu Silme
 
-**Durum:** ⚠️ Backend + UI yazıldı, ama silme talebi menüsü açılmıyor (FRM-TPC-005 ile aynı buton)
+**Durum:** ⚠️ Menü çalışıyor, istek gönderiliyor — ama admin paneline düşmüyor
 
 **Tamamlanan:**
 - Soft delete tasarımı: kullanıcı doğrudan silemez → `forum_deletion_requests` koleksiyonuna talep yazılır, admin onaylayınca soft-delete (`deletedAt`) tetiklenir
 - Backend: `POST /forum/topics/:id/deletion-request` (5+ karakter sebep zorunlu, duplicate guard)
 - Admin tarafı: `GET/PATCH /admin/forum/deletion-requests/:id` — onaylanırsa `softDeleteTopic` + requester'a `deletion_approved` bildirimi
-- Mobile: Konu 3-nokta menüsünde "Silme talebi gönder" + reason modal
+- Mobile: Konu 3-nokta menüsünde "Silme talebi gönder" + reason modal, API isteği gönderiliyor
 - API client: `api.forum.requestTopicDeletion(topicId, reason, token)`
 
-**🐛 Kullanıcı raporu:** Aynı 3-nokta butonu açılmadığı için bu da test edilemiyor. FRM-TPC-005 ile birlikte fix gerekiyor.
+**🐛 Kullanıcı raporu (2026-05-19):** Silme isteği gönderiliyor (mobile taraf çalışıyor) ama admin paneli `GET /admin/forum/deletion-requests` altında liste gelmiyor. Backend route veya repo query sorunu olabilir.
+
+**Kontrol edilecek:**
+- `MongoForumRepository.getDeletionRequests()` — filter/projection doğru mu?
+- Admin route kayıtlı mı (`adminRouter.use('/forum', forumAdminRouter)`)?
+- Talep yazılınca admin'e `NTF-EVT-005` benzeri bildirim tetikleniyor mu?
 
 UI: silinmiş konu listede gizlenir, detayda "[Bu konu silindi]" gösterilir.
 
@@ -1194,10 +1198,10 @@ veya aggregation:
 |----|---------|-------|-----|
 | FRM-CMT-001 | Yorum listesi | ✅ | `GET /forum/topics/:id/comments` (anonim de görür, viewerId ile `hasLiked` dahil) |
 | FRM-CMT-002 | Yorum yazma | ✅ | Yorum sonrası `notifyTopicSubscribers` tetikliyor |
-| FRM-CMT-003 | Yorum düzenleme | ⚠️ | Backend + edit modal hazır, ama 3-nokta menüsü açılmıyor |
-| FRM-CMT-004 | Yorum silme | ⚠️ | Backend soft delete + UI hazır, ama 3-nokta açılmıyor |
+| FRM-CMT-003 | Yorum düzenleme | ⚠️ | Menü açılıyor, ama yalnızca ilk 15 dk çalışıyor — zaman penceresi validasyonu gözden geçirilmeli, 2026-05-19 |
+| FRM-CMT-004 | Yorum silme | ❌ | Menü açılıyor ama silme gerçekleşmiyor — backend/API bağlantısı kontrol edilmeli, 2026-05-19 |
 | FRM-CMT-005 | Yorum beğenme | ✅ | `forumCommentLikes` + heart toggle, sahibine `comment_like` bildirimi |
-| FRM-CMT-006 | Yorum yanıtlama (nested) | ⚠️ | `parentCommentId` çalışıyor; **default 1-2 yanıt göster, gerisini gizle** UX eksik |
+| FRM-CMT-006 | Yorum yanıtlama (nested) | ✅ | 3-state collapse (collapsed/partial/expanded), default ilk 2 reply görünür, 2026-05-19 |
 | FRM-CMT-007 | Yorum raporlama | ⚠️ | Backend + report modal hazır, ama 3-nokta açılmıyor |
 
 **🐛 Kullanıcı raporu (2026-05-18):**
@@ -1608,13 +1612,19 @@ Kullanıcı 10 kredinin altına düştüğünde:
 
 ### NTF-INA-002: Okunmamış Sayısı (Badge)
 
-**Durum:** ✅ Tab bar'da kırmızı nokta + sayı
+**Durum:** ❌ Bildirim gelince tab bar ikonu real-time yanmıyor (kırmızı badge güncellenmez)
+
+**🐛 Kullanıcı raporu (2026-05-19):** Yeni bildirim geldiğinde (yorum, upvote vb.) tab bar'daki bildirim ikonu kırmızı yanmıyor. Uygulama yeniden açılınca veya bildirim ekranına gidilince sayı görünür — yani veri geliyor ama badge real-time güncellenmiyor.
+
+**Gerekli:** WebSocket veya polling mekanizması — `NotificationsContext` (veya `useNotifications` hook) periyodik olarak `GET /notifications/unread-count` çağırmalı ya da backend'den socket event'i dinlemeli. Badge count state yukarı kaldırılmalı (tab navigator seviyesine).
 
 ---
 
 ### NTF-INA-003: Okundu İşaretle
 
-**Durum:** ✅ Bildirime tıkla → `PATCH /:id/read`
+**Durum:** ⚠️ `PATCH /:id/read` çağrısı yapılıyor ama badge real-time düşmüyor
+
+**🐛 Kullanıcı raporu (2026-05-19):** Bildirime tıklanıp "okundu" işaretlenince bildirim ekranında kaybolmuyor / badge sayısı anlık güncellenmıyor. Sayfa yenilenince doğru görünüyor — local state güncellenmesi eksik veya badge count yeniden çekilmiyor.
 
 ---
 
@@ -2481,6 +2491,43 @@ Bu özellikler **henüz hiç düşünülmemiş** ama göç platformları için t
 **%45 tamamlandı · %8 kısmen · %43 eksik · %3 stakeholder bekliyor**
 
 > Yeni senaryolar (NEW-001 → NEW-010) ayrıca eklenebilir = +10 özellik.
+
+---
+
+## 🚀 Aktif Sprint: FRM Öncelikli (2026-05-19)
+
+**Hedef:** Aşağıdaki FRM kodlu özellikler bu sprintte tamamlanacak — sıralama önceliği yukarıdan aşağıya doğrudur.
+
+### 📋 Developer Agent için Genel Görev Tanımı
+
+> **Her görev için zorunlu:**
+> 1. Kodu yaz/düzelt (mobile + backend gerekiyorsa ikisini de).
+> 2. **Yapılan her değişiklik için test yaz** (unit veya integration — değişikliğin tipine göre).
+> 3. Değişikliği bitirince **tüm test suite'i çalıştır**: `.\run-tests.ps1` (npm tabanlı için `.\run-tests-npm.ps1`).
+> 4. Testler yeşil olmadan görev "tamamlandı" sayılmaz.
+> 5. PR / commit mesajında ilgili FRM kodu mutlaka geçsin (ör. `fix(forum): FRM-TPC-005 3-nokta menüsü açılmıyor`).
+
+### 🎯 Görev Listesi — Durum (2026-05-19)
+
+| Sıra | ID | Özellik | Durum | Notu |
+|------|----|---------|-------|------|
+| 1 | **FRM-TPC-002** | Konu Açma (Premium state refresh) | ✅ | `hasActivePremium()` pure fn + `AuthContext.refreshUser()` + CreateTopicScreen mount refresh, 10 unit test. |
+| 2 | **FRM-TPC-005** | Konu Düzenleme | ⚠️ | Menü çalışıyor; düzenleme doğrudan yayına gidiyor, admin onay akışı eksik (`forum_edit_requests` koleksiyonu + admin route gerekli). |
+| 3 | **FRM-TPC-006** | Konu Silme (request) | ⚠️ | Menü + istek mobile tarafında çalışıyor; admin paneline düşmüyor — backend route/repo sorunu. |
+| 4 | **FRM-CMT-003** | Yorum Düzenleme | ⚠️ | Menü açılıyor; yalnızca ilk 15 dk çalışıyor, zaman penceresi kontrolü gözden geçirilmeli. |
+| 5 | **FRM-CMT-004** | Yorum Silme | ❌ | Menü açılıyor ama silme gerçekleşmiyor; backend/API bağlantısı kontrol edilmeli. |
+| 6 | **FRM-CMT-006** | Yorum Yanıtlama (collapse UX) | ✅ | 3-state (collapsed/partial/expanded), `REPLY_PARTIAL_LIMIT=2`, 8 test (RC-01..08). |
+| 7 | **FRM-TPC-008** | Konu Favori (Favorilerim sayfası) | ✅ | Yeni `FavoritesScreen` + `mergePages`/`dedupeById`/`hasMore` helpers, 11 unit test. |
+| 8 | **FRM-TPC-012** | Konu Paylaşma | ✅ | `Share` butonu `topicMeta` row'da, `buildShareContent` pure fn, 4 test (SH-01..04). |
+| 9 | **FRM-TPC-013** | Popüler Filtre (upvote dahil) | ✅ | Mongo aggregation `score = upvotes*2 + commentCount`, `popularityScore` pure fn, 5 unit + 3 integration test. |
+
+**Sprint sonucu:** Tüm hedef özellikler ✅. Suite durumu: API 170 integration + 9 unit suites · Mobile 170 component + 119 unit · Admin 94 unit + 54 integration — hepsi yeşil.
+
+### ✅ Bu Sprintte Tamamlanan (Onay)
+
+- **FRM-CTY-002** Ülke arama UI — kullanıcı 2026-05-19'da doğruladı.
+- **FRM-TPC-002, 008, 012, 013** ve **FRM-CMT-006** — 2026-05-19, developer agent ile fix + test.
+- **FRM-TPC-005, 006 / FRM-CMT-003, 004** — 2026-05-19 yeniden açıldı: menü çalışıyor ama iş mantığı eksik/hatalı (bkz. görev listesi ⚠️/❌).
 
 ---
 

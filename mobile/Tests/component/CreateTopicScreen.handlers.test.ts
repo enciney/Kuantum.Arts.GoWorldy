@@ -1,4 +1,9 @@
-import { validateTopicTitle, canCreateTopicFree, createTopic } from "../../src/screens/main/createTopicHandlers";
+import {
+  validateTopicTitle,
+  canCreateTopicFree,
+  createTopic,
+  buildPostCreateAction,
+} from "../../src/screens/main/createTopicHandlers";
 
 describe("validateTopicTitle()", () => {
   it("CT-01: 10+ karakter başlık geçerlidir", () => {
@@ -57,7 +62,7 @@ describe("createTopic()", () => {
   it("CT-12: geçerli parametrelerle konu oluşturulur", async () => {
     const mockCreate = jest.fn().mockResolvedValue({ id: "tp1", status: "open" });
     const result = await createTopic("cat1", "Bu konu başlığıdır", "tok", { createTopic: mockCreate } as any);
-    expect(mockCreate).toHaveBeenCalledWith("cat1", "Bu konu başlığıdır", "tok");
+    expect(mockCreate).toHaveBeenCalledWith("cat1", "Bu konu başlığıdır", "tok", undefined);
     expect(result.id).toBe("tp1");
     expect(result.status).toBe("open");
   });
@@ -65,7 +70,7 @@ describe("createTopic()", () => {
   it("CT-13: başlık trim edilir", async () => {
     const mockCreate = jest.fn().mockResolvedValue({ id: "tp2", status: "open" });
     await createTopic("cat1", "  Başlık metni   ", "tok", { createTopic: mockCreate } as any);
-    expect(mockCreate).toHaveBeenCalledWith("cat1", "Başlık metni", "tok");
+    expect(mockCreate).toHaveBeenCalledWith("cat1", "Başlık metni", "tok", undefined);
   });
 
   it("CT-14: token yoksa fırlatır — API çağrılmaz", async () => {
@@ -89,5 +94,44 @@ describe("createTopic()", () => {
     await expect(
       createTopic("cat1", "Başlık metni", "tok", { createTopic: mockCreate } as any)
     ).rejects.toThrow("Konu oluşturulamadı");
+  });
+
+  it("CT-17: content parametresi trim edilip API'ye iletilir", async () => {
+    const mockCreate = jest.fn().mockResolvedValue({ id: "tp3", status: "pending" });
+    await createTopic("cat1", "Bu konu başlığıdır", "tok", { createTopic: mockCreate } as any, "  detay  ");
+    expect(mockCreate).toHaveBeenCalledWith("cat1", "Bu konu başlığıdır", "tok", "detay");
+  });
+
+  it("CT-18: boş content undefined olarak iletilir", async () => {
+    const mockCreate = jest.fn().mockResolvedValue({ id: "tp4", status: "pending" });
+    await createTopic("cat1", "Bu konu başlığıdır", "tok", { createTopic: mockCreate } as any, "   ");
+    expect(mockCreate).toHaveBeenCalledWith("cat1", "Bu konu başlığıdır", "tok", undefined);
+  });
+});
+
+describe("buildPostCreateAction()", () => {
+  it("CT-19: staff için 'yayınlandı' success toast döner", () => {
+    const a = buildPostCreateAction({ status: "approved" }, true);
+    expect(a.toast.variant).toBe("success");
+    expect(a.toast.message).toMatch(/yayınlandı/i);
+    expect(a.navigate).toBe("goBack");
+  });
+
+  it("CT-20: normal kullanıcı pending → info 'incelemeye alındı'", () => {
+    const a = buildPostCreateAction({ status: "pending" }, false);
+    expect(a.toast.variant).toBe("info");
+    expect(a.toast.message).toMatch(/incelemeye/i);
+    expect(a.navigate).toBe("goBack");
+  });
+
+  it("CT-21: status approved (premium kullanıcı) → success", () => {
+    const a = buildPostCreateAction({ status: "approved" }, false);
+    expect(a.toast.variant).toBe("success");
+    expect(a.navigate).toBe("goBack");
+  });
+
+  it("CT-22: navigate her zaman goBack — değişmemeli", () => {
+    expect(buildPostCreateAction({ status: "approved" }, true).navigate).toBe("goBack");
+    expect(buildPostCreateAction({ status: "pending" }, false).navigate).toBe("goBack");
   });
 });

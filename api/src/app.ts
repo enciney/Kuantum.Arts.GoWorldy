@@ -38,14 +38,14 @@ export function createApp(options: { skipRateLimit?: boolean } = {}) {
   if (!options.skipRateLimit) {
     const authRateLimit = rateLimit({
       windowMs: 60 * 1000,
-      max: 10,
+      max: parseInt(process.env.RATE_LIMIT_AUTH_MAX ?? "10"),
       standardHeaders: true,
       legacyHeaders: false,
       message: { error: "Çok fazla istek gönderildi. Lütfen bir dakika sonra tekrar deneyin." },
     });
     const generalRateLimit = rateLimit({
       windowMs: 60 * 1000,
-      max: 100,
+      max: parseInt(process.env.RATE_LIMIT_MAX ?? "100"),
       standardHeaders: true,
       legacyHeaders: false,
       message: { error: "Çok fazla istek gönderildi. Lütfen bir dakika sonra tekrar deneyin." },
