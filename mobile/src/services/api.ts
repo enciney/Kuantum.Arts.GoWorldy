@@ -245,11 +245,17 @@ export const api = {
         body: JSON.stringify({ categoryId, title, ...(content ? { content } : {}) }),
         token,
       }),
-    // FRM-TPC-005
+    // FRM-TPC-005: Staff doğrudan düzenler
     updateTopic: (topicId: string, data: { title?: string; content?: string }, token: string) =>
       request<{ id: string; title: string; content?: string; editedAt?: string }>(
         `/forum/topics/${topicId}`,
         { method: "PATCH", body: JSON.stringify(data), token }
+      ),
+    // FRM-TPC-005: Konu sahibi edit-request gönderir
+    requestTopicEdit: (topicId: string, data: { title: string; content?: string }, token: string) =>
+      request<{ id: string; status: string }>(
+        `/forum/topics/${topicId}/edit-request`,
+        { method: "POST", body: JSON.stringify(data), token }
       ),
     // FRM-TPC-006
     requestTopicDeletion: (topicId: string, reason: string, token: string) =>

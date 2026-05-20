@@ -17,6 +17,8 @@ vi.mock("../../src/api", () => ({
     },
     forum: {
       updateTopicStatus: vi.fn(),
+      getEditRequests: vi.fn().mockResolvedValue([]),
+      getDeletionRequests: vi.fn().mockResolvedValue([]),
     },
   },
 }));
@@ -105,7 +107,7 @@ describe("TopicsPage", () => {
   it("renders page heading", () => {
     mockPendingTopics.mockResolvedValue([]);
     renderTopics();
-    expect(screen.getByText("Konu Onay Kuyruğu")).toBeInTheDocument();
+    expect(screen.getByText("Forum Moderasyonu")).toBeInTheDocument();
   });
 
   it("shows loading state initially", () => {
@@ -119,7 +121,7 @@ describe("TopicsPage", () => {
     renderTopics();
 
     expect(await screen.findByText("Onay bekleyen konu yok")).toBeInTheDocument();
-    expect(screen.getByText("0 bekleyen")).toBeInTheDocument();
+    expect(screen.getByText("Bekleyen Konular")).toBeInTheDocument();
   });
 
   it("renders topics table with data", async () => {
@@ -131,7 +133,7 @@ describe("TopicsPage", () => {
     expect(screen.getByText("Ahmet Yılmaz")).toBeInTheDocument();
     expect(screen.getByText("Fatma Kaya")).toBeInTheDocument();
     expect(screen.getByText("Almanya")).toBeInTheDocument();
-    expect(screen.getByText("2 bekleyen")).toBeInTheDocument();
+    expect(screen.getByText("Bekleyen Konular (2)")).toBeInTheDocument();
   });
 
   it("approving a topic removes it from list", async () => {
@@ -155,8 +157,8 @@ describe("TopicsPage", () => {
     const rejectBtns = await screen.findAllByRole("button", { name: "Reddet" });
     fireEvent.click(rejectBtns[0]);
 
-    expect(screen.getByText("Reddetme Sebebi")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Örn:/)).toBeInTheDocument();
+    expect(screen.getByText("Konuyu Reddet")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Sebep girin...")).toBeInTheDocument();
   });
 
   it("modal cancel closes without action", async () => {
@@ -168,7 +170,7 @@ describe("TopicsPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "İptal" }));
 
-    expect(screen.queryByText("Reddetme Sebebi")).not.toBeInTheDocument();
+    expect(screen.queryByText("Konuyu Reddet")).not.toBeInTheDocument();
     expect(mockUpdateTopicStatus).not.toHaveBeenCalled();
   });
 
@@ -180,7 +182,7 @@ describe("TopicsPage", () => {
     const rejectBtns = await screen.findAllByRole("button", { name: "Reddet" });
     fireEvent.click(rejectBtns[0]);
 
-    fireEvent.change(screen.getByPlaceholderText(/Örn:/), {
+    fireEvent.change(screen.getByPlaceholderText("Sebep girin..."), {
       target: { value: "Kurallara aykırı" },
     });
     // Modal has multiple Reddet buttons (table rows + modal confirm) — use the last one (modal)
@@ -195,7 +197,7 @@ describe("TopicsPage", () => {
         "Kurallara aykırı"
       );
     });
-    expect(screen.queryByText("Reddetme Sebebi")).not.toBeInTheDocument();
+    expect(screen.queryByText("Konuyu Reddet")).not.toBeInTheDocument();
   });
 
   it("modal confirm can reject without a reason", async () => {

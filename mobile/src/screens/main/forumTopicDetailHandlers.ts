@@ -194,3 +194,57 @@ export async function upvoteTopic(
   if (!token) throw new Error("Token gerekli");
   return apiForum.upvoteTopic(topicId, token);
 }
+
+// FRM-CMT-004: Modal onayı sonrası yorum silme
+export async function deleteComment(
+  topicId: string,
+  commentId: string,
+  token: string,
+  apiForum: typeof defaultApi.forum = defaultApi.forum
+): Promise<void> {
+  if (!token) throw new Error("Token gerekli");
+  await apiForum.deleteComment(topicId, commentId, token);
+}
+
+export interface DeletionRequestResult {
+  /** Modal kapanmalı mı (başarı veya duplicate) */
+  shouldClose: boolean;
+  /** 409 Conflict — zaten bir talep var */
+  duplicate: boolean;
+}
+
+// FRM-TPC-006: Silme talebi — 409 duplicate durumu sessizce işlenir
+export async function submitTopicDeletionRequest(
+  topicId: string,
+  reason: string,
+  token: string,
+  apiForum: typeof defaultApi.forum = defaultApi.forum
+): Promise<DeletionRequestResult> {
+  if (!token) throw new Error("Token gerekli");
+  const trimmed = reason.trim();
+  if (trimmed.length < 5) throw new Error("Silme sebebi en az 5 karakter olmalı.");
+  try {
+    await apiForum.requestTopicDeletion(topicId, trimmed, token);
+    return { shouldClose: true, duplicate: false };
+  } catch (e: unknown) {
+    const { ApiError } = await import("../../services/api");
+    if (e instanceof ApiError && e.status === 409) {
+      return { shouldClose: true, duplicate: true };
+    }
+    throw e;
+  }
+}
+
+// FRM-TPC-005: Konu sahibi düzenleme talebi gönderir
+export async function submitTopicEditRequest(
+  topicId: string,
+  title: string,
+  content: string | undefined,
+  token: string,
+  apiForum: typeof defaultApi.forum = defaultApi.forum
+): Promise<{ id: string; status: string }> {
+  if (!token) throw new Error("Token gerekli");
+  const trimmedTitle = title.trim();
+  if (trimmedTitle.length < 10) throw new Error("Başlık en az 10 karakter olmalı.");
+  return apiForum.requestTopicEdit(topicId, { title: trimmedTitle, content }, token);
+}

@@ -11,6 +11,7 @@ import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-ico
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../../context/AuthContext";
+import { useNotificationCount } from "../../context/NotificationContext";
 import { api } from "../../services/api";
 import { HomeStackParamList } from "../../navigation/AppNavigator";
 import { Colors, Typography, Spacing, Radius } from "../../theme";
@@ -29,6 +30,7 @@ interface Activity {
 export function HomeScreen() {
   const { user, token } = useAuth();
   const navigation = useNavigation<HomeNav>();
+  const { unreadCount } = useNotificationCount();
   const [homeStats, setHomeStats] = useState({
     countryId: null as string | null,
     countryName: "",
@@ -82,7 +84,14 @@ export function HomeScreen() {
           style={styles.iconBtn}
           activeOpacity={0.6}
         >
-          <Ionicons name="notifications-outline" size={24} color={Colors.neutral} />
+          <View>
+            <Ionicons name="notifications-outline" size={24} color={Colors.neutral} />
+            {unreadCount > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>{unreadCount > 9 ? "9+" : String(unreadCount)}</Text>
+              </View>
+            )}
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -296,6 +305,19 @@ const styles = StyleSheet.create({
   greeting: { fontSize: 22, fontWeight: "bold", color: Colors.textPrimary },
   subtitle: { ...Typography.label, color: Colors.textSecondary, marginTop: 2 },
   iconBtn: { padding: Spacing.sm },
+  bellBadge: {
+    position: "absolute",
+    top: -4,
+    right: -6,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: Colors.danger ?? "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  bellBadgeText: { color: "#fff", fontSize: 9, fontWeight: "700", lineHeight: 11 },
   statsRow: { flexDirection: "row", gap: Spacing.sm, marginBottom: 20 },
   statCard: {
     flex: 1,

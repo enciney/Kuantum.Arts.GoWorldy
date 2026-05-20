@@ -6,6 +6,7 @@ import TopicsPage from "./pages/TopicsPage";
 import UsersPage from "./pages/UsersPage";
 import ConfigPage from "./pages/ConfigPage";
 import PremiumPage from "./pages/PremiumPage";
+import SettingsPage from "./pages/SettingsPage";
 import Layout from "./components/Layout";
 
 function ProtectedRoutes() {
@@ -19,6 +20,7 @@ function ProtectedRoutes() {
         <Route path="/users" element={<UsersPage />} />
         <Route path="/premium" element={<PremiumPage />} />
         <Route path="/config" element={<ConfigPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

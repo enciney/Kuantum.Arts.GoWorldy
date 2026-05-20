@@ -32,23 +32,13 @@ const sampleConfig: AdminConfig = {
     version: "1.0.0",
     url: "https://goworldy.com",
   },
-  forum: {
-    createTopicCost: 10,
-    commentAccessCost: 5,
-    createAdCost: 50,
-    weeklyTopicReward: 20,
-  },
-  premium: {
-    weeklyPrice: 29,
-    monthlyPrice: 99,
-  },
-  guide: {
-    enableNotifications: true,
-    enableRecommendations: false,
-  },
-  notifications: {
-    enableEmail: true,
-    enableInApp: false,
+  server: { port: 3000, nodeEnv: "test", jwtExpiry: "7d" },
+  admin: { email: "admin@goworldy.com" },
+  integrations: {
+    firebaseConfigured: true,
+    stripeConfigured: false,
+    sendgridConfigured: true,
+    googleAuthConfigured: false,
   },
 };
 
@@ -70,7 +60,7 @@ describe("ConfigPage", () => {
   it("renders page heading", async () => {
     mockConfig.mockResolvedValue(sampleConfig);
     renderConfig();
-    expect(screen.getByText("Sistem Ayarları")).toBeInTheDocument();
+    expect(screen.getByText("Sistem Yapılandırması")).toBeInTheDocument();
   });
 
   it("shows read-only notice", async () => {
@@ -136,83 +126,63 @@ describe("ConfigPage", () => {
     });
   });
 
-  // ── Section: Forum Fiyatlandırması ─────────────────────────────────────────
+  // ── Section: Sunucu ───────────────────────────────────────────────────────
 
-  describe("Forum Fiyatlandırması section", () => {
+  describe("Sunucu section", () => {
     it("renders section title", async () => {
       mockConfig.mockResolvedValue(sampleConfig);
       renderConfig();
-      expect(await screen.findByText("Forum Fiyatlandırması")).toBeInTheDocument();
+      expect(await screen.findByText("Sunucu")).toBeInTheDocument();
     });
 
-    it("renders forum prices with TL suffix", async () => {
+    it("renders port, nodeEnv, jwtExpiry", async () => {
       mockConfig.mockResolvedValue(sampleConfig);
       renderConfig();
 
-      expect(await screen.findByText("10 TL")).toBeInTheDocument(); // createTopicCost
-      expect(screen.getByText("5 TL")).toBeInTheDocument();         // commentAccessCost
-      expect(screen.getByText("50 TL")).toBeInTheDocument();        // createAdCost
-      expect(screen.getByText("20 TL")).toBeInTheDocument();        // weeklyTopicReward
-    });
-
-    it("renders row labels", async () => {
-      mockConfig.mockResolvedValue(sampleConfig);
-      renderConfig();
-
-      await screen.findByText("Forum Fiyatlandırması");
-      expect(screen.getByText("Konu Açma Ücreti")).toBeInTheDocument();
-      expect(screen.getByText("Yorum Erişim Ücreti")).toBeInTheDocument();
-      expect(screen.getByText("Reklam Yayınlama Ücreti")).toBeInTheDocument();
-      expect(screen.getByText("Haftalık Konu Ödülü")).toBeInTheDocument();
+      await screen.findByText("Sunucu");
+      expect(screen.getByText("3000")).toBeInTheDocument();
+      expect(screen.getByText("test")).toBeInTheDocument();
+      expect(screen.getByText("7d")).toBeInTheDocument();
     });
   });
 
-  // ── Section: Premium Fiyatlandırması ──────────────────────────────────────
+  // ── Section: Yönetici ─────────────────────────────────────────────────────
 
-  describe("Premium Fiyatlandırması section", () => {
-    it("renders section and values", async () => {
+  describe("Yönetici section", () => {
+    it("renders admin email", async () => {
       mockConfig.mockResolvedValue(sampleConfig);
       renderConfig();
-
-      expect(await screen.findByText("Premium Fiyatlandırması")).toBeInTheDocument();
-      expect(screen.getByText("29 TL")).toBeInTheDocument();
-      expect(screen.getByText("99 TL")).toBeInTheDocument();
-      expect(screen.getByText("Haftalık Üyelik")).toBeInTheDocument();
-      expect(screen.getByText("Aylık Üyelik")).toBeInTheDocument();
+      expect(await screen.findByText("admin@goworldy.com")).toBeInTheDocument();
     });
   });
 
-  // ── Section: Rehber ───────────────────────────────────────────────────────
+  // ── Section: Entegrasyonlar ───────────────────────────────────────────────
 
-  describe("Rehber section", () => {
-    it("renders enabled/disabled status", async () => {
+  describe("Entegrasyonlar section", () => {
+    it("renders section title", async () => {
       mockConfig.mockResolvedValue(sampleConfig);
       renderConfig();
-
-      await screen.findByText("Rehber");
-      // enableNotifications = true → ✅ Etkin
-      const etkinItems = screen.getAllByText("✅ Etkin");
-      expect(etkinItems.length).toBeGreaterThanOrEqual(1);
-
-      // enableRecommendations = false → ❌ Devre Dışı
-      const devreDisi = screen.getAllByText("❌ Devre Dışı");
-      expect(devreDisi.length).toBeGreaterThanOrEqual(1);
+      expect(await screen.findByText("Entegrasyonlar")).toBeInTheDocument();
     });
-  });
 
-  // ── Section: Bildirimler ──────────────────────────────────────────────────
-
-  describe("Bildirimler section", () => {
-    it("renders section labels", async () => {
+    it("renders ✅ Yapılandırıldı for true values", async () => {
       mockConfig.mockResolvedValue(sampleConfig);
       renderConfig();
 
-      // "Bildirimler" appears twice: once as a section title and once as a row label in Rehber section
-      const bildirimlerItems = await screen.findAllByText("Bildirimler");
-      expect(bildirimlerItems.length).toBe(2);
+      await screen.findByText("Entegrasyonlar");
+      // firebaseConfigured=true, sendgridConfigured=true → 2 rows
+      const configured = screen.getAllByText("✅ Yapılandırıldı");
+      expect(configured.length).toBeGreaterThanOrEqual(2);
+    });
 
-      expect(screen.getByText("E-posta Bildirimleri")).toBeInTheDocument();
-      expect(screen.getByText("Uygulama İçi Bildirimler")).toBeInTheDocument();
+    it("renders ❌ Yapılandırılmadı for false values", async () => {
+      mockConfig.mockResolvedValue(sampleConfig);
+      renderConfig();
+
+      await screen.findByText("Entegrasyonlar");
+      // stripeConfigured=false, googleAuthConfigured=false → 2 rows
+      const notConfigured = screen.getAllByText("❌ Yapılandırılmadı");
+      expect(notConfigured.length).toBeGreaterThanOrEqual(2);
     });
   });
 
@@ -221,7 +191,7 @@ describe("ConfigPage", () => {
     renderConfig();
 
     expect(screen.queryByText("Uygulama")).not.toBeInTheDocument();
-    expect(screen.queryByText("Forum Fiyatlandırması")).not.toBeInTheDocument();
+    expect(screen.queryByText("Sunucu")).not.toBeInTheDocument();
+    expect(screen.queryByText("Entegrasyonlar")).not.toBeInTheDocument();
   });
 });
-

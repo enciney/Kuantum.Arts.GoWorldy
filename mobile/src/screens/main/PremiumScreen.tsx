@@ -27,6 +27,7 @@ interface PremiumPackage {
   name: string;
   days: number;
   priceTL: number;
+  features?: string[];
 }
 
 export function PremiumScreen() {

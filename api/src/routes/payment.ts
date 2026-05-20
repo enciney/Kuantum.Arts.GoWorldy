@@ -13,11 +13,6 @@ const CREDIT_PACKAGES = [
   { id: "credits_pack", name: "50 Kredi", credits: 50, priceTL: 99 },
 ];
 
-const PREMIUM_PACKAGES = [
-  { id: "premium_weekly",  name: "Haftalık Premium", days: 7,  priceTL: 199 },
-  { id: "premium_monthly", name: "Aylık Premium",    days: 30, priceTL: 299 },
-];
-
 const CREDITS_GRANT: Record<string, number> = {
   credits_pack: 50,
 };
@@ -36,8 +31,30 @@ const PRICE_MAP: Record<string, string> = {
 export function paymentRoutes(repos: Repositories): Router {
   const router = Router();
 
-  router.get("/packages", (_req, res) => {
-    res.json({ credits: CREDIT_PACKAGES, premium: PREMIUM_PACKAGES });
+  // PRM-PKG-003: premium paketler admin panelden (premiumPlans collection) çekilir
+  router.get("/packages", async (_req, res) => {
+    try {
+      const plans = await repos.premium.getPlans();
+      const premiumPackages = plans
+        .filter((p) => p.isActive)
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          days: p.durationDays,
+          priceTL: p.price,
+          features: p.features,
+        }));
+      res.json({ credits: CREDIT_PACKAGES, premium: premiumPackages });
+    } catch {
+      // DB hatasında fallback — statik paketler
+      res.json({
+        credits: CREDIT_PACKAGES,
+        premium: [
+          { id: "premium_weekly",  name: "Haftalık Premium", days: 7,  priceTL: 199, features: [] },
+          { id: "premium_monthly", name: "Aylık Premium",    days: 30, priceTL: 299, features: [] },
+        ],
+      });
+    }
   });
 
   // GET /my-features — kullanıcının aktif özelliklerini listele

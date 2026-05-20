@@ -6,8 +6,9 @@ import { broadcastPendingTopic } from "./admin";
 
 // FRM-TPC-005: Konu sahibi düzenleme süresi (24 saat)
 const TOPIC_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
-// FRM-CMT-003: Yorum sahibi düzenleme süresi (15 dakika)
-const COMMENT_EDIT_WINDOW_MS = 15 * 60 * 1000;
+// FRM-CMT-003/004: config'den yönetilir, varsayılan 15 dk
+const getCommentEditWindowMs  = () => config.forum.commentEditWindowMinutes * 60 * 1000;
+const getCommentDeleteWindowMs = () => config.forum.commentDeleteWindowMinutes * 60 * 1000;
 
 async function notifyStaff(repos: Repositories, fn: (staffIds: string[]) => Promise<void>): Promise<void> {
   try {
@@ -143,7 +144,7 @@ export function forumRoutes(repos: Repositories): Router {
     res.json(topic);
   });
 
-  // ── FRM-TPC-005: Konu düzenleme ──────────────────────────────────────────────
+  // ── FRM-TPC-005: Staff doğrudan düzenler; sahibi edit-request gönderir ────────
   router.patch("/topics/:id", authMiddleware, async (req: AuthRequest, res) => {
     const topicId = req.params.id as string;
     const { title, content } = req.body;
@@ -161,16 +162,8 @@ export function forumRoutes(repos: Repositories): Router {
     const topic = await repos.forum.getTopicById(topicId);
     if (!topic || topic.deletedAt) return res.status(404).json({ error: "Konu bulunamadı." });
 
-    const isOwner = topic.authorId === req.userId;
     const isStaff = req.userRole === "admin" || req.userRole === "moderator";
-    if (!isOwner && !isStaff) return res.status(403).json({ error: "Bu konuyu düzenleme yetkiniz yok." });
-
-    if (isOwner && !isStaff) {
-      const age = Date.now() - new Date(topic.createdAt).getTime();
-      if (age > TOPIC_EDIT_WINDOW_MS) {
-        return res.status(403).json({ error: "Konu açıldıktan 24 saat sonra düzenlenemez." });
-      }
-    }
+    if (!isStaff) return res.status(403).json({ error: "Doğrudan düzenleme yalnızca yetkililere açık. Düzenleme talebi için /edit-request kullanın." });
 
     const updates: { title?: string; content?: string } = {};
     if (title !== undefined) updates.title = title.trim();
@@ -178,7 +171,71 @@ export function forumRoutes(repos: Repositories): Router {
     await repos.forum.updateTopic(topicId, updates);
 
     const updated = await repos.forum.getTopicById(topicId);
+
+    // Konu sahibi başkasıysa düzenlendiğini bildir
+    if (topic.authorId && topic.authorId !== req.userId) {
+      repos.notifications.create({
+        userId: topic.authorId,
+        type: "edit_approved",
+        title: "Konunuz düzenlendi",
+        message: `"${updates.title ?? topic.title}" başlıklı konunuz bir moderatör tarafından güncellendi.`,
+        targetType: "forum_topic",
+        targetId: topicId,
+      }).catch(() => {});
+    }
+
     res.json(updated);
+  });
+
+  // ── FRM-TPC-005: Konu sahibinin düzenleme talebi (admin onayına gider) ──────
+  router.post("/topics/:id/edit-request", authMiddleware, async (req: AuthRequest, res) => {
+    const topicId = req.params.id as string;
+    const { title, content } = req.body;
+
+    if (typeof title !== "string" || title.trim().length < 10) {
+      return res.status(400).json({ error: "Başlık en az 10 karakter olmalı." });
+    }
+
+    const topic = await repos.forum.getTopicById(topicId);
+    if (!topic || topic.deletedAt) return res.status(404).json({ error: "Konu bulunamadı." });
+
+    const isOwner = topic.authorId === req.userId;
+    if (!isOwner) return res.status(403).json({ error: "Yalnızca konu sahibi düzenleme talebi gönderebilir." });
+
+    const result = await repos.forum.createEditRequest({
+      topicId,
+      requesterId: req.userId!,
+      newTitle: title.trim(),
+      newContent: typeof content === "string" ? content : undefined,
+    });
+
+    // Talep sahibine anında onay bildirimi
+    repos.notifications.create({
+      userId: req.userId!,
+      type: "edit_request",
+      title: "Düzenleme talebiniz alındı",
+      message: `"${topic.title}" başlıklı konu için düzenleme talebiniz moderatöre iletildi. Onaylandığında bildirim alacaksınız.`,
+      targetType: "forum_topic",
+      targetId: topicId,
+    }).catch(() => {});
+
+    // Tüm staff'e bildirim
+    notifyStaff(repos, async (staffIds) => {
+      await Promise.all(
+        staffIds.map((sid) =>
+          repos.notifications.create({
+            userId: sid,
+            type: "edit_request",
+            title: "Konu düzenleme talebi",
+            message: `"${topic.title}" başlıklı konu için düzenleme talebi gönderildi.`,
+            targetType: "forum_topic",
+            targetId: topicId,
+          })
+        )
+      );
+    });
+
+    res.status(201).json(result);
   });
 
   // ── FRM-TPC-006: Konu silme talebi (admin onayı zorunlu) ─────────────────────
@@ -382,8 +439,8 @@ export function forumRoutes(repos: Repositories): Router {
 
     if (isOwner && !isStaff) {
       const age = Date.now() - new Date(comment.createdAt).getTime();
-      if (age > COMMENT_EDIT_WINDOW_MS) {
-        return res.status(403).json({ error: "Yorum yazıldıktan 15 dakika sonra düzenlenemez." });
+      if (age > getCommentEditWindowMs()) {
+        return res.status(403).json({ error: `Yorum yazıldıktan ${config.forum.commentEditWindowMinutes} dakika sonra düzenlenemez.` });
       }
     }
 
@@ -392,7 +449,7 @@ export function forumRoutes(repos: Repositories): Router {
     res.json(updated);
   });
 
-  // ── FRM-CMT-004: Yorum silme (soft delete) ──────────────────────────────────
+  // ── FRM-CMT-004: Yorum silme — ilk N dakika içinde sahibi silebilir, staff her zaman ──
   router.delete("/topics/:topicId/comments/:id", authMiddleware, async (req: AuthRequest, res) => {
     const commentId = req.params.id as string;
 
@@ -403,6 +460,13 @@ export function forumRoutes(repos: Repositories): Router {
     const isStaff = req.userRole === "admin" || req.userRole === "moderator";
 
     if (!isOwner && !isStaff) return res.status(403).json({ error: "Bu yorumu silme yetkiniz yok." });
+
+    if (isOwner && !isStaff) {
+      const age = Date.now() - new Date(comment.createdAt).getTime();
+      if (age > getCommentDeleteWindowMs()) {
+        return res.status(403).json({ error: `Yorum yazıldıktan ${config.forum.commentDeleteWindowMinutes} dakika sonra silinemez.` });
+      }
+    }
 
     await repos.forum.softDeleteComment(commentId, req.userId!);
     res.json({ ok: true });

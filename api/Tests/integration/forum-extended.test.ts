@@ -143,23 +143,31 @@ describe("FRM-TPC-005: PATCH /forum/topics/:id (topic edit)", () => {
     topicId = res.body.id || res.body._id;
   });
 
-  it("owner edits title within 24h → 200 + editedAt set", async () => {
+  it("staff edits title → 200 + editedAt set", async () => {
     const res = await request(app)
       .patch(`/api/forum/topics/${topicId}`)
-      .set("Authorization", `Bearer ${userToken}`)
+      .set("Authorization", `Bearer ${adminToken}`)
       .send({ title: "Yeni başlık metni 10+" });
     expect(res.status).toBe(200);
     expect(res.body.title).toBe("Yeni başlık metni 10+");
     expect(res.body.editedAt).toBeTruthy();
   });
 
-  it("owner edits content → 200", async () => {
+  it("staff edits content → 200", async () => {
     const res = await request(app)
       .patch(`/api/forum/topics/${topicId}`)
-      .set("Authorization", `Bearer ${userToken}`)
+      .set("Authorization", `Bearer ${adminToken}`)
       .send({ content: "yeni içerik metni" });
     expect(res.status).toBe(200);
     expect(res.body.content).toBe("yeni içerik metni");
+  });
+
+  it("owner direct PATCH → 403 (must use /edit-request)", async () => {
+    const res = await request(app)
+      .patch(`/api/forum/topics/${topicId}`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ title: "Sahip direkt düzenleme dene" });
+    expect(res.status).toBe(403);
   });
 
   it("title shorter than 10 chars → 400", async () => {

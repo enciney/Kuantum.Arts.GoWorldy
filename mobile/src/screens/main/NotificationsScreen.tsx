@@ -13,6 +13,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "../../context/AuthContext";
+import { useNotificationCount } from "../../context/NotificationContext";
 import { api } from "../../services/api";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 
@@ -28,6 +29,9 @@ type NotifType =
   | "admin_new_report"
   | "deletion_approved"
   | "deletion_rejected"
+  | "edit_request"
+  | "edit_approved"
+  | "edit_rejected"
   | "system";
 
 interface Notif {
@@ -56,6 +60,7 @@ const FLAG_MAP: Record<string, string> = {
 export function NotificationsScreen() {
   const { token } = useAuth();
   const navigation = useNavigation<any>();
+  const { refreshCount } = useNotificationCount();
   const [tab, setTab] = useState<"feed" | "settings">("feed");
   const [notifs, setNotifs] = useState<Notif[]>([]);
   const [subs, setSubs] = useState<CountrySub[]>([]);
@@ -110,6 +115,7 @@ export function NotificationsScreen() {
     if (!token) return;
     await api.notifications.markAllRead(token).catch((e) => console.warn("notification read error:", e));
     setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
+    refreshCount();
   };
 
   const handleNotifPress = async (notif: Notif) => {
@@ -119,6 +125,7 @@ export function NotificationsScreen() {
       setNotifs((prev) =>
         prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
       );
+      refreshCount();
     }
     if (notif.targetType === "forum_topic" && notif.targetId) {
       navigation.getParent()?.navigate("Forum", {
@@ -263,6 +270,9 @@ const ICON_MAP: Record<NotifType, { name: React.ComponentProps<typeof Ionicons>[
   admin_new_report: { name: "flag", color: Colors.danger },
   deletion_approved: { name: "checkmark-done-circle", color: Colors.secondary },
   deletion_rejected: { name: "close-circle", color: Colors.textMuted },
+  edit_request: { name: "create", color: Colors.warning },
+  edit_approved: { name: "checkmark-circle", color: Colors.secondary },
+  edit_rejected: { name: "close-circle", color: Colors.danger },
   system: { name: "megaphone", color: Colors.warning },
 };
 

@@ -359,6 +359,71 @@ export class MongoForumRepository implements IForumRepository {
     return doc ? toDoc<TopicDeletionRequest>(doc) : null;
   }
 
+  // ── Edit requests (FRM-TPC-005) ───────────────────────────────────────────
+
+  async createEditRequest(data: { topicId: string; requesterId: string; newTitle: string; newContent?: string }): Promise<{ id: string; status: string }> {
+    const { forumEditRequests } = await getCollections();
+    const id = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    await forumEditRequests.insertOne({
+      _id: id,
+      topicId: data.topicId,
+      requesterId: data.requesterId,
+      newTitle: data.newTitle,
+      newContent: data.newContent,
+      status: "pending",
+      createdAt,
+    });
+    return { id, status: "pending" };
+  }
+
+  async getPendingEditRequests(limit: number, offset: number): Promise<unknown[]> {
+    const { forumEditRequests, forumTopics, users } = await getCollections();
+    const docs = await forumEditRequests
+      .find({ status: "pending" })
+      .sort({ createdAt: -1 })
+      .skip(offset)
+      .limit(limit)
+      .toArray();
+    return Promise.all(
+      docs.map(async (d) => {
+        const topic = await forumTopics.findOne({ _id: d.topicId }, { projection: { title: 1 } });
+        const requester = await users.findOne({ _id: d.requesterId }, { projection: { displayName: 1 } });
+        return {
+          id: d._id,
+          topicId: d.topicId,
+          topicTitle: topic?.title ?? "",
+          requesterName: requester?.displayName ?? "",
+          requesterId: d.requesterId,
+          newTitle: d.newTitle,
+          newContent: d.newContent,
+          status: d.status,
+          createdAt: d.createdAt,
+        };
+      })
+    );
+  }
+
+  async resolveEditRequest(id: string, status: "approved" | "rejected", resolvedBy: string, rejectionReason?: string): Promise<{ topicId: string; requesterId: string; newTitle: string; newContent?: string } | null> {
+    const { forumEditRequests, forumTopics } = await getCollections();
+    const update: Record<string, unknown> = {
+      status,
+      resolvedBy,
+      resolvedAt: new Date().toISOString(),
+    };
+    if (rejectionReason !== undefined) update.rejectionReason = rejectionReason;
+    await forumEditRequests.updateOne({ _id: id }, { $set: update });
+    const doc = await forumEditRequests.findOne({ _id: id });
+    if (!doc) return null;
+    if (status === "approved") {
+      await forumTopics.updateOne(
+        { _id: doc.topicId },
+        { $set: { title: doc.newTitle, ...(doc.newContent !== undefined ? { content: doc.newContent } : {}), editedAt: new Date().toISOString() } }
+      );
+    }
+    return { topicId: doc.topicId, requesterId: doc.requesterId, newTitle: doc.newTitle, newContent: doc.newContent };
+  }
+
   // ── Comments ───────────────────────────────────────────────────────────────
 
   async getComments(topicId: string, viewerId?: string): Promise<ForumComment[]> {

@@ -13,6 +13,8 @@ export const COLL = {
   FORUM_TOPIC_FAVORITES:    "forumTopicFavorites",
   FORUM_COMMENT_LIKES:      "forumCommentLikes",
   FORUM_DELETION_REQUESTS:  "forumDeletionRequests",
+  FORUM_EDIT_REQUESTS:      "forumEditRequests",
+  SYSTEM_SETTINGS:          "systemSettings",
   CONTENT_REPORTS:          "contentReports",
   GUIDE_STEPS:              "guideSteps",
   USER_GUIDE_PROGRESS:      "userGuideProgress",
@@ -109,6 +111,31 @@ export interface ForumDeletionRequestDoc {
   rejectionReason?: string;
 }
 
+export interface ForumEditRequestDoc {
+  _id: string;
+  topicId: string;
+  requesterId: string;
+  newTitle: string;
+  newContent?: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  rejectionReason?: string;
+}
+
+export interface SystemSettingsDoc {
+  _id: "singleton";
+  forumCreateTopicCost?: number;
+  forumCommentAccessCost?: number;
+  commentEditWindowMinutes?: number;
+  commentDeleteWindowMinutes?: number;
+  guideEnableNotifications?: boolean;
+  guideEnableRecommendations?: boolean;
+  notificationsEnableEmail?: boolean;
+  notificationsEnableInApp?: boolean;
+}
+
 export interface ContentReportDoc {
   _id: string;
   reporterId: string;
@@ -203,6 +230,8 @@ export interface AppCollections {
   forumTopicFavorites:      Collection<ForumTopicFavoriteDoc>;
   forumCommentLikes:        Collection<ForumCommentLikeDoc>;
   forumDeletionRequests:    Collection<ForumDeletionRequestDoc>;
+  forumEditRequests:        Collection<ForumEditRequestDoc>;
+  systemSettings:           Collection<SystemSettingsDoc>;
   contentReports:           Collection<ContentReportDoc>;
   guideSteps:               Collection<GuideStepDoc>;
   userGuideProgress:        Collection<UserGuideProgressDoc>;
@@ -248,6 +277,8 @@ export async function getCollections(): Promise<AppCollections> {
     userTopicSubscriptions:   d.collection<UserTopicSubscriptionDoc>(COLL.USER_TOPIC_SUBSCRIPTIONS),
     premiumPlans:             d.collection<PremiumPlanDoc>(COLL.PREMIUM_PLANS),
     userFeatures:             d.collection<UserFeatureDoc>(COLL.USER_FEATURES),
+    forumEditRequests:        d.collection<ForumEditRequestDoc>(COLL.FORUM_EDIT_REQUESTS),
+    systemSettings:           d.collection<SystemSettingsDoc>(COLL.SYSTEM_SETTINGS),
   };
 }
 
@@ -268,6 +299,8 @@ async function ensureIndexes(d: Db): Promise<void> {
   await d.collection(COLL.FORUM_COMMENT_LIKES).createIndex({ commentId: 1 });
   await d.collection(COLL.FORUM_DELETION_REQUESTS).createIndex({ topicId: 1 });
   await d.collection(COLL.FORUM_DELETION_REQUESTS).createIndex({ status: 1, createdAt: -1 });
+  await d.collection(COLL.FORUM_EDIT_REQUESTS).createIndex({ topicId: 1 });
+  await d.collection(COLL.FORUM_EDIT_REQUESTS).createIndex({ status: 1, createdAt: -1 });
   await d.collection(COLL.CONTENT_REPORTS).createIndex({ status: 1, createdAt: -1 });
   await d.collection(COLL.CONTENT_REPORTS).createIndex({ reporterId: 1, targetType: 1, targetId: 1 }, { unique: true });
   await d.collection(COLL.CONTENT_REPORTS).createIndex({ targetType: 1, targetId: 1 });

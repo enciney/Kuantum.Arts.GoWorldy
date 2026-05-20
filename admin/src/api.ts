@@ -50,6 +50,25 @@ export const api = {
   forum: {
     updateTopicStatus: (id: string, status: "approved" | "rejected", token: string, reason?: string) =>
       req(`/forum/topics/${id}/status`, { method: "PATCH", body: JSON.stringify({ status, reason }) }, token),
+    getDeletionRequests: (token: string) =>
+      req<DeletionRequest[]>("/admin/forum/deletion-requests", {}, token),
+    resolveDeletionRequest: (id: string, status: "approved" | "rejected", token: string, rejectionReason?: string) =>
+      req<{ ok: boolean }>(`/admin/forum/deletion-requests/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, rejectionReason }),
+      }, token),
+    getEditRequests: (token: string) =>
+      req<EditRequest[]>("/admin/forum/edit-requests", {}, token),
+    resolveEditRequest: (id: string, status: "approved" | "rejected", token: string, rejectionReason?: string) =>
+      req<{ ok: boolean }>(`/admin/forum/edit-requests/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, rejectionReason }),
+      }, token),
+  },
+  settings: {
+    get: (token: string) => req<SystemSettings>("/admin/settings", {}, token),
+    update: (data: Partial<SystemSettings>, token: string) =>
+      req<{ ok: boolean }>("/admin/settings", { method: "PATCH", body: JSON.stringify(data) }, token),
   },
 };
 
@@ -79,10 +98,48 @@ export interface ForumStats {
 
 export interface AdminConfig {
   app: { name: string; version: string; url: string };
-  forum: { createTopicCost: number; commentAccessCost: number; createAdCost: number; weeklyTopicReward: number };
-  premium: { weeklyPrice: number; monthlyPrice: number };
-  guide: { enableNotifications: boolean; enableRecommendations: boolean };
-  notifications: { enableEmail: boolean; enableInApp: boolean };
+  server: { port: number; nodeEnv: string; jwtExpiry: string };
+  admin: { email: string };
+  integrations: {
+    firebaseConfigured: boolean;
+    stripeConfigured: boolean;
+    sendgridConfigured: boolean;
+    googleAuthConfigured: boolean;
+  };
+}
+
+export interface SystemSettings {
+  forumCreateTopicCost: number;
+  forumCommentAccessCost: number;
+  commentEditWindowMinutes: number;
+  commentDeleteWindowMinutes: number;
+  guideEnableNotifications: boolean;
+  guideEnableRecommendations: boolean;
+  notificationsEnableEmail: boolean;
+  notificationsEnableInApp: boolean;
+}
+
+export interface DeletionRequest {
+  id: string;
+  topicId: string;
+  topicTitle: string;
+  requesterId: string;
+  requesterName: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+}
+
+export interface EditRequest {
+  id: string;
+  topicId: string;
+  topicTitle: string;
+  requesterId: string;
+  requesterName: string;
+  newTitle: string;
+  newContent?: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
 }
 
 export interface Topic {

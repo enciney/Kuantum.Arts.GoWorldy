@@ -49,11 +49,10 @@ describe("Config Integration — Sistem Ayarları", () => {
   it("config API'dan yüklenir ve tüm section'lar görüntülenir", async () => {
     renderConfig();
 
-    // Section başlıkları
     expect(await screen.findByText("Uygulama")).toBeInTheDocument();
-    expect(screen.getByText("Forum Fiyatlandırması")).toBeInTheDocument();
-    expect(screen.getByText("Premium Fiyatlandırması")).toBeInTheDocument();
-    expect(screen.getByText("Rehber")).toBeInTheDocument();
+    expect(screen.getByText("Sunucu")).toBeInTheDocument();
+    expect(screen.getByText("Yönetici")).toBeInTheDocument();
+    expect(screen.getByText("Entegrasyonlar")).toBeInTheDocument();
   });
 
   it("uygulama bilgileri doğru gösterilir", async () => {
@@ -64,35 +63,33 @@ describe("Config Integration — Sistem Ayarları", () => {
     expect(screen.getByText("https://goworldy.com")).toBeInTheDocument();
   });
 
-  it("forum fiyatları TL suffix ile gösterilir", async () => {
+  it("sunucu bilgileri doğru gösterilir", async () => {
     renderConfig();
 
-    await screen.findByText("Forum Fiyatlandırması");
-    expect(screen.getByText("10 TL")).toBeInTheDocument();
-    expect(screen.getByText("5 TL")).toBeInTheDocument();
-    expect(screen.getByText("50 TL")).toBeInTheDocument();
-    expect(screen.getByText("20 TL")).toBeInTheDocument();
+    await screen.findByText("Sunucu");
+    expect(screen.getByText("3000")).toBeInTheDocument();
+    expect(screen.getByText("test")).toBeInTheDocument();
+    expect(screen.getByText("7d")).toBeInTheDocument();
   });
 
-  it("premium fiyatları gösterilir", async () => {
+  it("admin e-postası gösterilir", async () => {
     renderConfig();
 
-    await screen.findByText("Premium Fiyatlandırması");
-    expect(screen.getByText("29 TL")).toBeInTheDocument();
-    expect(screen.getByText("99 TL")).toBeInTheDocument();
+    await screen.findByText("Yönetici");
+    expect(screen.getByText("admin@goworldy.com")).toBeInTheDocument();
   });
 
-  it("boolean değerler ✅ Etkin / ❌ Devre Dışı olarak gösterilir", async () => {
+  it("entegrasyon durumları ✅ Yapılandırıldı / ❌ Yapılandırılmadı olarak gösterilir", async () => {
     renderConfig();
 
-    await screen.findByText("Rehber");
-    // enableNotifications: true, enableRecommendations: true → iki ✅ Etkin
-    const etkinItems = screen.getAllByText("✅ Etkin");
-    expect(etkinItems.length).toBeGreaterThanOrEqual(2);
+    await screen.findByText("Entegrasyonlar");
+    // firebaseConfigured=true, sendgridConfigured=true → iki ✅ Yapılandırıldı
+    const configured = screen.getAllByText("✅ Yapılandırıldı");
+    expect(configured.length).toBeGreaterThanOrEqual(2);
 
-    // enableInApp: false → bir ❌ Devre Dışı
-    const devreDisi = screen.getAllByText("❌ Devre Dışı");
-    expect(devreDisi.length).toBeGreaterThanOrEqual(1);
+    // stripeConfigured=false, googleAuthConfigured=false → iki ❌ Yapılandırılmadı
+    const notConfigured = screen.getAllByText("❌ Yapılandırılmadı");
+    expect(notConfigured.length).toBeGreaterThanOrEqual(2);
   });
 
   it("salt okunur uyarısı görüntülenir", async () => {
@@ -128,12 +125,11 @@ describe("Config Integration — Sistem Ayarları", () => {
   it("yükleme tamamlanınca 'Yükleniyor...' kaybolur ve veriler gösterilir", async () => {
     renderConfig();
 
-    // Veri geldikten sonra loading kalkar ve içerik görünür
     await waitFor(() => {
       expect(screen.queryByText("Yükleniyor...")).not.toBeInTheDocument();
     });
     expect(screen.getByText("GoWorldy")).toBeInTheDocument();
-    expect(screen.getByText("Forum Fiyatlandırması")).toBeInTheDocument();
+    expect(screen.getByText("Sunucu")).toBeInTheDocument();
   });
 });
 

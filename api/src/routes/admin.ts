@@ -123,31 +123,82 @@ export function adminRoutes(repos: Repositories): Router {
     }
   });
 
+  // Sadece uygulamanın ayağa kalkması için gereken kritik bilgiler (salt okunur)
+  // Forum/premium fiyatları ve özellik bayrakları artık admin settings (DB) tarafında
   router.get("/config", authMiddleware, requireRole("admin"), async (_req, res) => {
     res.json({
       app: config.app,
-      forum: config.forum,
-      premium: config.premium,
-      guide: config.guide,
-      notifications: config.notifications,
+      server: {
+        port: config.port,
+        nodeEnv: process.env.NODE_ENV || "development",
+        jwtExpiry: config.jwtExpiry,
+      },
+      admin: {
+        email: config.admin.email,
+      },
+      integrations: {
+        firebaseConfigured: !!(config.firebase.projectId && config.firebase.clientEmail),
+        stripeConfigured: !!config.stripe.secretKey,
+        sendgridConfigured: !!config.sendgrid.apiKey,
+        googleAuthConfigured: !!config.google.webClientId,
+      },
     });
   });
 
-  router.get("/config/forum/pricing", authMiddleware, requireRole("admin"), async (_req, res) => {
-    res.json({
-      createTopicCost: config.forum.createTopicCost,
-      commentAccessCost: config.forum.commentAccessCost,
-      createAdCost: config.forum.createAdCost,
-      weeklyTopicReward: config.forum.weeklyTopicReward,
-    });
+  // ── Sistem Ayarları (DB'de saklanır, env fallback) ──────────────────────────
+  router.get("/settings", authMiddleware, requireRole("admin"), async (_req, res) => {
+    try {
+      const { systemSettings } = await (await import("../repositories/mongodb/db")).getCollections();
+      const doc = await systemSettings.findOne({ _id: "singleton" });
+      res.json({
+        forumCreateTopicCost: doc?.forumCreateTopicCost ?? config.forum.createTopicCost,
+        forumCommentAccessCost: doc?.forumCommentAccessCost ?? config.forum.commentAccessCost,
+        commentEditWindowMinutes: doc?.commentEditWindowMinutes ?? config.forum.commentEditWindowMinutes,
+        commentDeleteWindowMinutes: doc?.commentDeleteWindowMinutes ?? config.forum.commentDeleteWindowMinutes,
+        guideEnableNotifications: doc?.guideEnableNotifications ?? config.guide.enableNotifications,
+        guideEnableRecommendations: doc?.guideEnableRecommendations ?? config.guide.enableRecommendations,
+        notificationsEnableEmail: doc?.notificationsEnableEmail ?? config.notifications.enableEmail,
+        notificationsEnableInApp: doc?.notificationsEnableInApp ?? config.notifications.enableInApp,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
   });
 
-  router.get("/config/premium/pricing", authMiddleware, requireRole("admin"), async (_req, res) => {
-    res.json({
-      weeklyPrice: config.premium.weeklyPrice,
-      monthlyPrice: config.premium.monthlyPrice,
-      credits: config.premium.credits,
-    });
+  router.patch("/settings", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
+    try {
+      const allowed = [
+        "forumCreateTopicCost", "forumCommentAccessCost",
+        "commentEditWindowMinutes", "commentDeleteWindowMinutes",
+        "guideEnableNotifications", "guideEnableRecommendations",
+        "notificationsEnableEmail", "notificationsEnableInApp",
+      ];
+      const update: Record<string, unknown> = {};
+      for (const key of allowed) {
+        if (req.body[key] !== undefined) update[key] = req.body[key];
+      }
+      if (Object.keys(update).length === 0) {
+        return res.status(400).json({ error: "Güncellenecek alan bulunamadı." });
+      }
+      const { systemSettings } = await (await import("../repositories/mongodb/db")).getCollections();
+      await systemSettings.updateOne(
+        { _id: "singleton" },
+        { $set: update },
+        { upsert: true }
+      );
+      // config nesnesini de güncelle (process restart gerekmeden etkinleşsin)
+      if (update.forumCreateTopicCost !== undefined) config.forum.createTopicCost = update.forumCreateTopicCost as number;
+      if (update.forumCommentAccessCost !== undefined) config.forum.commentAccessCost = update.forumCommentAccessCost as number;
+      if (update.commentEditWindowMinutes !== undefined) config.forum.commentEditWindowMinutes = update.commentEditWindowMinutes as number;
+      if (update.commentDeleteWindowMinutes !== undefined) config.forum.commentDeleteWindowMinutes = update.commentDeleteWindowMinutes as number;
+      if (update.guideEnableNotifications !== undefined) config.guide.enableNotifications = update.guideEnableNotifications as boolean;
+      if (update.guideEnableRecommendations !== undefined) config.guide.enableRecommendations = update.guideEnableRecommendations as boolean;
+      if (update.notificationsEnableEmail !== undefined) config.notifications.enableEmail = update.notificationsEnableEmail as boolean;
+      if (update.notificationsEnableInApp !== undefined) config.notifications.enableInApp = update.notificationsEnableInApp as boolean;
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
   });
 
   // ── SSE: Real-time pending topic stream ──────────────────────────────────────
@@ -342,6 +393,62 @@ export function adminRoutes(repos: Repositories): Router {
       }
 
       res.json(resolved);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── FRM-TPC-005: Konu düzenleme talebi kuyruğu ──────────────────────────────
+  router.get("/forum/edit-requests", authMiddleware, requireRole("admin", "moderator"), async (req, res) => {
+    try {
+      const limit = Math.min(Number(req.query.limit) || 50, 100);
+      const offset = Number(req.query.offset) || 0;
+      const requests = await repos.forum.getPendingEditRequests(limit, offset);
+      res.json(requests);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.patch("/forum/edit-requests/:id", authMiddleware, requireRole("admin", "moderator"), async (req: AuthRequest, res) => {
+    try {
+      const { status, rejectionReason } = req.body;
+      if (status !== "approved" && status !== "rejected") {
+        return res.status(400).json({ error: "status 'approved' veya 'rejected' olmalı." });
+      }
+      if (status === "rejected" && (typeof rejectionReason !== "string" || rejectionReason.trim().length < 5)) {
+        return res.status(400).json({ error: "Reddetme sebebi en az 5 karakter olmalı." });
+      }
+
+      const result = await repos.forum.resolveEditRequest(
+        req.params.id as string,
+        status,
+        req.userId!,
+        status === "rejected" ? rejectionReason.trim() : undefined
+      );
+      if (!result) return res.status(404).json({ error: "Talep bulunamadı." });
+
+      if (status === "approved") {
+        repos.notifications.create({
+          userId: result.requesterId,
+          type: "edit_approved",
+          title: "Düzenleme talebiniz onaylandı",
+          message: `"${result.newTitle}" başlıklı düzenleme talebiniz yayına alındı.`,
+          targetType: "forum_topic",
+          targetId: result.topicId,
+        }).catch(() => {});
+      } else {
+        repos.notifications.create({
+          userId: result.requesterId,
+          type: "edit_rejected",
+          title: "Düzenleme talebiniz reddedildi",
+          message: `Düzenleme talebiniz reddedildi. Sebep: ${rejectionReason}`,
+          targetType: "forum_topic",
+          targetId: result.topicId,
+        }).catch(() => {});
+      }
+
+      res.json({ ok: true, ...result });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }

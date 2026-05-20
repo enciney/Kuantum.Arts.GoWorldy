@@ -79,6 +79,8 @@ export const config = {
     commentAccessCost: Number(process.env.FORUM_COMMENT_ACCESS_COST) || 50,
     createAdCost: Number(process.env.FORUM_CREATE_AD_COST) || 50,
     weeklyTopicReward: Number(process.env.FORUM_WEEKLY_TOPIC_REWARD) || 1,
+    commentEditWindowMinutes: Number(process.env.COMMENT_EDIT_WINDOW_MINUTES) || 15,
+    commentDeleteWindowMinutes: Number(process.env.COMMENT_DELETE_WINDOW_MINUTES) || 15,
   },
 
   premium: {

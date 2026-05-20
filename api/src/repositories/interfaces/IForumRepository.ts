@@ -106,6 +106,11 @@ export interface IForumRepository {
   getPendingDeletionRequests(limit: number, offset: number): Promise<TopicDeletionRequest[]>;
   resolveDeletionRequest(id: string, status: "approved" | "rejected", resolvedBy: string, rejectionReason?: string): Promise<TopicDeletionRequest | null>;
 
+  // Edit requests (FRM-TPC-005)
+  createEditRequest(data: { topicId: string; requesterId: string; newTitle: string; newContent?: string }): Promise<{ id: string; status: string }>;
+  getPendingEditRequests(limit: number, offset: number): Promise<unknown[]>;
+  resolveEditRequest(id: string, status: "approved" | "rejected", resolvedBy: string, rejectionReason?: string): Promise<{ topicId: string; requesterId: string; newTitle: string; newContent?: string } | null>;
+
   // Comments
   getComments(topicId: string, viewerId?: string): Promise<ForumComment[]>;
   getCommentById(id: string): Promise<ForumComment | null>;

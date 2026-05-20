@@ -101,8 +101,8 @@ Her feature **3 segment**ten oluşan benzersiz bir ID'ye sahiptir:
 | [USR-TPC-001](#usr-tpc-001-kullanıcının-konuları) | Kullanıcının açtığı konular | ✅ |
 | [USR-TPC-002](#usr-tpc-002-mytopics-sayfalama) | MyTopics sayfalama | ❌ |
 | [USR-CMT-001](#usr-cmt-001-kullanıcının-yorumları) | Kullanıcının yorumları | ✅ |
-| [USR-PRV-001](#usr-prv-001-telefon-numarası-paylaşımı) | Telefon numarası paylaşımı | ⚠️ |
-| [USR-PRV-002](#usr-prv-002-telefon-format-validasyonu) | Telefon format validasyonu (+90/05xx) | ❌ |
+| [USR-PRV-001](#usr-prv-001-telefon-numarası-paylaşımı) | Telefon numarası paylaşımı | ✅ |
+| [USR-PRV-002](#usr-prv-002-telefon-format-validasyonu) | Telefon format validasyonu (+90/05xx) | ✅ |
 
 ### FRM — Forum (24 feature)
 
@@ -178,14 +178,14 @@ Her feature **3 segment**ten oluşan benzersiz bir ID'ye sahiptir:
 | ID | Özellik | Durum |
 |----|---------|-------|
 | [NTF-INA-001](#ntf-ina-001-in-app-bildirim-listesi) | In-app bildirim listesi | ✅ |
-| [NTF-INA-002](#ntf-ina-002-okunmamış-sayısı-badge) | Okunmamış sayısı (badge) | ❌ |
-| [NTF-INA-003](#ntf-ina-003-bildirimi-okundu-işaretle) | Bildirimi okundu işaretle | ⚠️ |
+| [NTF-INA-002](#ntf-ina-002-okunmamış-sayısı-badge) | Okunmamış sayısı (badge) | ✅ |
+| [NTF-INA-003](#ntf-ina-003-bildirimi-okundu-işaretle) | Bildirimi okundu işaretle | ✅ |
 | [NTF-INA-004](#ntf-ina-004-tümünü-okundu) | Tümünü okundu işaretle | ✅ |
 | [NTF-INA-005](#ntf-ina-005-bildirimi-silme) | Bildirimi silme | ❌ |
 | [NTF-INA-006](#ntf-ina-006-bildirim-grupla-aynı-konu-için-3-kişi-yorum-yaptı) | Bildirim grupla (aynı konu için "3 kişi yorum yaptı") | ❌ |
-| [NTF-EVT-001](#ntf-evt-001-konu-onay-sürecine-alındı) | "Konunuz onay sürecine alındı" bildirimi | ⚠️ |
-| [NTF-EVT-002](#ntf-evt-002-konu-onaylandı) | "Konunuz onaylandı 🎉" bildirimi | ⚠️ |
-| [NTF-EVT-003](#ntf-evt-003-konu-reddedildi-sebep) | "Konunuz reddedildi (sebep)" bildirimi | ⚠️ |
+| [NTF-EVT-001](#ntf-evt-001-konu-onay-sürecine-alındı) | "Konunuz onay sürecine alındı" bildirimi | ✅ |
+| [NTF-EVT-002](#ntf-evt-002-konu-onaylandı) | "Konunuz onaylandı 🎉" bildirimi | ✅ |
+| [NTF-EVT-003](#ntf-evt-003-konu-reddedildi-sebep) | "Konunuz reddedildi (sebep)" bildirimi | ✅ |
 | [NTF-EVT-004](#ntf-evt-004-yeni-yorum-konu-sahibine) | "Yeni yorum (konu sahibine)" bildirimi | ⚠️ |
 | [NTF-EVT-005](#ntf-evt-005-admine-yeni-pending-konu) | "Admin'e yeni pending konu" bildirimi | ⚠️ |
 
@@ -846,13 +846,13 @@ GET    /users/:id/following
 
 ### USR-PRV-001: Telefon Numarası Paylaşımı
 
-**Durum:** ⚠️ Kaydediliyor ama format kontrol yok
+**Durum:** ✅ Çalışıyor
 
 ---
 
 ### USR-PRV-002: Telefon Format Validasyonu
 
-**Durum:** ❌ Eksik
+**Durum:** ✅ Çalışıyor
 
 **Regex:**
 ```ts
@@ -1198,8 +1198,8 @@ veya aggregation:
 |----|---------|-------|-----|
 | FRM-CMT-001 | Yorum listesi | ✅ | `GET /forum/topics/:id/comments` (anonim de görür, viewerId ile `hasLiked` dahil) |
 | FRM-CMT-002 | Yorum yazma | ✅ | Yorum sonrası `notifyTopicSubscribers` tetikliyor |
-| FRM-CMT-003 | Yorum düzenleme | ⚠️ | Menü açılıyor, ama yalnızca ilk 15 dk çalışıyor — zaman penceresi validasyonu gözden geçirilmeli, 2026-05-19 |
-| FRM-CMT-004 | Yorum silme | ❌ | Menü açılıyor ama silme gerçekleşmiyor — backend/API bağlantısı kontrol edilmeli, 2026-05-19 |
+| FRM-CMT-003 | Yorum düzenleme | ✅ | İlk 15 dk düzenleme penceresi — tasarım gereği (staff sınırsız). Pencere süresi `COMMENT_EDIT_WINDOW_MINUTES` config'den yönetilir. |
+| FRM-CMT-004 | Yorum silme | ✅ | İlk 15 dk silme penceresi — admin onayı gerekmez, `COMMENT_DELETE_WINDOW_MINUTES` config'den yönetilir. |
 | FRM-CMT-005 | Yorum beğenme | ✅ | `forumCommentLikes` + heart toggle, sahibine `comment_like` bildirimi |
 | FRM-CMT-006 | Yorum yanıtlama (nested) | ✅ | 3-state collapse (collapsed/partial/expanded), default ilk 2 reply görünür, 2026-05-19 |
 | FRM-CMT-007 | Yorum raporlama | ⚠️ | Backend + report modal hazır, ama 3-nokta açılmıyor |
@@ -2512,16 +2512,16 @@ Bu özellikler **henüz hiç düşünülmemiş** ama göç platformları için t
 | Sıra | ID | Özellik | Durum | Notu |
 |------|----|---------|-------|------|
 | 1 | **FRM-TPC-002** | Konu Açma (Premium state refresh) | ✅ | `hasActivePremium()` pure fn + `AuthContext.refreshUser()` + CreateTopicScreen mount refresh, 10 unit test. |
-| 2 | **FRM-TPC-005** | Konu Düzenleme | ⚠️ | Menü çalışıyor; düzenleme doğrudan yayına gidiyor, admin onay akışı eksik (`forum_edit_requests` koleksiyonu + admin route gerekli). |
-| 3 | **FRM-TPC-006** | Konu Silme (request) | ⚠️ | Menü + istek mobile tarafında çalışıyor; admin paneline düşmüyor — backend route/repo sorunu. |
-| 4 | **FRM-CMT-003** | Yorum Düzenleme | ⚠️ | Menü açılıyor; yalnızca ilk 15 dk çalışıyor, zaman penceresi kontrolü gözden geçirilmeli. |
-| 5 | **FRM-CMT-004** | Yorum Silme | ❌ | Menü açılıyor ama silme gerçekleşmiyor; backend/API bağlantısı kontrol edilmeli. |
+| 2 | **FRM-TPC-005** | Konu Düzenleme | ✅ | Konu sahibi → `POST /edit-request` (admin onayına gider, konu aktif kalır); staff → doğrudan PATCH. `forum_edit_requests` koleksiyonu, admin UI sekmesi eklendi. |
+| 3 | **FRM-TPC-006** | Konu Silme (request) | ✅ | Admin paneli sekmeli yapıya alındı: "Bekleyen / Düzenleme / Silme Talepleri". Silme talepleri artık admin UI'da görünüyor. |
+| 4 | **FRM-CMT-003** | Yorum Düzenleme | ✅ | 15 dk penceresi tasarım gereği. `COMMENT_EDIT_WINDOW_MINUTES` config'den yönetilir (Admin → Ayarlar → Forum Ayarları). |
+| 5 | **FRM-CMT-004** | Yorum Silme | ✅ | 15 dk içinde silinebilir. `COMMENT_DELETE_WINDOW_MINUTES` config'den yönetilir. ActionMenuModal → Alert arası 300ms gecikme (Android z-index fix). |
 | 6 | **FRM-CMT-006** | Yorum Yanıtlama (collapse UX) | ✅ | 3-state (collapsed/partial/expanded), `REPLY_PARTIAL_LIMIT=2`, 8 test (RC-01..08). |
 | 7 | **FRM-TPC-008** | Konu Favori (Favorilerim sayfası) | ✅ | Yeni `FavoritesScreen` + `mergePages`/`dedupeById`/`hasMore` helpers, 11 unit test. |
 | 8 | **FRM-TPC-012** | Konu Paylaşma | ✅ | `Share` butonu `topicMeta` row'da, `buildShareContent` pure fn, 4 test (SH-01..04). |
 | 9 | **FRM-TPC-013** | Popüler Filtre (upvote dahil) | ✅ | Mongo aggregation `score = upvotes*2 + commentCount`, `popularityScore` pure fn, 5 unit + 3 integration test. |
 
-**Sprint sonucu:** Tüm hedef özellikler ✅. Suite durumu: API 170 integration + 9 unit suites · Mobile 170 component + 119 unit · Admin 94 unit + 54 integration — hepsi yeşil.
+**Sprint sonucu (2026-05-20 güncelleme):** Tüm hedef özellikler ✅. tsc: api · mobile · admin — 0 hata. Yeni: `forum_edit_requests` + `systemSettings` koleksiyonları, Admin Ayarlar sayfası (düzenlenebilir), NTF-INA-002 polling (30s), PRM-PKG-003 dinamik fiyatlar.
 
 ### ✅ Bu Sprintte Tamamlanan (Onay)
 

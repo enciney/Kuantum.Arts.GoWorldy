@@ -13,7 +13,10 @@ export interface Notification {
     | "admin_deletion_request"
     | "admin_new_report"
     | "deletion_approved"
-    | "deletion_rejected";
+    | "deletion_rejected"
+    | "edit_request"
+    | "edit_approved"
+    | "edit_rejected";
   title: string;
   message: string;
   targetType?: "forum_topic" | "admin_queue" | "forum_comment" | null;

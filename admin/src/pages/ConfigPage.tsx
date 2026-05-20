@@ -3,7 +3,10 @@ import { useAuth } from "../AuthContext";
 import { api, AdminConfig } from "../api";
 
 function Row({ label, value }: { label: string; value: string | number | boolean }) {
-  const display = typeof value === "boolean" ? (value ? "✅ Etkin" : "❌ Devre Dışı") : String(value);
+  const isBool = typeof value === "boolean";
+  const display = isBool
+    ? (value ? "✅ Yapılandırıldı" : "❌ Yapılandırılmadı")
+    : String(value);
   return (
     <tr>
       <td style={css.rowLabel}>{label}</td>
@@ -39,8 +42,12 @@ export default function ConfigPage() {
 
   return (
     <div>
-      <h2 style={css.heading}>Sistem Ayarları</h2>
-      <p style={css.subheading}>Mevcut konfigürasyon değerleri (salt okunur — değiştirmek için .env.development dosyasını güncelleyin).</p>
+      <h2 style={css.heading}>Sistem Yapılandırması</h2>
+      <p style={css.subheading}>
+        Uygulamanın ayağa kalkması için gereken kritik yapılandırma değerleri (salt okunur).
+        Forum fiyatları, premium paketler ve özellik bayrakları için{" "}
+        <a href="/settings" style={{ color: "#2563EB" }}>Ayarlar</a> sayfasını kullanın.
+      </p>
 
       {error && <div style={css.error}>{error}</div>}
 
@@ -54,26 +61,21 @@ export default function ConfigPage() {
             <Row label="URL" value={cfg.app.url} />
           </Section>
 
-          <Section title="Forum Fiyatlandırması">
-            <Row label="Konu Açma Ücreti" value={`${cfg.forum.createTopicCost} TL`} />
-            <Row label="Yorum Erişim Ücreti" value={`${cfg.forum.commentAccessCost} TL`} />
-            <Row label="Reklam Yayınlama Ücreti" value={`${cfg.forum.createAdCost} TL`} />
-            <Row label="Haftalık Konu Ödülü" value={`${cfg.forum.weeklyTopicReward} TL`} />
+          <Section title="Sunucu">
+            <Row label="Port" value={cfg.server.port} />
+            <Row label="Ortam" value={cfg.server.nodeEnv} />
+            <Row label="JWT Süresi" value={cfg.server.jwtExpiry} />
           </Section>
 
-          <Section title="Premium Fiyatlandırması">
-            <Row label="Haftalık Üyelik" value={`${cfg.premium.weeklyPrice} TL`} />
-            <Row label="Aylık Üyelik" value={`${cfg.premium.monthlyPrice} TL`} />
+          <Section title="Yönetici">
+            <Row label="Admin E-posta" value={cfg.admin.email} />
           </Section>
 
-          <Section title="Rehber">
-            <Row label="Bildirimler" value={cfg.guide.enableNotifications} />
-            <Row label="Öneriler" value={cfg.guide.enableRecommendations} />
-          </Section>
-
-          <Section title="Bildirimler">
-            <Row label="E-posta Bildirimleri" value={cfg.notifications.enableEmail} />
-            <Row label="Uygulama İçi Bildirimler" value={cfg.notifications.enableInApp} />
+          <Section title="Entegrasyonlar">
+            <Row label="Firebase (Google Auth)" value={cfg.integrations.firebaseConfigured} />
+            <Row label="Stripe (Ödeme)" value={cfg.integrations.stripeConfigured} />
+            <Row label="SendGrid (E-posta)" value={cfg.integrations.sendgridConfigured} />
+            <Row label="Google OAuth" value={cfg.integrations.googleAuthConfigured} />
           </Section>
         </>
       ) : null}

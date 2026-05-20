@@ -4,10 +4,11 @@ import { useAuth } from "../AuthContext";
 
 const NAV: { to: string; label: string }[] = [
   { to: "/", label: "Dashboard" },
-  { to: "/topics", label: "Konu Onayı" },
+  { to: "/topics", label: "Forum Moderasyonu" },
   { to: "/users", label: "Kullanıcılar" },
   { to: "/premium", label: "Premium" },
-  { to: "/config", label: "Ayarlar" },
+  { to: "/settings", label: "Ayarlar" },
+  { to: "/config", label: "Config (Salt-okunur)" },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {

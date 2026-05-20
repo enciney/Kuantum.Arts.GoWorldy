@@ -1,15 +1,15 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { NavigationContainer, useNavigationContainerRef } from "@react-navigation/native";
+import React from "react";
+import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { AppState, AppStateStatus, View, ActivityIndicator, StyleSheet, Text } from "react-native";
+import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "../theme";
 
 import { useAuth } from "../context/AuthContext";
-import { api } from "../services/api";
+import { NotificationProvider, useNotificationCount } from "../context/NotificationContext";
 import { LoginScreen } from "../screens/auth/LoginScreen";
 import { RegisterScreen } from "../screens/auth/RegisterScreen";
 import { ForgotPasswordScreen } from "../screens/auth/ForgotPasswordScreen";
@@ -157,34 +157,10 @@ const badgeStyles = StyleSheet.create({
   text: { color: "#fff", fontSize: 10, fontWeight: "700", lineHeight: 12 },
 });
 
-function useUnreadCount(token: string | null): number {
-  const [count, setCount] = useState(0);
-
-  const refresh = useCallback(async () => {
-    if (!token) return;
-    try {
-      const { count: c } = await api.notifications.getUnreadCount(token);
-      setCount(c);
-    } catch (_) {}
-  }, [token]);
-
-  // Fetch on mount and when app comes to foreground
-  useEffect(() => {
-    refresh();
-    const sub = AppState.addEventListener("change", (state: AppStateStatus) => {
-      if (state === "active") refresh();
-    });
-    return () => sub.remove();
-  }, [refresh]);
-
-  return count;
-}
-
 function MainTabs() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = 52 + insets.bottom;
-  const { token } = useAuth();
-  const unreadCount = useUnreadCount(token);
+  const { unreadCount } = useNotificationCount();
 
   return (
     <MainTab.Navigator
@@ -255,7 +231,7 @@ const linking = {
 };
 
 export function AppNavigator() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, token } = useAuth();
 
   if (isLoading) {
     return (
@@ -266,9 +242,11 @@ export function AppNavigator() {
   }
 
   return (
-    <NavigationContainer linking={linking}>
-      {user ? <MainTabs /> : <AuthNavigator />}
-    </NavigationContainer>
+    <NotificationProvider token={token}>
+      <NavigationContainer linking={linking}>
+        {user ? <MainTabs /> : <AuthNavigator />}
+      </NavigationContainer>
+    </NotificationProvider>
   );
 }
 

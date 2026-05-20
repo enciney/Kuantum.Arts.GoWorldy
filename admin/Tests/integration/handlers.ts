@@ -93,10 +93,14 @@ export const premiumPlans: PremiumPlan[] = [
 
 export const adminConfig: AdminConfig = {
   app: { name: "GoWorldy", version: "1.2.0", url: "https://goworldy.com" },
-  forum: { createTopicCost: 10, commentAccessCost: 5, createAdCost: 50, weeklyTopicReward: 20 },
-  premium: { weeklyPrice: 29, monthlyPrice: 99 },
-  guide: { enableNotifications: true, enableRecommendations: true },
-  notifications: { enableEmail: true, enableInApp: false },
+  server: { port: 3000, nodeEnv: "test", jwtExpiry: "7d" },
+  admin: { email: "admin@goworldy.com" },
+  integrations: {
+    firebaseConfigured: true,
+    stripeConfigured: false,
+    sendgridConfigured: true,
+    googleAuthConfigured: false,
+  },
 };
 
 // ── Handlers ─────────────────────────────────────────────────────────────────
@@ -192,5 +196,22 @@ export const handlers = [
   // Config
   http.get(`${BASE}/admin/config`, () =>
     HttpResponse.json(adminConfig)
+  ),
+
+  // Edit & Deletion requests (tabs in TopicsPage)
+  http.get(`${BASE}/admin/forum/edit-requests`, () =>
+    HttpResponse.json([])
+  ),
+
+  http.patch(`${BASE}/admin/forum/edit-requests/:id`, () =>
+    HttpResponse.json({ ok: true })
+  ),
+
+  http.get(`${BASE}/admin/forum/deletion-requests`, () =>
+    HttpResponse.json([])
+  ),
+
+  http.patch(`${BASE}/admin/forum/deletion-requests/:id`, () =>
+    HttpResponse.json({ ok: true })
   ),
 ];

@@ -14,6 +14,9 @@ export interface Notif {
     | "admin_new_report"
     | "deletion_approved"
     | "deletion_rejected"
+    | "edit_request"
+    | "edit_approved"
+    | "edit_rejected"
     | "system";
   title: string;
   message: string;

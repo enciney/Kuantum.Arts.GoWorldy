@@ -66,7 +66,7 @@ describe("Topics Integration — Konu Onay Kuyruğu", () => {
     expect(await screen.findByText("Almanya Vize Süreci Hakkında")).toBeInTheDocument();
     expect(screen.getByText("Hollanda İş İzni Deneyimim")).toBeInTheDocument();
     expect(screen.getByText("Normal Kullanıcı")).toBeInTheDocument();
-    expect(screen.getByText("2 bekleyen")).toBeInTheDocument();
+    expect(screen.getByText("Bekleyen Konular (2)")).toBeInTheDocument();
   });
 
   it("boş liste gelince 'Onay bekleyen konu yok' gösterir", async () => {
@@ -114,9 +114,9 @@ describe("Topics Integration — Konu Onay Kuyruğu", () => {
     const rejectBtns = screen.getAllByRole("button", { name: "Reddet" });
     fireEvent.click(rejectBtns[0]);
 
-    expect(screen.getByText("Reddetme Sebebi")).toBeInTheDocument();
+    expect(screen.getByText("Konuyu Reddet")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText(/Örn:/), {
+    fireEvent.change(screen.getByPlaceholderText("Sebep girin..."), {
       target: { value: "Kurallara aykırı içerik" },
     });
 
@@ -131,7 +131,7 @@ describe("Topics Integration — Konu Onay Kuyruğu", () => {
       expect(screen.queryByText("Almanya Vize Süreci Hakkında")).not.toBeInTheDocument();
     });
 
-    expect(screen.queryByText("Reddetme Sebebi")).not.toBeInTheDocument();
+    expect(screen.queryByText("Konuyu Reddet")).not.toBeInTheDocument();
   });
 
   it("modal İptal butonuyla konu listede kalır, API çağrısı yapılmaz", async () => {
@@ -147,7 +147,7 @@ describe("Topics Integration — Konu Onay Kuyruğu", () => {
     fireEvent.click(rejectBtns[0]);
     fireEvent.click(screen.getByRole("button", { name: "İptal" }));
 
-    expect(screen.queryByText("Reddetme Sebebi")).not.toBeInTheDocument();
+    expect(screen.queryByText("Konuyu Reddet")).not.toBeInTheDocument();
     expect(screen.getByText("Almanya Vize Süreci Hakkında")).toBeInTheDocument();
     expect(patchSpy).not.toHaveBeenCalled();
   });
@@ -168,7 +168,7 @@ describe("Topics Integration — Konu Onay Kuyruğu", () => {
     await waitFor(() => {
       expect(screen.queryByText("Almanya Vize Süreci Hakkında")).not.toBeInTheDocument();
       expect(screen.getByText("Hollanda İş İzni Deneyimim")).toBeInTheDocument();
-      expect(screen.getByText("1 bekleyen")).toBeInTheDocument();
+      expect(screen.getByText("Bekleyen Konular (1)")).toBeInTheDocument();
     });
   });
 
@@ -201,7 +201,7 @@ describe("Topics Integration — Konu Onay Kuyruğu", () => {
     });
 
     expect(await screen.findByText("Almanya Vize Süreci Hakkında")).toBeInTheDocument();
-    expect(screen.getByText("2 bekleyen")).toBeInTheDocument();
+    expect(screen.getByText("Bekleyen Konular (2)")).toBeInTheDocument();
   });
 
   it("SSE new_pending mesajıyla yeni konu listeye eklenir", async () => {
@@ -213,7 +213,7 @@ describe("Topics Integration — Konu Onay Kuyruğu", () => {
 
     renderTopics();
     await screen.findByText("Almanya Vize Süreci Hakkında");
-    expect(screen.getByText("1 bekleyen")).toBeInTheDocument();
+    expect(screen.getByText("Bekleyen Konular (1)")).toBeInTheDocument();
 
     MockEventSource.instance!.simulateMessage({
       type: "new_pending",
@@ -222,7 +222,7 @@ describe("Topics Integration — Konu Onay Kuyruğu", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Hollanda İş İzni Deneyimim")).toBeInTheDocument();
-      expect(screen.getByText("2 bekleyen")).toBeInTheDocument();
+      expect(screen.getByText("Bekleyen Konular (2)")).toBeInTheDocument();
     });
   });
 });

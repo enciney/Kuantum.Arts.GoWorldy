@@ -26,7 +26,7 @@ import {
 } from "./forumTopicDetailHandlers";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
-import { api } from "../../services/api";
+import { api, ApiError } from "../../services/api";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 import { ActionMenuModal, type ActionMenuOption } from "../../components/ActionMenuModal";
 import { WEB_BASE_URL } from "../../config/env";
@@ -139,6 +139,10 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, topicAuthorId = ""
     | { kind: "comment"; title: string; options: ActionMenuOption[]; comment: Comment };
   const [activeMenu, setActiveMenu] = useState<ActiveMenu | null>(null);
 
+  // FRM-CMT-004 — Modal-based comment delete confirm (avoids Android Alert.alert/Modal timing issue)
+  const [pendingDeleteComment, setPendingDeleteComment] = useState<Comment | null>(null);
+  const [commentDeleting, setCommentDeleting] = useState(false);
+
   const loadTopic = useCallback(async () => {
     try {
       const t = await api.forum.getTopic(topicId, token ?? undefined);
@@ -234,9 +238,17 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, topicAuthorId = ""
     }
     setEditTopicSaving(true);
     try {
-      await api.forum.updateTopic(topicId, { title, content: editTopicContent }, token);
-      setEditTopicOpen(false);
-      await loadTopic();
+      if (isStaff) {
+        // Staff doğrudan günceller
+        await api.forum.updateTopic(topicId, { title, content: editTopicContent }, token);
+        setEditTopicOpen(false);
+        await loadTopic();
+      } else {
+        // Konu sahibi → edit-request gönderir, konu aktif kalır
+        await api.forum.requestTopicEdit(topicId, { title, content: editTopicContent || undefined }, token);
+        setEditTopicOpen(false);
+        Alert.alert("Talep alındı", "Düzenleme talebiniz moderatöre iletildi. Onaylandığında konu güncellenecek.");
+      }
     } catch (e: unknown) {
       Alert.alert("Hata", e instanceof Error ? e.message : "Düzenlenemedi.");
     } finally {
@@ -260,13 +272,16 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, topicAuthorId = ""
     setDelSubmitting(true);
     try {
       await api.forum.requestTopicDeletion(topicId, r, token);
+      // Sadece modal'i kapat — Alert kullanma (Android z-index sorunu + kullanıcı zaten bilgi sahibi)
       setDelOpen(false);
-      Alert.alert(
-        "Talep alındı",
-        "Konunun silinmesi için talebin moderatöre iletildi. Onaylandığında bildirim alacaksın."
-      );
     } catch (e: unknown) {
-      Alert.alert("Hata", e instanceof Error ? e.message : "Talep iletilemedi.");
+      if (e instanceof ApiError && e.status === 409) {
+        // Duplicate request: modal'i kapat, 400ms sonra bilgi ver
+        setDelOpen(false);
+        setTimeout(() => Alert.alert("Zaten gönderildi", "Bu konu için daha önce bir silme talebi oluşturulmuş."), 400);
+      } else {
+        Alert.alert("Hata", e instanceof Error ? e.message : "Talep iletilemedi.");
+      }
     } finally {
       setDelSubmitting(false);
     }
@@ -359,24 +374,25 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, topicAuthorId = ""
     }
   };
 
-  // FRM-CMT-004
+  // FRM-CMT-004 — ActionMenuModal kapandıktan sonra Modal tabanlı onay göster (Android z-index sorunu)
   const handleDelete = (c: Comment) => {
-    Alert.alert("Yorumu sil", "Bu yorumu silmek istediğinden emin misin?", [
-      { text: "Vazgeç", style: "cancel" },
-      {
-        text: "Sil",
-        style: "destructive",
-        onPress: async () => {
-          if (!token) return;
-          try {
-            await api.forum.deleteComment(topicId, c.id, token);
-            await loadComments();
-          } catch (e: unknown) {
-            Alert.alert("Hata", e instanceof Error ? e.message : "Silinemedi.");
-          }
-        },
-      },
-    ]);
+    // ActionMenuModal'in tam kapanması için kısa bekleme, sonra onay modal'ini aç
+    setTimeout(() => setPendingDeleteComment(c), 300);
+  };
+
+  const confirmDeleteComment = async () => {
+    if (!pendingDeleteComment || !token) return;
+    setCommentDeleting(true);
+    try {
+      await api.forum.deleteComment(topicId, pendingDeleteComment.id, token);
+      setPendingDeleteComment(null);
+      await loadComments();
+    } catch (e: unknown) {
+      setPendingDeleteComment(null);
+      setTimeout(() => Alert.alert("Hata", e instanceof Error ? e.message : "Silinemedi."), 300);
+    } finally {
+      setCommentDeleting(false);
+    }
   };
 
   // FRM-CMT-003
@@ -791,6 +807,24 @@ export function ForumTopicDetailScreen({ topicId, topicTitle, topicAuthorId = ""
         onClose={() => setActiveMenu(null)}
         testID="action-menu-modal"
       />
+
+      {/* Comment delete confirm modal (FRM-CMT-004) */}
+      <Modal visible={!!pendingDeleteComment} transparent animationType="fade" onRequestClose={() => setPendingDeleteComment(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Yorumu sil</Text>
+            <Text style={styles.modalSubtitle}>Bu yorumu silmek istediğinden emin misin? Bu işlem geri alınamaz.</Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalBtnGhost} onPress={() => setPendingDeleteComment(null)} disabled={commentDeleting}>
+                <Text style={styles.modalBtnGhostText}>Vazgeç</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtnPrimary, { backgroundColor: Colors.danger }]} onPress={confirmDeleteComment} disabled={commentDeleting}>
+                {commentDeleting ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalBtnPrimaryText}>Sil</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Deletion request modal (FRM-TPC-006) */}
       <Modal visible={delOpen} transparent animationType="fade" onRequestClose={() => setDelOpen(false)}>
