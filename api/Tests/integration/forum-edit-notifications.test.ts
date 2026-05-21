@@ -25,9 +25,10 @@ async function makeAdmin(email: string) {
   await users.updateOne({ email }, { $set: { role: "admin" } });
 }
 
-async function giveCredits(uid: string, amount: number) {
+async function makePremium(uid: string) {
   const { users } = await getCollections();
-  await users.updateOne({ _id: uid }, { $set: { credits: amount } });
+  const until = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  await users.updateOne({ _id: uid }, { $set: { isPremium: true, premiumUntil: until } });
 }
 
 async function getNotifications(token: string): Promise<any[]> {
@@ -81,7 +82,7 @@ beforeAll(async () => {
   categoryId = catRes.body.id ?? catRes.body._id;
 
   // Konu oluştur (owner)
-  await giveCredits(ownerId, 500);
+  await makePremium(ownerId);
   const topicRes = await request(app)
     .post("/api/forum/topics")
     .set("Authorization", `Bearer ${ownerToken}`)
@@ -205,7 +206,7 @@ describe("Staff doğrudan topic günceller — owner bildirimi", () => {
 
   it("EN-07: Admin kendi konusunu düzenlerse kendine bildirim gitMEZ", async () => {
     // Admin'in kendi konusu (başka bir topic oluştur, admin olarak)
-    await giveCredits(adminId, 500);
+    await makePremium(adminId);
     const adminTopicRes = await request(app)
       .post("/api/forum/topics")
       .set("Authorization", `Bearer ${adminToken}`)

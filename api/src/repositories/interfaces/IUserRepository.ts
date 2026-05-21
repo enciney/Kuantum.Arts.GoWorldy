@@ -6,9 +6,9 @@ export interface User {
   bio?: string;
   role: "admin" | "moderator" | "user";
   userType: "emigrant" | "consultant" | "diaspora";
-  credits: number;
   isPremium: boolean;
   premiumUntil?: string;
+  autoRenew?: boolean;
   phoneNumber?: string;
   sharePhoneNumber?: boolean;
   avatarUrl?: string;
@@ -37,8 +37,6 @@ export interface IUserRepository {
   findByEmail(email: string): Promise<User | null>;
   updateRole(id: string, role: User["role"]): Promise<void>;
   update(id: string, data: Partial<User>): Promise<void>;
-  addCredits(id: string, amount: number): Promise<void>;
-  deductCredits(id: string, amount: number): Promise<boolean>;
   count(): Promise<number>;
   getUserTypeStats(): Promise<UserTypeStats[]>;
   getRecent(limit: number): Promise<User[]>;

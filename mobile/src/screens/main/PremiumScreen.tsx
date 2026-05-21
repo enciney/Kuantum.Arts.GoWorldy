@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -6,8 +6,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  Switch,
 } from "react-native";
-import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
@@ -15,40 +16,34 @@ import { loadPackages } from "./premiumHandlers";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 import { formatTimeRemaining } from "../../utils/timeUtils";
 
-interface CreditPackage {
-  id: string;
-  name: string;
-  credits: number;
-  priceTL: number;
-}
-
 interface PremiumPackage {
   id: string;
   name: string;
+  description?: string;
   days: number;
   priceTL: number;
   features?: string[];
+  isSubscription?: boolean;
+  subscriptionDiscountPercent?: number;
 }
 
 export function PremiumScreen() {
   const { token } = useAuth();
   const navigation = useNavigation<any>();
-  const [credits, setCredits] = useState<number | null>(null);
   const [premiumStatus, setPremiumStatus] = useState<{ isPremium: boolean; premiumUntil?: string }>({ isPremium: false });
-  const [creditPackages, setCreditPackages] = useState<CreditPackage[]>([]);
   const [premiumPackages, setPremiumPackages] = useState<PremiumPackage[]>([]);
   const [packagesLoading, setPackagesLoading] = useState(true);
   const [packagesError, setPackagesError] = useState<string | null>(null);
+  // Abonelik (auto-renew) toggle — açıkken subscription paketlerde indirim uygulanır
+  const [autoRenew, setAutoRenew] = useState(false);
 
   const refreshUserStatus = useCallback(() => {
     if (!token) return;
     api.users.me(token).then((u) => {
-      setCredits(u.credits);
       setPremiumStatus({ isPremium: u.isPremium, premiumUntil: u.premiumUntil });
     }).catch(() => {});
   }, [token]);
 
-  // Ödeme ekranından geri dönünce kredi/premium durumunu yenile
   useFocusEffect(
     useCallback(() => {
       refreshUserStatus();
@@ -60,22 +55,39 @@ export function PremiumScreen() {
     setPackagesError(null);
     loadPackages()
       .then((data) => {
-        setCreditPackages(data.credits ?? []);
         setPremiumPackages(data.premium ?? []);
       })
       .catch(() => setPackagesError("Paket bilgileri yüklenemedi. Lütfen tekrar deneyin."))
       .finally(() => setPackagesLoading(false));
   }, []);
 
+  const subscriptionPackages = useMemo(
+    () => premiumPackages.filter((p) => p.isSubscription),
+    [premiumPackages]
+  );
+  const oneTimePackages = useMemo(
+    () => premiumPackages.filter((p) => !p.isSubscription),
+    [premiumPackages]
+  );
+
   const openPayment = (
-    productId: string,
-    productName: string,
-    price: number,
-    description: string,
-    isPremium: boolean
+    pkg: PremiumPackage,
+    applyAutoRenew: boolean
   ) => {
-    navigation.navigate("Payment", { productId, productName, price, description, isPremium });
+    const discount = applyAutoRenew && pkg.isSubscription ? (pkg.subscriptionDiscountPercent ?? 0) : 0;
+    const finalPrice = Math.round(pkg.priceTL * (100 - discount)) / 100;
+    navigation.navigate("Payment", {
+      productId: pkg.id,
+      productName: pkg.name,
+      price: finalPrice,
+      originalPrice: pkg.priceTL,
+      discountPct: discount,
+      autoRenew: applyAutoRenew && !!pkg.isSubscription,
+      features: pkg.features ?? [],
+      description: pkg.description ?? `${pkg.days} gün süreyle aktif`,
+    });
   };
+
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scroll}>
@@ -113,101 +125,117 @@ export function PremiumScreen() {
         </View>
       )}
 
-      {/* Kredi Bakiyesi */}
-      <View style={styles.balanceCard}>
-        <View style={styles.balanceRow}>
-          <FontAwesome5 name="coins" size={24} color={Colors.warning} />
-          <View style={{ flex: 1, marginLeft: Spacing.sm }}>
-            <Text style={styles.balanceLabel}>Mevcut Bakiyem</Text>
-            <Text style={styles.balanceValue}>
-              {credits === null ? "—" : `${credits} Kredi`}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.balanceBtn}
-            onPress={() => {
-              const pkg = creditPackages[0];
-              if (pkg) {
-                openPayment(pkg.id, pkg.name, pkg.priceTL, `${pkg.credits} kredi yüklenir`, false);
-              }
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.balanceBtnText}>Yükle</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
       {packagesLoading ? (
         <View style={styles.packagesLoader}>
           <ActivityIndicator color={Colors.primary} />
         </View>
       ) : (
         <>
-          {/* Premium Paketleri */}
-          {premiumPackages.map((pkg, index) => (
-            <TouchableOpacity
-              key={pkg.id}
-              style={styles.premiumCard}
-              onPress={() =>
-                openPayment(
-                  pkg.id,
-                  pkg.name,
-                  pkg.priceTL,
-                  `${pkg.days} gün Premium üyelik`,
-                  true
-                )
-              }
-              activeOpacity={0.85}
-            >
-              {index === 0 && (
-                <View style={styles.premiumBadge}>
-                  <Text style={styles.premiumBadgeText}>EN AVANTAJLI</Text>
-                </View>
-              )}
-              <View style={styles.premiumHeader}>
-                <MaterialCommunityIcons name="crown" size={32} color={Colors.surface} />
-                <View style={{ marginLeft: Spacing.sm }}>
-                  <Text style={styles.premiumName}>{pkg.name}</Text>
-                  <Text style={styles.premiumPrice}>{pkg.priceTL} TL / {pkg.days} gün</Text>
-                </View>
+          {/* Abonelik Bundle'ları */}
+          {subscriptionPackages.length > 0 && (
+            <>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Abonelik Paketleri</Text>
+                {subscriptionPackages[0]?.subscriptionDiscountPercent ? (
+                  <Text style={styles.sectionHint}>
+                    Otomatik yenile = %{subscriptionPackages[0].subscriptionDiscountPercent} indirim
+                  </Text>
+                ) : null}
               </View>
-              <View style={styles.premiumFeatures}>
-                <Feature text="Sınırsız konu açma" />
-                <Feature text="Reklamsız deneyim" />
-                <Feature text="Tüm yorumlara erişim" />
-                <Feature text="Öncelikli destek" />
-              </View>
-              <View style={styles.premiumCta}>
-                <Text style={styles.premiumCtaText}>Şimdi Premium Ol</Text>
-                <Ionicons name="arrow-forward" size={18} color={Colors.premium} />
-              </View>
-            </TouchableOpacity>
-          ))}
 
-          {/* Kredi Paketleri */}
-          <Text style={styles.sectionTitle}>Tek Kullanımlık Krediler</Text>
-          {creditPackages.map((pkg) => (
-            <TouchableOpacity
-              key={pkg.id}
-              style={styles.actionCard}
-              onPress={() =>
-                openPayment(pkg.id, pkg.name, pkg.priceTL, `${pkg.credits} kredi yüklenir`, false)
-              }
-              activeOpacity={0.8}
-            >
-              <View style={styles.actionIcon}>
-                <Ionicons name="wallet-outline" size={24} color={Colors.primary} />
+              {/* AutoRenew toggle — bildirim toggle'ı stilinde */}
+              <View style={styles.toggleCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.toggleTitle}>Otomatik yenile (abonelik)</Text>
+                  <Text style={styles.toggleDesc}>
+                    Açıkken aşağıdaki abonelik paketleri %{subscriptionPackages[0]?.subscriptionDiscountPercent ?? 0} indirimli görünür ve süre sonunda otomatik yenilenir.
+                  </Text>
+                </View>
+                <Switch
+                  value={autoRenew}
+                  onValueChange={setAutoRenew}
+                  trackColor={{ false: Colors.border, true: Colors.premium }}
+                  thumbColor={Colors.surface}
+                  accessibilityLabel="Otomatik yenile"
+                />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.actionTitle}>{pkg.name}</Text>
-                <Text style={styles.actionDesc}>{pkg.credits} kredi</Text>
-              </View>
-              <View style={styles.actionPriceBox}>
-                <Text style={styles.actionPrice}>{pkg.priceTL} TL</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+
+              {subscriptionPackages.map((pkg, index) => {
+                const discount = autoRenew ? (pkg.subscriptionDiscountPercent ?? 0) : 0;
+                const finalPrice = Math.round(pkg.priceTL * (100 - discount)) / 100;
+                return (
+                  <TouchableOpacity
+                    key={pkg.id}
+                    style={styles.premiumCard}
+                    onPress={() => openPayment(pkg, autoRenew)}
+                    activeOpacity={0.85}
+                  >
+                    {index === subscriptionPackages.length - 1 && subscriptionPackages.length > 1 && (
+                      <View style={styles.premiumBadge}>
+                        <Text style={styles.premiumBadgeText}>EN AVANTAJLI</Text>
+                      </View>
+                    )}
+                    <View style={styles.premiumHeader}>
+                      <MaterialCommunityIcons name="crown" size={32} color={Colors.surface} />
+                      <View style={{ marginLeft: Spacing.sm, flex: 1 }}>
+                        <Text style={styles.premiumName}>{pkg.name}</Text>
+                        <View style={styles.priceRow}>
+                          {discount > 0 && (
+                            <Text style={styles.priceOld}>{pkg.priceTL} TL</Text>
+                          )}
+                          <Text style={styles.premiumPrice}>{finalPrice} TL / {pkg.days} gün</Text>
+                        </View>
+                        {discount > 0 && (
+                          <Text style={styles.discountChip}>%{discount} indirim uygulandı</Text>
+                        )}
+                      </View>
+                    </View>
+                    <View style={styles.premiumFeatures}>
+                      {(pkg.features ?? []).map((f) => (
+                        <Feature key={f} text={f} />
+                      ))}
+                    </View>
+                    <View style={styles.premiumCta}>
+                      <Text style={styles.premiumCtaText}>
+                        {autoRenew ? "Aboneliği Başlat" : "Bir Sefer Satın Al"}
+                      </Text>
+                      <Ionicons name="arrow-forward" size={18} color={Colors.premium} />
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </>
+          )}
+
+          {/* Tek seferlik özellik paketleri */}
+          {oneTimePackages.length > 0 && (
+            <>
+              <Text style={[styles.sectionTitle, { marginTop: Spacing.lg }]}>Tek Seferlik Paketler</Text>
+              {oneTimePackages.map((pkg) => (
+                <TouchableOpacity
+                  key={pkg.id}
+                  style={styles.oneTimeCard}
+                  onPress={() => openPayment(pkg, false)}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.oneTimeIcon}>
+                    <Ionicons name="cube-outline" size={22} color={Colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.oneTimeName}>{pkg.name}</Text>
+                    <Text style={styles.oneTimeDesc} numberOfLines={2}>
+                      {pkg.description ?? (pkg.features ?? []).join(" • ")}
+                    </Text>
+                  </View>
+                  <View style={styles.oneTimePriceBox}>
+                    <Text style={styles.oneTimePrice}>{pkg.priceTL} TL</Text>
+                    <Text style={styles.oneTimeDuration}>{pkg.days} gün</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </>
+          )}
+
         </>
       )}
 
@@ -280,11 +308,41 @@ const styles = StyleSheet.create({
   },
   balanceBtnText: { ...Typography.caption, color: Colors.surface, fontWeight: "600" },
   packagesLoader: { paddingVertical: Spacing.lg, alignItems: "center" },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    marginBottom: Spacing.sm,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginBottom: 12,
+  },
+  sectionHint: {
+    ...Typography.small,
+    color: Colors.premium,
+    fontWeight: "600",
+  },
+  toggleCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: Spacing.sm,
+  },
+  toggleTitle: { fontSize: 15, fontWeight: "600", color: Colors.textPrimary },
+  toggleDesc: { ...Typography.small, color: Colors.textSecondary, marginTop: 4, lineHeight: 17 },
   premiumCard: {
     backgroundColor: Colors.premium,
     borderRadius: Radius.lg,
     padding: 20,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
     position: "relative",
   },
   premiumBadge: {
@@ -299,7 +357,24 @@ const styles = StyleSheet.create({
   premiumBadgeText: { color: Colors.surface, fontSize: 10, fontWeight: "bold", letterSpacing: 0.5 },
   premiumHeader: { flexDirection: "row", alignItems: "center", marginBottom: Spacing.md },
   premiumName: { ...Typography.h2, fontWeight: "bold", color: Colors.surface },
-  premiumPrice: { ...Typography.label, color: Colors.premiumLight, marginTop: 2 },
+  priceRow: { flexDirection: "row", alignItems: "baseline", gap: 8, marginTop: 2, flexWrap: "wrap" },
+  priceOld: {
+    ...Typography.small,
+    color: Colors.premiumLight,
+    textDecorationLine: "line-through",
+  },
+  premiumPrice: { ...Typography.label, color: Colors.premiumLight },
+  discountChip: {
+    fontSize: 11,
+    color: Colors.warning,
+    backgroundColor: "rgba(251,191,36,0.18)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: "flex-start",
+    marginTop: 4,
+    fontWeight: "600",
+  },
   premiumFeatures: { gap: Spacing.sm, marginBottom: Spacing.md },
   featureRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
   featureText: { color: Colors.surface, ...Typography.label },
@@ -313,12 +388,30 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   premiumCtaText: { color: Colors.premium, fontSize: 15, fontWeight: "bold" },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: Colors.textPrimary,
-    marginBottom: 12,
+  oneTimeCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
+    padding: 14,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 12,
   },
+  oneTimeIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primaryLight,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  oneTimeName: { fontSize: 15, fontWeight: "600", color: Colors.textPrimary },
+  oneTimeDesc: { ...Typography.small, color: Colors.textSecondary, marginTop: 2, lineHeight: 16 },
+  oneTimePriceBox: { alignItems: "flex-end" },
+  oneTimePrice: { fontSize: 15, fontWeight: "bold", color: Colors.primary },
+  oneTimeDuration: { ...Typography.small, color: Colors.textMuted, marginTop: 2 },
   actionCard: {
     flexDirection: "row",
     alignItems: "center",

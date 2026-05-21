@@ -75,19 +75,12 @@ export function forumRoutes(repos: Repositories): Router {
       const user = await repos.users.findById(req.userId!);
       if (!user) return res.status(401).json({ error: "Kullanıcı bulunamadı." });
 
-      const TOPIC_COST = config.forum.createTopicCost;
       const hasPremium = user.isPremium && (!user.premiumUntil || new Date(user.premiumUntil) > new Date());
-
       if (!hasPremium) {
-        const deducted = await repos.users.deductCredits(req.userId!, TOPIC_COST);
-        if (!deducted) {
-          return res.status(402).json({
-            error: `Yeni konu açmak için ${TOPIC_COST} kredi veya premium üyelik gerekli.`,
-            code: "INSUFFICIENT_CREDITS",
-            required: TOPIC_COST,
-            balance: user.credits,
-          });
-        }
+        return res.status(402).json({
+          error: "Yeni konu açmak için premium üyelik gerekli.",
+          code: "PREMIUM_REQUIRED",
+        });
       }
     }
 
@@ -103,13 +96,6 @@ export function forumRoutes(repos: Repositories): Router {
         isPinned: false,
       });
     } catch (createErr: any) {
-      if (!isStaff) {
-        const user2 = await repos.users.findById(req.userId!);
-        const hasPremium2 = user2?.isPremium && (!user2.premiumUntil || new Date(user2.premiumUntil) > new Date());
-        if (!hasPremium2) {
-          await repos.users.addCredits(req.userId!, config.forum.createTopicCost);
-        }
-      }
       return res.status(500).json({ error: createErr.message || "Konu oluşturulamadı." });
     }
 

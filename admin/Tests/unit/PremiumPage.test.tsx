@@ -26,6 +26,8 @@ vi.mock("../../src/api", () => ({
       users: vi.fn(),
       grantPremium: vi.fn(),
       revokePremium: vi.fn(),
+      getPremiumFeatures: vi.fn(),
+      getPremiumMainFeatures: vi.fn(),
     },
   },
 }));
@@ -39,6 +41,7 @@ const mockGetPremiumUsers = vi.mocked(api.admin.getPremiumUsers);
 const mockGetAllUsers = vi.mocked(api.admin.users);
 const mockGrantPremium = vi.mocked(api.admin.grantPremium);
 const mockRevokePremium = vi.mocked(api.admin.revokePremium);
+const mockGetPremiumFeatures = vi.mocked(api.admin.getPremiumFeatures);
 
 const samplePlans: PremiumPlan[] = [
   {
@@ -48,6 +51,9 @@ const samplePlans: PremiumPlan[] = [
     price: 99,
     durationDays: 30,
     features: ["Sınırsız forum", "Rehber erişimi"],
+    featureKeys: [],
+    isSubscription: false,
+    subscriptionDiscountPercent: 0,
     isActive: true,
     createdAt: "2024-01-01T00:00:00Z",
   },
@@ -58,6 +64,9 @@ const samplePlans: PremiumPlan[] = [
     price: 29,
     durationDays: 7,
     features: ["Forum erişimi"],
+    featureKeys: [],
+    isSubscription: false,
+    subscriptionDiscountPercent: 0,
     isActive: false,
     createdAt: "2024-01-02T00:00:00Z",
   },
@@ -90,6 +99,7 @@ function renderPremium() {
 
 function setupPlansTab() {
   mockGetPlans.mockResolvedValue(samplePlans);
+  mockGetPremiumFeatures.mockResolvedValue([]);
 }
 
 function setupUsersTab() {
@@ -164,8 +174,8 @@ describe("PremiumPage", () => {
       setupPlansTab();
       renderPremium();
 
-      expect(await screen.findByText("Aktif")).toBeInTheDocument();
-      expect(screen.getByText("Pasif")).toBeInTheDocument();
+      expect(await screen.findAllByText("Aktif")).not.toHaveLength(0);
+      expect(screen.getAllByText("Pasif")).not.toHaveLength(0);
     });
 
     it("shows plan features as chips", async () => {
@@ -289,7 +299,7 @@ describe("PremiumPage", () => {
       mockGetPlans.mockResolvedValue(samplePlans);
 
       renderPremium();
-      const toggleBtns = await screen.findAllByRole("button", { name: "Pasifleştir" });
+      const toggleBtns = await screen.findAllByRole("button", { name: "Aktif" });
       fireEvent.click(toggleBtns[0]);
 
       await waitFor(() => {

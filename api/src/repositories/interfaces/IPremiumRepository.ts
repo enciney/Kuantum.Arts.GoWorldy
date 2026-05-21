@@ -6,7 +6,10 @@ export interface PremiumPlan {
   description: string;
   price: number;
   durationDays: number;
-  features: string[];
+  features: string[];                 // Gösterilen ad listesi
+  featureKeys: string[];              // PRM-FST-001 katalog key'leri — satın alımda userFeatures'a yazılır
+  isSubscription: boolean;            // false = tek seferlik, true = otomatik yenilenen abonelik
+  subscriptionDiscountPercent: number; // Sadece subscription planlarda anlamlı; autoRenew açıkken uygulanır
   isActive: boolean;
   createdAt: string;
 }

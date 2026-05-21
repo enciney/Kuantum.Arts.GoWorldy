@@ -2,7 +2,6 @@ import { api as defaultApi } from "../../services/api";
 
 export interface PaymentResult {
   ok: boolean;
-  credits: number;
   isPremium: boolean;
   premiumUntil: string | null;
 }

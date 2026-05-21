@@ -26,7 +26,6 @@ export async function seedDatabase() {
       displayName: "Admin",
       role: config.roles.admin,
       userType: config.userTypes.consultant,
-      credits: 0,
       isPremium: false,
       onboardingCompleted: false,
       createdAt: new Date().toISOString(),

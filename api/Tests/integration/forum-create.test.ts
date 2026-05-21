@@ -24,16 +24,6 @@ async function makePremium(uid: string) {
   await users.updateOne({ _id: uid }, { $set: { isPremium: true, premiumUntil: until } });
 }
 
-async function setCredits(uid: string, amount: number) {
-  const { users } = await getCollections();
-  await users.updateOne({ _id: uid }, { $set: { credits: amount } });
-}
-
-async function getCredits(uid: string): Promise<number> {
-  const { users } = await getCollections();
-  const u = await users.findOne({ _id: uid });
-  return (u?.credits as number) ?? 0;
-}
 
 beforeAll(async () => {
   resetDbConnection();
@@ -95,28 +85,21 @@ afterAll(async () => {
 });
 
 describe("FRM-TPC-002 POST /forum/topics — uçtan uca", () => {
-  it("TPC002-01: normal user yeterli kredi → 200 pending, kredi düşmüş", async () => {
-    await setCredits(userId, 200);
-    const before = await getCredits(userId);
-
+  it("TPC002-01: normal user (non-premium) → 402 PREMIUM_REQUIRED", async () => {
     const res = await request(app)
       .post("/api/forum/topics")
       .set("Authorization", `Bearer ${userToken}`)
       .send({ categoryId, title: "Pending TPC002 başlık", content: "detay" });
 
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe("pending");
-
-    const after = await getCredits(userId);
-    expect(after).toBeLessThan(before);
+    expect(res.status).toBe(402);
+    expect(res.body.code).toBe("PREMIUM_REQUIRED");
   });
 
   it("TPC002-02: pending konu sonrası user 'Konunuz alındı' notification almış olmalı", async () => {
-    await setCredits(userId, 200);
     const title = "TPC002 notify edilen başlık";
     const createRes = await request(app)
       .post("/api/forum/topics")
-      .set("Authorization", `Bearer ${userToken}`)
+      .set("Authorization", `Bearer ${premiumToken}`)
       .send({ categoryId, title });
     expect(createRes.status).toBe(200);
 
@@ -125,7 +108,7 @@ describe("FRM-TPC-002 POST /forum/topics — uçtan uca", () => {
 
     const notifRes = await request(app)
       .get("/api/notifications")
-      .set("Authorization", `Bearer ${userToken}`);
+      .set("Authorization", `Bearer ${premiumToken}`);
     expect(notifRes.status).toBe(200);
     const list = notifRes.body as Array<{ type: string; title: string; targetId?: string }>;
     const found = list.find(
@@ -135,11 +118,10 @@ describe("FRM-TPC-002 POST /forum/topics — uçtan uca", () => {
   });
 
   it("TPC002-03: pending konu sonrası admin 'admin_new_pending' notification almalı", async () => {
-    await setCredits(userId, 200);
     const title = "TPC002 admin notify";
     const createRes = await request(app)
       .post("/api/forum/topics")
-      .set("Authorization", `Bearer ${userToken}`)
+      .set("Authorization", `Bearer ${premiumToken}`)
       .send({ categoryId, title });
     expect(createRes.status).toBe(200);
 
@@ -154,17 +136,13 @@ describe("FRM-TPC-002 POST /forum/topics — uçtan uca", () => {
     expect(found).toBeDefined();
   });
 
-  it("TPC002-04: premium user → 200 pending, kredi DÜŞMEMELİ", async () => {
-    await setCredits(premiumId, 100);
-    const before = await getCredits(premiumId);
+  it("TPC002-04: premium user → 200 pending", async () => {
     const res = await request(app)
       .post("/api/forum/topics")
       .set("Authorization", `Bearer ${premiumToken}`)
       .send({ categoryId, title: "Premium TPC002 konusu" });
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("pending");
-    const after = await getCredits(premiumId);
-    expect(after).toBe(before);
   });
 
   it("TPC002-05: admin → 200 approved", async () => {
@@ -176,14 +154,13 @@ describe("FRM-TPC-002 POST /forum/topics — uçtan uca", () => {
     expect(res.body.status).toBe("approved");
   });
 
-  it("TPC002-06: 0 kredi → 402 INSUFFICIENT_CREDITS", async () => {
-    await setCredits(userId, 0);
+  it("TPC002-06: non-premium user → 402 PREMIUM_REQUIRED (kredisi olsa da)", async () => {
     const res = await request(app)
       .post("/api/forum/topics")
       .set("Authorization", `Bearer ${userToken}`)
-      .send({ categoryId, title: "Krediyok TPC002" });
+      .send({ categoryId, title: "NonPremium TPC002 konu denemesi" });
     expect(res.status).toBe(402);
-    expect(res.body.code).toBe("INSUFFICIENT_CREDITS");
+    expect(res.body.code).toBe("PREMIUM_REQUIRED");
   });
 
   it("TPC002-07: SSE /admin/topics/stream — yeni pending konu broadcast edilir", async () => {
@@ -212,12 +189,11 @@ describe("FRM-TPC-002 POST /forum/topics — uçtan uca", () => {
       );
       req.on("error", reject);
       req.end();
-      // After connection is open, trigger a pending topic
+      // After connection is open, trigger a pending topic (premium user → pending)
       setTimeout(async () => {
-        await setCredits(userId, 200);
         await request(app)
           .post("/api/forum/topics")
-          .set("Authorization", `Bearer ${userToken}`)
+          .set("Authorization", `Bearer ${premiumToken}`)
           .send({ categoryId, title: "SSE TPC002 broadcast başlığı" });
       }, 250);
       // Safety timeout

@@ -97,7 +97,6 @@ export default function UsersPage() {
               <tr>
                 <th>Kullanıcı</th>
                 <th>Tür</th>
-                <th>Kredi</th>
                 <th>Premium</th>
                 <th>Kayıt</th>
                 <th>Rol</th>
@@ -116,7 +115,6 @@ export default function UsersPage() {
                     </div>
                   </td>
                   <td style={css.mutedCell}>{u.userType ? (USER_TYPE_LABELS[u.userType] ?? u.userType) : "—"}</td>
-                  <td style={css.mutedCell}>{u.credits ?? 0}</td>
                   <td style={css.mutedCell}>{u.isPremium ? "✅" : "—"}</td>
                   <td style={css.mutedCell}>
                     {u.createdAt ? new Date(u.createdAt).toLocaleDateString("tr-TR") : "—"}

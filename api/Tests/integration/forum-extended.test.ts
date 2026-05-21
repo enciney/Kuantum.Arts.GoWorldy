@@ -27,9 +27,10 @@ async function setRole(email: string, role: "admin" | "moderator" | "user") {
   await users.updateOne({ email }, { $set: { role } });
 }
 
-async function giveCredits(uid: string, amount: number) {
+async function makePremium(uid: string) {
   const { users } = await getCollections();
-  await users.updateOne({ _id: uid }, { $set: { credits: amount } });
+  const until = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  await users.updateOne({ _id: uid }, { $set: { isPremium: true, premiumUntil: until } });
 }
 
 async function reLogin(email: string, password: string): Promise<string> {
@@ -135,7 +136,7 @@ describe("FRM-TPC-005: PATCH /forum/topics/:id (topic edit)", () => {
   let topicId: string;
 
   beforeAll(async () => {
-    await giveCredits(userId, 500);
+    await makePremium(userId);
     const res = await request(app)
       .post("/api/forum/topics")
       .set("Authorization", `Bearer ${userToken}`)
@@ -239,7 +240,7 @@ describe("FRM-TPC-006: Topic deletion request flow", () => {
   let reqId: string;
 
   beforeAll(async () => {
-    await giveCredits(userId, 500);
+    await makePremium(userId);
     const res = await request(app)
       .post("/api/forum/topics")
       .set("Authorization", `Bearer ${userToken}`)
@@ -842,7 +843,7 @@ describe("NTF-EVT-001..005: Notification events", () => {
   let pendingTopicId: string;
 
   it("NTF-EVT-001: user creates pending topic → 'Konunuz alındı' notification", async () => {
-    await giveCredits(userId, 500);
+    await makePremium(userId);
     const t = await request(app)
       .post("/api/forum/topics")
       .set("Authorization", `Bearer ${userToken}`)
@@ -900,7 +901,7 @@ describe("NTF-EVT-001..005: Notification events", () => {
   });
 
   it("NTF-EVT-003: admin rejects with reason → author gets 'topic_rejected' notification with reason", async () => {
-    await giveCredits(userId, 500);
+    await makePremium(userId);
     const t = await request(app)
       .post("/api/forum/topics")
       .set("Authorization", `Bearer ${userToken}`)
@@ -924,7 +925,7 @@ describe("NTF-EVT-001..005: Notification events", () => {
   });
 
   it("NTF-EVT-003: rejection without reason → 400", async () => {
-    await giveCredits(userId, 500);
+    await makePremium(userId);
     const t = await request(app)
       .post("/api/forum/topics")
       .set("Authorization", `Bearer ${userToken}`)
@@ -966,7 +967,7 @@ describe("NTF-EVT-001..005: Notification events", () => {
 
   it("NTF-EVT-004: commenter does NOT receive notification for own comment", async () => {
     // Topic by user2
-    await giveCredits(user2Id, 500);
+    await makePremium(user2Id);
     const t = await request(app)
       .post("/api/forum/topics")
       .set("Authorization", `Bearer ${adminToken}`)

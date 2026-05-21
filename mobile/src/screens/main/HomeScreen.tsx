@@ -27,6 +27,13 @@ interface Activity {
   createdAt: string;
 }
 
+interface PremiumPackage {
+  id: string;
+  name: string;
+  days: number;
+  priceTL: number;
+}
+
 export function HomeScreen() {
   const { user, token } = useAuth();
   const navigation = useNavigation<HomeNav>();
@@ -41,11 +48,13 @@ export function HomeScreen() {
   });
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
+  // PRM-PKG-003: paket fiyatları API'dan
+  const [premiumPackages, setPremiumPackages] = useState<PremiumPackage[]>([]);
 
   const loadData = useCallback(async () => {
     if (!token) return;
     try {
-      const [guideStats, acts] = await Promise.all([
+      const [guideStats, acts, packages] = await Promise.all([
         api.guide.getHomeStats(token).catch(() => ({
           countryId: null,
           countryName: "",
@@ -55,9 +64,11 @@ export function HomeScreen() {
           countriesWithProgress: 0,
         })),
         api.users.myActivity(token).catch(() => [] as Activity[]),
+        api.payment.getPackages().catch(() => ({ credits: [], premium: [] as PremiumPackage[] })),
       ]);
       setHomeStats(guideStats);
       setActivities(acts as Activity[]);
+      setPremiumPackages(packages.premium ?? []);
     } finally {
       setLoading(false);
     }
@@ -227,22 +238,66 @@ export function HomeScreen() {
         </View>
       )}
 
-      {/* Premium Banner */}
-      <TouchableOpacity
-        style={styles.premiumBanner}
+      {/* PRM-PKG-002 / PRM-PKG-003: Premium banner — aktif plan varsa kalan süre, yoksa en uygun paketin fiyatı */}
+      <PremiumBanner
+        user={user}
+        packages={premiumPackages}
         onPress={() => navigation.navigate("Premium")}
-        activeOpacity={0.85}
-      >
+      />
+    </ScrollView>
+  );
+}
+
+function PremiumBanner({
+  user,
+  packages,
+  onPress,
+}: {
+  user: { isPremium?: boolean; premiumUntil?: string | null | undefined } | null;
+  packages: PremiumPackage[];
+  onPress: () => void;
+}) {
+  const now = Date.now();
+  const isActive =
+    !!user?.isPremium &&
+    (!user?.premiumUntil || new Date(user.premiumUntil).getTime() > now);
+
+  if (isActive) {
+    const remainingMs = user?.premiumUntil
+      ? Math.max(0, new Date(user.premiumUntil).getTime() - now)
+      : null;
+    const remainingDays = remainingMs != null ? Math.ceil(remainingMs / 86_400_000) : null;
+    const text = remainingDays != null
+      ? `Aboneliğin aktif — ${remainingDays} gün kaldı`
+      : "Premium üyeliğin aktif";
+    return (
+      <TouchableOpacity style={styles.premiumBanner} onPress={onPress} activeOpacity={0.85}>
         <MaterialCommunityIcons name="crown" size={32} color={Colors.surface} />
         <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.premiumTitle}>Premium'a Geç</Text>
-          <Text style={styles.premiumText}>
-            Sınırsız konu, reklamsız deneyim — aylık 250 TL
-          </Text>
+          <Text style={styles.premiumTitle}>Premium Aktif 💎</Text>
+          <Text style={styles.premiumText}>{text}</Text>
         </View>
         <Ionicons name="chevron-forward" size={24} color={Colors.surface} />
       </TouchableOpacity>
-    </ScrollView>
+    );
+  }
+
+  const cheapest = packages.length > 0
+    ? packages.reduce((a, b) => (a.priceTL <= b.priceTL ? a : b))
+    : null;
+  const priceLabel = cheapest
+    ? `${cheapest.name} ${cheapest.priceTL} TL'den başlayan fiyatlarla`
+    : "Sınırsız konu, reklamsız deneyim";
+
+  return (
+    <TouchableOpacity style={styles.premiumBanner} onPress={onPress} activeOpacity={0.85}>
+      <MaterialCommunityIcons name="crown" size={32} color={Colors.surface} />
+      <View style={{ flex: 1, marginLeft: 12 }}>
+        <Text style={styles.premiumTitle}>Premium'a Geç</Text>
+        <Text style={styles.premiumText}>{priceLabel}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={24} color={Colors.surface} />
+    </TouchableOpacity>
   );
 }
 

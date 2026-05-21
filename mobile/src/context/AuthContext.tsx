@@ -20,7 +20,7 @@ interface AuthContextValue extends AuthState {
   logout: () => Promise<void>;
   /** Süresi dolmuş / geçersiz JWT nedeniyle otomatik çıkış yapar. */
   logoutOnUnauthorized: () => Promise<void>;
-  /** Backend'den taze user bilgisini çeker (premium/credits stale olmasın diye). */
+  /** Backend'den taze user bilgisini çeker (premium durumu stale olmasın diye). */
   refreshUser: () => Promise<AuthUser | null>;
 }
 

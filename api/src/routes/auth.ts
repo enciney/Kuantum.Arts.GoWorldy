@@ -17,7 +17,7 @@ export function authRoutes(repos: Repositories): Router {
       if (existing) return res.status(400).json({ error: "Email already registered" });
 
       const passwordHash = await bcrypt.hash(password, 10);
-      const user = await repos.users.create({ email, passwordHash, displayName, role: config.roles.user, userType: userType || config.userTypes.emigrant, credits: 0, isPremium: false });
+      const user = await repos.users.create({ email, passwordHash, displayName, role: config.roles.user, userType: userType || config.userTypes.emigrant, isPremium: false });
       const token = jwt.sign({ id: user.id, role: user.role }, config.jwtSecret, { expiresIn: config.jwtExpiry } as object);
       res.json({ user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role }, token });
     } catch (e: any) {
@@ -119,7 +119,6 @@ export function authRoutes(repos: Repositories): Router {
           displayName: verified.name || verified.email.split("@")[0],
           role: config.roles.user,
           userType: config.userTypes.emigrant,
-          credits: 0,
           isPremium: false,
         });
       }

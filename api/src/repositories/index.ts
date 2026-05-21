@@ -1,9 +1,11 @@
-import { IUserRepository, IForumRepository, IGuideRepository, IPaymentProvider, INotificationRepository, IPremiumRepository, IUserFeatureRepository, IReportRepository } from "./interfaces";
+import { IUserRepository, IForumRepository, IGuideRepository, IPaymentProvider, INotificationRepository, IPremiumRepository, IPremiumFeatureRepository, IPremiumMainFeatureRepository, IUserFeatureRepository, IReportRepository } from "./interfaces";
 import { MongoUserRepository } from "./mongodb/MongoUserRepository";
 import { MongoForumRepository } from "./mongodb/MongoForumRepository";
 import { MongoGuideRepository } from "./mongodb/MongoGuideRepository";
 import { MongoNotificationRepository } from "./mongodb/MongoNotificationRepository";
 import { MongoPremiumRepository } from "./mongodb/MongoPremiumRepository";
+import { MongoPremiumFeatureRepository } from "./mongodb/MongoPremiumFeatureRepository";
+import { MongoPremiumMainFeatureRepository } from "./mongodb/MongoPremiumMainFeatureRepository";
 import { MongoUserFeatureRepository } from "./mongodb/MongoUserFeatureRepository";
 import { MongoReportRepository } from "./mongodb/MongoReportRepository";
 import { StripePaymentProvider } from "./stripe/StripePaymentProvider";
@@ -15,6 +17,8 @@ export interface Repositories {
   payment: IPaymentProvider;
   notifications: INotificationRepository;
   premium: IPremiumRepository;
+  premiumFeatures: IPremiumFeatureRepository;
+  premiumMainFeatures: IPremiumMainFeatureRepository;
   userFeatures: IUserFeatureRepository;
   reports: IReportRepository;
 }
@@ -27,6 +31,8 @@ export function createRepositories(): Repositories {
     payment: new StripePaymentProvider(),
     notifications: new MongoNotificationRepository(),
     premium: new MongoPremiumRepository(),
+    premiumFeatures: new MongoPremiumFeatureRepository(),
+    premiumMainFeatures: new MongoPremiumMainFeatureRepository(),
     userFeatures: new MongoUserFeatureRepository(),
     reports: new MongoReportRepository(),
   };

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -8,11 +8,13 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  TextInput,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
+import { highlight } from "../../utils/highlight";
 
 interface Topic {
   id: string;
@@ -59,6 +61,9 @@ export function ForumTopicsScreen({
   const [upvotingIds, setUpvotingIds] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  // SRC-TPC-001: arama input state (raw = anlık; debounced = 300ms sonra uygulanır)
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const load = useCallback(async (pageNum = 1, append = false) => {
     if (!token) return;
@@ -130,6 +135,12 @@ export function ForumTopicsScreen({
     load(1).finally(() => setLoading(false));
   }, [load]);
 
+  // SRC-TPC-001: 300ms debounce
+  useEffect(() => {
+    const t = setTimeout(() => setSearchQuery(searchInput.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
   const onRefresh = async () => {
     setRefreshing(true);
     await load(1);
@@ -144,18 +155,23 @@ export function ForumTopicsScreen({
   };
 
   // Approved tüm topic'ler + kullanıcının kendi pending/rejected'ları görünür.
-  const visibleTopics: TopicWithIsMine[] = topics
-    .filter(
-      (t) =>
-        t.status === "approved" ||
-        (user && t.authorId === user.id)
-    )
-    .map((t) => ({ ...t, isMine: !!user && t.authorId === user.id }))
-    .sort((a, b) => {
-      if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-      if (filter === "popular") return b.commentCount - a.commentCount;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
+  // SRC-TPC-001: 2+ karakter arama varsa title üzerinde substring filter
+  const isSearching = searchQuery.length >= 2;
+  const visibleTopics: TopicWithIsMine[] = useMemo(() => {
+    const lower = searchQuery.toLowerCase();
+    return topics
+      .filter(
+        (t) =>
+          (t.status === "approved" || (user && t.authorId === user.id)) &&
+          (!isSearching || t.title.toLowerCase().includes(lower))
+      )
+      .map((t) => ({ ...t, isMine: !!user && t.authorId === user.id }))
+      .sort((a, b) => {
+        if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+        if (filter === "popular") return b.commentCount - a.commentCount;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+  }, [topics, user, filter, searchQuery, isSearching]);
 
   return (
     <View style={styles.container}>
@@ -166,6 +182,25 @@ export function ForumTopicsScreen({
         <Text style={styles.title} numberOfLines={1}>
           {categoryName}
         </Text>
+      </View>
+
+      <View style={styles.searchBar}>
+        <Ionicons name="search" size={18} color={Colors.textMuted} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Konu ara (en az 2 karakter)"
+          placeholderTextColor={Colors.textMuted}
+          value={searchInput}
+          onChangeText={setSearchInput}
+          returnKeyType="search"
+          autoCorrect={false}
+          accessibilityLabel="Konu ara"
+        />
+        {searchInput.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchInput("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="close-circle" size={18} color={Colors.textMuted} />
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.filters}>
@@ -205,9 +240,17 @@ export function ForumTopicsScreen({
           }
           ListEmptyComponent={
             <View style={styles.emptyBox}>
-              <Ionicons name="chatbubble-ellipses-outline" size={48} color={Colors.textMuted} />
-              <Text style={styles.emptyTitle}>Henüz konu yok</Text>
-              <Text style={styles.emptyText}>İlk konuyu sen aç!</Text>
+              <Ionicons
+                name={isSearching ? "search" : "chatbubble-ellipses-outline"}
+                size={48}
+                color={Colors.textMuted}
+              />
+              <Text style={styles.emptyTitle}>
+                {isSearching ? "Konu bulunamadı" : "Henüz konu yok"}
+              </Text>
+              <Text style={styles.emptyText}>
+                {isSearching ? `"${searchQuery}" için sonuç yok.` : "İlk konuyu sen aç!"}
+              </Text>
             </View>
           }
           ListFooterComponent={
@@ -222,6 +265,7 @@ export function ForumTopicsScreen({
           renderItem={({ item }) => (
             <TopicRow
               topic={item}
+              searchQuery={isSearching ? searchQuery : ""}
               onPress={() => onTopicPress(item.id, item.title, item.upvotes, item.hasUpvoted, item.authorId)}
               onUpvote={() => handleUpvote(item.id)}
             />
@@ -238,10 +282,12 @@ export function ForumTopicsScreen({
 
 function TopicRow({
   topic,
+  searchQuery,
   onPress,
   onUpvote,
 }: {
   topic: TopicWithIsMine;
+  searchQuery: string;
   onPress: () => void;
   onUpvote: () => void;
 }) {
@@ -262,7 +308,7 @@ function TopicRow({
       )}
       <View style={{ flex: 1 }}>
         <Text style={styles.rowTitle} numberOfLines={2}>
-          {topic.title}
+          {searchQuery ? highlight(topic.title, searchQuery) : topic.title}
         </Text>
         <View style={styles.rowMetaRow}>
           <View style={styles.rowMeta}>
@@ -346,6 +392,25 @@ const styles = StyleSheet.create({
     ...Typography.h2,
     color: Colors.textPrimary,
     flex: 1,
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.textPrimary,
+    paddingVertical: 2,
   },
   filters: {
     flexDirection: "row",

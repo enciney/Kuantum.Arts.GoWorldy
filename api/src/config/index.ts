@@ -41,14 +41,8 @@ export const config = {
     publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || "",
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
     prices: {
-      credits_50: process.env.STRIPE_PRICE_CREDITS_50 || "",
-      credits_100: process.env.STRIPE_PRICE_CREDITS_100 || "",
-      credits_250: process.env.STRIPE_PRICE_CREDITS_250 || "",
       premium_weekly: process.env.STRIPE_PRICE_PREMIUM_WEEKLY || "",
       premium_monthly: process.env.STRIPE_PRICE_PREMIUM_MONTHLY || "",
-      credits_topic: process.env.STRIPE_PRICE_CREDITS_TOPIC || process.env.STRIPE_PRICE_CREDITS_50 || "",
-      credits_comment: process.env.STRIPE_PRICE_CREDITS_COMMENT || process.env.STRIPE_PRICE_CREDITS_50 || "",
-      credits_ad: process.env.STRIPE_PRICE_CREDITS_AD || process.env.STRIPE_PRICE_CREDITS_50 || "",
     },
   },
 
@@ -75,10 +69,6 @@ export const config = {
   },
 
   forum: {
-    createTopicCost: Number(process.env.FORUM_CREATE_TOPIC_COST) || 50,
-    commentAccessCost: Number(process.env.FORUM_COMMENT_ACCESS_COST) || 50,
-    createAdCost: Number(process.env.FORUM_CREATE_AD_COST) || 50,
-    weeklyTopicReward: Number(process.env.FORUM_WEEKLY_TOPIC_REWARD) || 1,
     commentEditWindowMinutes: Number(process.env.COMMENT_EDIT_WINDOW_MINUTES) || 15,
     commentDeleteWindowMinutes: Number(process.env.COMMENT_DELETE_WINDOW_MINUTES) || 15,
   },
@@ -86,11 +76,6 @@ export const config = {
   premium: {
     weeklyPrice: Number(process.env.PREMIUM_WEEKLY_PRICE) || 50,
     monthlyPrice: Number(process.env.PREMIUM_MONTHLY_PRICE) || 250,
-    credits: {
-      createTopic: 1,
-      commentWeek: 1,
-      createAd: 1,
-    },
   },
 
   guide: {

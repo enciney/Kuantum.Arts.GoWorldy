@@ -10,7 +10,6 @@ export const adminUser: User = {
   email: "admin@goworldy.com",
   displayName: "Admin User",
   role: "admin",
-  credits: 100,
   isPremium: false,
   createdAt: "2024-01-01T00:00:00Z",
 };
@@ -20,7 +19,6 @@ export const regularUser: User = {
   email: "user@test.com",
   displayName: "Normal Kullanıcı",
   role: "user",
-  credits: 50,
   isPremium: false,
   createdAt: "2024-02-01T00:00:00Z",
 };
@@ -30,7 +28,6 @@ export const premiumUser: User = {
   email: "premium@test.com",
   displayName: "Premium Kullanıcı",
   role: "user",
-  credits: 200,
   isPremium: true,
   premiumUntil: "2025-01-01T00:00:00Z",
   createdAt: "2024-01-15T00:00:00Z",
@@ -76,6 +73,9 @@ export const premiumPlans: PremiumPlan[] = [
     price: 99,
     durationDays: 30,
     features: ["Sınırsız forum", "Rehber erişimi", "Öncelikli destek"],
+    featureKeys: [],
+    isSubscription: false,
+    subscriptionDiscountPercent: 0,
     isActive: true,
     createdAt: "2024-01-01T00:00:00Z",
   },
@@ -86,6 +86,9 @@ export const premiumPlans: PremiumPlan[] = [
     price: 29,
     durationDays: 7,
     features: ["Forum erişimi"],
+    featureKeys: [],
+    isSubscription: false,
+    subscriptionDiscountPercent: 0,
     isActive: false,
     createdAt: "2024-01-02T00:00:00Z",
   },
@@ -178,6 +181,15 @@ export const handlers = [
 
   http.delete(`${BASE}/admin/premium/plans/:id`, () =>
     HttpResponse.json({ ok: true })
+  ),
+
+  // Premium Features (PRM-FST-001 / PRM-FST-002)
+  http.get(`${BASE}/admin/premium/features`, () =>
+    HttpResponse.json([])
+  ),
+
+  http.get(`${BASE}/admin/premium/main-features`, () =>
+    HttpResponse.json([])
   ),
 
   // Premium Users

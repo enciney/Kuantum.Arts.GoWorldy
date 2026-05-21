@@ -41,7 +41,6 @@ const sampleUsers: User[] = [
     email: "admin@goworldy.com",
     displayName: "Admin Me",
     role: "admin",
-    credits: 100,
     isPremium: true,
     createdAt: "2024-01-01T00:00:00Z",
   },
@@ -51,7 +50,6 @@ const sampleUsers: User[] = [
     displayName: "Mehmet Demir",
     role: "user",
     userType: "emigrant",
-    credits: 50,
     isPremium: false,
     createdAt: "2024-02-15T00:00:00Z",
   },
@@ -60,7 +58,6 @@ const sampleUsers: User[] = [
     email: "mod@test.com",
     displayName: "Zeynep Şahin",
     role: "moderator",
-    credits: 0,
     isPremium: false,
     createdAt: "2024-03-10T00:00:00Z",
   },
@@ -212,7 +209,6 @@ describe("UsersPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Kullanıcı")).toBeInTheDocument();
       expect(screen.getByText("Tür")).toBeInTheDocument();
-      expect(screen.getByText("Kredi")).toBeInTheDocument();
       expect(screen.getByText("Premium")).toBeInTheDocument();
       expect(screen.getByText("Kayıt")).toBeInTheDocument();
       expect(screen.getByText("Rol")).toBeInTheDocument();
@@ -226,13 +222,13 @@ describe("UsersPage", () => {
     expect(await screen.findByText("M")).toBeInTheDocument(); // Mehmet → M
   });
 
-  it("shows credits value", async () => {
+  it("shows premium checkmark only for premium users", async () => {
     mockUsers.mockResolvedValue(sampleUsers);
     renderUsers();
 
     await screen.findByText("Admin Me");
-    expect(screen.getByText("100")).toBeInTheDocument();
-    expect(screen.getByText("50")).toBeInTheDocument();
+    const checkmarks = screen.getAllByText("✅");
+    expect(checkmarks).toHaveLength(1); // only Admin Me is premium
   });
 });
 

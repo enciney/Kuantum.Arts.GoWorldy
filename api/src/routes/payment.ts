@@ -3,27 +3,12 @@ import { Repositories } from "../repositories";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
 import { config } from "../config";
 
-const ACTION_COSTS: Record<string, number> = {
-  credits_topic:   50,
-  credits_reply:   50,
-  credits_message: 50,
-};
-
-const CREDIT_PACKAGES = [
-  { id: "credits_pack", name: "50 Kredi", credits: 50, priceTL: 99 },
-];
-
-const CREDITS_GRANT: Record<string, number> = {
-  credits_pack: 50,
-};
-
 const PREMIUM_DAYS: Record<string, number> = {
   premium_weekly:  7,
   premium_monthly: 30,
 };
 
 const PRICE_MAP: Record<string, string> = {
-  credits_pack:    config.stripe.prices.credits_50,
   premium_weekly:  config.stripe.prices.premium_weekly,
   premium_monthly: config.stripe.prices.premium_monthly,
 };
@@ -31,7 +16,7 @@ const PRICE_MAP: Record<string, string> = {
 export function paymentRoutes(repos: Repositories): Router {
   const router = Router();
 
-  // PRM-PKG-003: premium paketler admin panelden (premiumPlans collection) çekilir
+  // GET /packages — aktif premium planları döner
   router.get("/packages", async (_req, res) => {
     try {
       const plans = await repos.premium.getPlans();
@@ -40,20 +25,16 @@ export function paymentRoutes(repos: Repositories): Router {
         .map((p) => ({
           id: p.id,
           name: p.name,
+          description: p.description,
           days: p.durationDays,
           priceTL: p.price,
           features: p.features,
+          isSubscription: p.isSubscription,
+          subscriptionDiscountPercent: p.subscriptionDiscountPercent,
         }));
-      res.json({ credits: CREDIT_PACKAGES, premium: premiumPackages });
+      res.json({ premium: premiumPackages });
     } catch {
-      // DB hatasında fallback — statik paketler
-      res.json({
-        credits: CREDIT_PACKAGES,
-        premium: [
-          { id: "premium_weekly",  name: "Haftalık Premium", days: 7,  priceTL: 199, features: [] },
-          { id: "premium_monthly", name: "Aylık Premium",    days: 30, priceTL: 299, features: [] },
-        ],
-      });
+      res.json({ premium: [] });
     }
   });
 
@@ -67,94 +48,61 @@ export function paymentRoutes(repos: Repositories): Router {
     }
   });
 
-  // Spend credits for an action (credits_topic / credits_reply / credits_message)
-  router.post("/spend-credit", authMiddleware, async (req: AuthRequest, res) => {
-    try {
-      const { actionType } = req.body;
-      const cost = ACTION_COSTS[actionType];
-      if (cost == null) {
-        return res.status(400).json({ error: `Geçersiz aksiyon türü: ${actionType}` });
-      }
-
-      // P10-1: Özellik zaten aktifse 409 dön
-      const alreadyOwned = await repos.userFeatures.hasFeature(req.userId!, actionType);
-      if (alreadyOwned) {
-        return res.status(409).json({
-          error: "Zaten bu özelliğe sahipsiniz.",
-          code: "ALREADY_OWNED",
-        });
-      }
-
-      const deducted = await repos.users.deductCredits(req.userId!, cost);
-      if (!deducted) {
-        const user = await repos.users.findById(req.userId!);
-        return res.status(402).json({
-          error: "Yetersiz kredi.",
-          code: "INSUFFICIENT_CREDITS",
-          required: cost,
-          balance: user?.credits ?? 0,
-        });
-      }
-
-      // Özelliği kaydet (30 gün geçerli)
-      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-      await repos.userFeatures.addFeature(req.userId!, actionType, expiresAt);
-
-      const user = await repos.users.findById(req.userId!);
-      res.json({ ok: true, credits: user?.credits ?? 0 });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
-
-  // Dev/test endpoint — adds 50 credits instantly without Stripe
-  router.post("/topup/mock", authMiddleware, async (req: AuthRequest, res) => {
-    try {
-      await repos.users.addCredits(req.userId!, 50);
-      const user = await repos.users.findById(req.userId!);
-      res.json({ ok: true, credits: user?.credits ?? 0 });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
-
-  // Simüle ödeme — Stripe olmadan anlık kredi/premium ver
+  // POST /process — simüle ödeme (Stripe olmadan anlık premium ver)
+  // autoRenew: subscription planlar için indirim ve otomatik yenileme onayı
   router.post("/process", authMiddleware, async (req: AuthRequest, res) => {
     try {
-      const { productType } = req.body;
+      const { productType, autoRenew } = req.body;
       if (!productType) {
         return res.status(400).json({ error: "productType zorunlu" });
       }
 
-      const creditAmount = CREDITS_GRANT[productType];
-      const premiumDays  = PREMIUM_DAYS[productType];
+      // DB'deki premium plan
+      const plan = await repos.premium.getPlanById(productType);
+      if (!plan || !plan.isActive) {
+        return res.status(400).json({ error: `Geçersiz productType: ${productType}` });
+      }
 
-      if (creditAmount != null) {
-        await repos.users.addCredits(req.userId!, creditAmount);
-      } else if (premiumDays != null) {
-        const now = new Date();
+      const wantsAutoRenew = autoRenew === true && plan.isSubscription;
+      const discountPct = wantsAutoRenew ? (plan.subscriptionDiscountPercent ?? 0) : 0;
+      const chargedTL = Math.round(plan.price * (100 - discountPct)) / 100;
+
+      // Feature key'lerini userFeatures'a yaz (plan süresine kadar TTL)
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + plan.durationDays * 86_400_000).toISOString();
+      for (const key of plan.featureKeys ?? []) {
+        await repos.userFeatures.addFeature(req.userId!, key, expiresAt);
+      }
+
+      // Subscription ise isPremium = true + premiumUntil uzat
+      if (plan.isSubscription) {
         const existing = await repos.users.findById(req.userId!);
         const base = existing?.premiumUntil && new Date(existing.premiumUntil) > now
           ? new Date(existing.premiumUntil)
           : now;
-        const premiumUntil = new Date(base.getTime() + premiumDays * 86_400_000).toISOString();
-        await repos.users.update(req.userId!, { isPremium: true, premiumUntil });
-      } else {
-        return res.status(400).json({ error: `Geçersiz productType: ${productType}` });
+        const premiumUntil = new Date(base.getTime() + plan.durationDays * 86_400_000).toISOString();
+        await repos.users.update(req.userId!, {
+          isPremium: true,
+          premiumUntil,
+          autoRenew: wantsAutoRenew,
+        });
       }
 
       const user = await repos.users.findById(req.userId!);
       res.json({
         ok: true,
-        credits:      user?.credits      ?? 0,
         isPremium:    user?.isPremium     ?? false,
         premiumUntil: user?.premiumUntil  ?? null,
+        autoRenew:    wantsAutoRenew,
+        chargedTL,
+        discountPct,
       });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
   });
 
+  // POST /checkout — Stripe checkout session oluştur
   router.post("/checkout", authMiddleware, async (req: AuthRequest, res) => {
     try {
       const { productType, successUrl, cancelUrl } = req.body;

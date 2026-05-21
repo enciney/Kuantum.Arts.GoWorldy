@@ -23,20 +23,6 @@ export class MongoUserRepository implements IUserRepository {
     return doc ? toDoc<User>(doc) : null;
   }
 
-  async addCredits(id: string, amount: number): Promise<void> {
-    const { users } = await getCollections();
-    await users.updateOne({ _id: id }, { $inc: { credits: amount } });
-  }
-
-  async deductCredits(id: string, amount: number): Promise<boolean> {
-    const { users } = await getCollections();
-    const result = await users.updateOne(
-      { _id: id, credits: { $gte: amount } },
-      { $inc: { credits: -amount } }
-    );
-    return result.modifiedCount > 0;
-  }
-
   async updateRole(id: string, role: User["role"]): Promise<void> {
     const { users } = await getCollections();
     await users.updateOne({ _id: id }, { $set: { role } });

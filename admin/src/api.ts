@@ -46,6 +46,20 @@ export const api = {
       }, token),
     revokePremium: (userId: string, token: string) =>
       req<{ ok: boolean }>(`/admin/premium/users/${userId}/grant`, { method: "DELETE" }, token),
+    // PRM-FST-001 — Premium feature catalog
+    getPremiumFeatures: (token: string) =>
+      req<PremiumFeature[]>("/admin/premium/features", {}, token),
+    createPremiumFeature: (data: Omit<PremiumFeature, "id" | "createdAt">, token: string) =>
+      req<PremiumFeature>("/admin/premium/features", { method: "POST", body: JSON.stringify(data) }, token),
+    updatePremiumFeature: (id: string, data: Partial<Omit<PremiumFeature, "id" | "createdAt">>, token: string) =>
+      req<{ ok: boolean }>(`/admin/premium/features/${id}`, { method: "PATCH", body: JSON.stringify(data) }, token),
+    deletePremiumFeature: (id: string, token: string) =>
+      req<{ ok: boolean }>(`/admin/premium/features/${id}`, { method: "DELETE" }, token),
+    // PRM-FST-002 — Ana paket kategorileri (Konu Açma / Yorum / Mesajlaşma)
+    getPremiumMainFeatures: (token: string) =>
+      req<PremiumMainFeature[]>("/admin/premium/main-features", {}, token),
+    updatePremiumMainFeature: (id: string, data: Partial<Omit<PremiumMainFeature, "id" | "createdAt">>, token: string) =>
+      req<{ ok: boolean }>(`/admin/premium/main-features/${id}`, { method: "PATCH", body: JSON.stringify(data) }, token),
   },
   forum: {
     updateTopicStatus: (id: string, status: "approved" | "rejected", token: string, reason?: string) =>
@@ -78,7 +92,6 @@ export interface User {
   displayName: string;
   role: "admin" | "moderator" | "user";
   userType?: string;
-  credits?: number;
   isPremium?: boolean;
   premiumUntil?: string;
   createdAt?: string;
@@ -161,6 +174,30 @@ export interface PremiumPlan {
   price: number;
   durationDays: number;
   features: string[];
+  featureKeys: string[];
+  isSubscription: boolean;
+  subscriptionDiscountPercent: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface PremiumFeature {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  mainFeatureId?: string | null;
+  durationDays?: number | null;
+  quota?: number | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface PremiumMainFeature {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
   isActive: boolean;
   createdAt: string;
 }

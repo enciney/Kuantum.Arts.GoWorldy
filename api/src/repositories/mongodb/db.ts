@@ -22,6 +22,8 @@ export const COLL = {
   USER_COUNTRY_SUBSCRIPTIONS: "userCountrySubscriptions",
   USER_TOPIC_SUBSCRIPTIONS: "userTopicSubscriptions",
   PREMIUM_PLANS:            "premiumPlans",
+  PREMIUM_FEATURES:         "premiumFeatures",
+  PREMIUM_MAIN_FEATURES:    "premiumMainFeatures",
   USER_FEATURES:            "userFeatures",
 } as const;
 
@@ -35,9 +37,9 @@ export interface UserDoc {
   bio?: string;
   role: "admin" | "moderator" | "user";
   userType: "emigrant" | "consultant" | "diaspora";
-  credits: number;
   isPremium: boolean;
   premiumUntil?: string;
+  autoRenew?: boolean;
   phoneNumber?: string;
   sharePhoneNumber?: boolean;
   avatarUrl?: string;
@@ -206,6 +208,30 @@ export interface PremiumPlanDoc {
   price: number;
   durationDays: number;
   features: string[];
+  featureKeys?: string[];
+  isSubscription?: boolean;
+  subscriptionDiscountPercent?: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface PremiumFeatureDoc {
+  _id: string;
+  key: string;
+  name: string;
+  description: string;
+  mainFeatureId?: string | null;
+  durationDays?: number | null;
+  quota?: number | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface PremiumMainFeatureDoc {
+  _id: string;
+  key: string;
+  name: string;
+  description: string;
   isActive: boolean;
   createdAt: string;
 }
@@ -239,6 +265,8 @@ export interface AppCollections {
   userCountrySubscriptions: Collection<UserCountrySubscriptionDoc>;
   userTopicSubscriptions:   Collection<UserTopicSubscriptionDoc>;
   premiumPlans:             Collection<PremiumPlanDoc>;
+  premiumFeatures:          Collection<PremiumFeatureDoc>;
+  premiumMainFeatures:      Collection<PremiumMainFeatureDoc>;
   userFeatures:             Collection<UserFeatureDoc>;
 }
 
@@ -276,6 +304,8 @@ export async function getCollections(): Promise<AppCollections> {
     userCountrySubscriptions: d.collection<UserCountrySubscriptionDoc>(COLL.USER_COUNTRY_SUBSCRIPTIONS),
     userTopicSubscriptions:   d.collection<UserTopicSubscriptionDoc>(COLL.USER_TOPIC_SUBSCRIPTIONS),
     premiumPlans:             d.collection<PremiumPlanDoc>(COLL.PREMIUM_PLANS),
+    premiumFeatures:          d.collection<PremiumFeatureDoc>(COLL.PREMIUM_FEATURES),
+    premiumMainFeatures:      d.collection<PremiumMainFeatureDoc>(COLL.PREMIUM_MAIN_FEATURES),
     userFeatures:             d.collection<UserFeatureDoc>(COLL.USER_FEATURES),
     forumEditRequests:        d.collection<ForumEditRequestDoc>(COLL.FORUM_EDIT_REQUESTS),
     systemSettings:           d.collection<SystemSettingsDoc>(COLL.SYSTEM_SETTINGS),
@@ -312,6 +342,11 @@ async function ensureIndexes(d: Db): Promise<void> {
   await d.collection(COLL.USER_TOPIC_SUBSCRIPTIONS).createIndex({ topicId: 1 });
   await d.collection(COLL.PREMIUM_PLANS).createIndex({ isActive: 1 });
   await d.collection(COLL.PREMIUM_PLANS).createIndex({ price: 1 });
+  await d.collection(COLL.PREMIUM_FEATURES).createIndex({ key: 1 }, { unique: true });
+  await d.collection(COLL.PREMIUM_FEATURES).createIndex({ isActive: 1 });
+  await d.collection(COLL.PREMIUM_FEATURES).createIndex({ mainFeatureId: 1 });
+  await d.collection(COLL.PREMIUM_MAIN_FEATURES).createIndex({ key: 1 }, { unique: true });
+  await d.collection(COLL.PREMIUM_MAIN_FEATURES).createIndex({ isActive: 1 });
   await d.collection(COLL.USER_FEATURES).createIndex({ userId: 1, featureType: 1 });
   await d.collection(COLL.USER_FEATURES).createIndex({ expiresAt: 1 });
 }

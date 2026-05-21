@@ -94,7 +94,6 @@ export const api = {
         bio?: string;
         avatarUrl?: string;
         role: string;
-        credits: number;
         isPremium: boolean;
         premiumUntil?: string;
         userType?: "emigrant" | "consultant" | "diaspora";
@@ -312,8 +311,16 @@ export const api = {
   payment: {
     getPackages: () =>
       request<{
-        credits: { id: string; name: string; credits: number; priceTL: number }[];
-        premium: { id: string; name: string; days: number; priceTL: number }[];
+        premium: {
+          id: string;
+          name: string;
+          description?: string;
+          days: number;
+          priceTL: number;
+          features?: string[];
+          isSubscription?: boolean;
+          subscriptionDiscountPercent?: number;
+        }[];
       }>("/payment/packages"),
 
     checkout: (params: { productType: string; priceId?: string; successUrl: string; cancelUrl: string }, token: string) =>
@@ -323,10 +330,17 @@ export const api = {
         token,
       }),
 
-    process: (productType: string, token: string) =>
-      request<{ ok: boolean; credits: number; isPremium: boolean; premiumUntil: string | null }>(
+    process: (productType: string, token: string, autoRenew?: boolean) =>
+      request<{
+        ok: boolean;
+        isPremium: boolean;
+        premiumUntil: string | null;
+        autoRenew?: boolean;
+        chargedTL?: number;
+        discountPct?: number;
+      }>(
         "/payment/process",
-        { method: "POST", body: JSON.stringify({ productType }), token }
+        { method: "POST", body: JSON.stringify({ productType, autoRenew: autoRenew === true }), token }
       ),
 
     myFeatures: (token: string) =>

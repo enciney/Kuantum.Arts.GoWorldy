@@ -17,9 +17,10 @@ async function makeAdmin(email: string) {
   await users.updateOne({ email }, { $set: { role: "admin" } });
 }
 
-async function giveCredits(uid: string, amount: number) {
+async function makePremium(uid: string) {
   const { users } = await getCollections();
-  await users.updateOne({ _id: uid }, { $set: { credits: amount } });
+  const until = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  await users.updateOne({ _id: uid }, { $set: { isPremium: true, premiumUntil: until } });
 }
 
 beforeAll(async () => {
@@ -94,8 +95,8 @@ describe("GET /api/forum/countries/:id/categories", () => {
 // ── Topics ────────────────────────────────────────────────────────────────────
 describe("GET /api/forum/categories/:id/topics", () => {
   it("F-04: only approved topics returned to public", async () => {
-    // Create a pending topic via user
-    await giveCredits(userId, 100);
+    // Create a pending topic via premium user
+    await makePremium(userId);
     await request(app)
       .post("/api/forum/topics")
       .set("Authorization", `Bearer ${userToken}`)
@@ -128,13 +129,8 @@ describe("POST /api/forum/topics", () => {
     expect(res.body.status).toBe("approved");
   });
 
-  it("as user with enough credits → 200, status=pending, credits deducted", async () => {
-    await giveCredits(userId, 100);
-
-    const before = await request(app)
-      .get("/api/users/me")
-      .set("Authorization", `Bearer ${userToken}`);
-    const creditsBefore = before.body.credits;
+  it("as premium user → 200, status=pending", async () => {
+    await makePremium(userId);
 
     const res = await request(app)
       .post("/api/forum/topics")
@@ -142,22 +138,23 @@ describe("POST /api/forum/topics", () => {
       .send({ categoryId, title: "User pending topic" });
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("pending");
-
-    const after = await request(app)
-      .get("/api/users/me")
-      .set("Authorization", `Bearer ${userToken}`);
-    expect(after.body.credits).toBeLessThan(creditsBefore);
   });
 
-  it("as user with 0 credits → 402 INSUFFICIENT_CREDITS", async () => {
-    await giveCredits(userId, 0);
+  it("as non-premium user → 402 PREMIUM_REQUIRED", async () => {
+    // Yeni kullanıcı (premium değil)
+    const newUser = await request(app).post("/api/auth/register").send({
+      email: "nonpromforum@test.com",
+      password: "forumpass123",
+      displayName: "NonPremForum",
+      userType: "emigrant",
+    });
 
     const res = await request(app)
       .post("/api/forum/topics")
-      .set("Authorization", `Bearer ${userToken}`)
-      .send({ categoryId, title: "No credit topic" });
+      .set("Authorization", `Bearer ${newUser.body.token}`)
+      .send({ categoryId, title: "Premium gerekli konu" });
     expect(res.status).toBe(402);
-    expect(res.body.code).toBe("INSUFFICIENT_CREDITS");
+    expect(res.body.code).toBe("PREMIUM_REQUIRED");
   });
 
   it("unauthenticated → 401", async () => {
@@ -239,8 +236,8 @@ describe("PATCH /api/forum/topics/:id/status", () => {
   let pendingTopicId: string;
 
   beforeAll(async () => {
-    // Give user credits to create a pending topic
-    await giveCredits(userId, 100);
+    // Make user premium to create a pending topic
+    await makePremium(userId);
     const res = await request(app)
       .post("/api/forum/topics")
       .set("Authorization", `Bearer ${userToken}`)

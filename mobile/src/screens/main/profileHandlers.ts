@@ -7,7 +7,6 @@ export interface ProfileData {
   bio?: string;
   avatarUrl?: string;
   role: string;
-  credits: number;
   isPremium: boolean;
   userType?: "emigrant" | "consultant" | "diaspora";
   phoneNumber?: string;

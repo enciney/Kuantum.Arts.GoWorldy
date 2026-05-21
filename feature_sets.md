@@ -113,7 +113,7 @@ Her feature **3 segment**ten oluşan benzersiz bir ID'ye sahiptir:
 | [FRM-CAT-001](#frm-cat-001-kategori-listesi) | Kategori listesi | ✅ |
 | [FRM-CAT-002](#frm-cat-002-alt-kategori-nested) | Alt kategori (nested) | ⚠️ |
 | [FRM-TPC-001](#frm-tpc-001-konu-listesi--sayfalama) | Konu listesi + sayfalama | ✅ |
-| [FRM-TPC-002](#frm-tpc-002-konu-açma-tam-akış) | **Konu açma (Premium check + admin onay + bildirim)** | ✅ |
+| [FRM-TPC-002](#frm-tpc-002-konu-açma-tam-akış) | **Konu açma (Premium zorunlu + admin onay + bildirim)** | ✅ |
 | [FRM-TPC-003](#frm-tpc-003-konu-içeriği-body-alanı) | Konu içeriği (body) TextInput + detayda render | ✅ |
 | [FRM-TPC-004](#frm-tpc-004-konu-detay) | Konu detay görüntüleme | ✅ |
 | [FRM-TPC-005](#frm-tpc-005-konu-düzenleme) | Konu düzenleme (yazar tarafından) | ⚠️ |
@@ -133,17 +133,22 @@ Her feature **3 segment**ten oluşan benzersiz bir ID'ye sahiptir:
 | [FRM-CMT-006](#frm-cmt-006-yorum-yanıtlama-nested) | Yorum yanıtlama (nested + collapse) | ✅ |
 | [FRM-CMT-007](#frm-cmt-007-yorum-raporlama) | Yorum raporlama | ⚠️ |
 
-### PRM — Premium (10 feature)
+### PRM — Premium (13 feature)
 
 | ID | Özellik | Durum |
 |----|---------|-------|
-| [PRM-PKG-001](#prm-pkg-001-paket-listesi) | Premium paket listesi | ✅ |
-| [PRM-PKG-002](#prm-pkg-002-aktif-paket-banner) | Aktif paket banner (anasayfa CTA) | ⚠️ |
-| [PRM-PKG-003](#prm-pkg-003-fiyat-api-dan-çekme-hardcoded-yok) | Fiyat API'dan çekme (hardcoded yok) | ❌ |
+| [PRM-PKG-001](#prm-pkg-001-paket-listesi) | Premium paket listesi (yeni yapı) | ✅ |
+| [PRM-PKG-002](#prm-pkg-002-aktif-paket-banner) | Aktif paket banner (anasayfa CTA) | ✅ |
+| [PRM-PKG-003](#prm-pkg-003-fiyat-api-dan-çekme-hardcoded-yok) | Fiyat API'dan çekme (hardcoded yok) | ✅ |
+| [PRM-PKG-004](#prm-pkg-004-tek-seferlik-paketler) | **Tek seferlik özellik paketleri (3 adet, 99 TL)** | ✅ |
+| [PRM-PKG-005](#prm-pkg-005-subscription-premium-paketleri) | **Subscription premium paketleri (haftalık 179 / aylık 279)** | ✅ |
+| [PRM-FST-001](#prm-fst-001-premium-feature-set-katalog) | Premium feature set — DB katalog + admin UI | ✅ |
+| [PRM-FST-002](#prm-fst-002-ana-paket-kategorileri-katalog) | Ana paket kategorileri (konu açma / yorum / mesajlaşma) | ✅ |
 | [PRM-SUB-001](#prm-sub-001-haftalık-premium-satın-alma) | Haftalık premium satın alma | ✅ |
 | [PRM-SUB-002](#prm-sub-002-aylık-premium-satın-alma) | Aylık premium satın alma | ✅ |
 | [PRM-SUB-003](#prm-sub-003-aktif-aboneliği-görüntüleme) | Aktif aboneliği görüntüleme | ✅ |
 | [PRM-SUB-004](#prm-sub-004-abonelik-iptali) | Abonelik iptali | ❌ |
+| [PRM-SUB-005](#prm-sub-005-autorenew-indirim-toggle) | **AutoRenew %15 indirim toggle** | ✅ |
 | [PRM-EXP-001](#prm-exp-001-süre-dolma-otomatik-kapatma) | Süre dolduğunda isPremium otomatik false | ❌ |
 | [PRM-EXP-002](#prm-exp-002-süre-dolma-bildirimi-3-gün-önce) | Süre dolma bildirimi (3 gün önce) | ❌ |
 | [PRM-EXP-003](#prm-exp-003-mobile-tarafında-premium-state-refresh) | **Mobile: Premium state refresh** (kritik bug) | ❌ |
@@ -155,8 +160,8 @@ Her feature **3 segment**ten oluşan benzersiz bir ID'ye sahiptir:
 | [PAY-CHK-001](#pay-chk-001-stripe-checkout-session) | Stripe checkout session oluşturma | 🔒 |
 | [PAY-CHK-002](#pay-chk-002-mock-ödeme-process) | Mock ödeme (geliştirme için /process) | ✅ |
 | [PAY-WBH-001](#pay-wbh-001-stripe-webhook-işleme) | Stripe webhook işleme | 🔒 |
-| [PAY-SPN-001](#pay-spn-001-kredi-harcama-spend-credit) | Kredi harcama (spend-credit) | ✅ |
-| [PAY-SPN-002](#pay-spn-002-zaten-sahip-409-koruması) | "Zaten sahipsiniz" 409 koruması | ✅ |
+| [PAY-SPN-001](#pay-spn-001-kredi-harcama-spend-credit) | ~~Kredi harcama (spend-credit)~~ — kaldırıldı, yerini `/process` aldı | ❌ |
+| [PAY-SPN-002](#pay-spn-002-zaten-sahip-409-koruması) | "Zaten sahipsiniz" 409 koruması | ❌ |
 | [PAY-HST-001](#pay-hst-001-ödeme-geçmişi) | Ödeme geçmişi | ❌ |
 | [PAY-INV-001](#pay-inv-001-fatura-pdf-indirme) | Fatura PDF indirme | ❌ |
 | [PAY-RFD-001](#pay-rfd-001-iade-talebi) | İade talebi | ❌ |
@@ -241,8 +246,8 @@ Her feature **3 segment**ten oluşan benzersiz bir ID'ye sahiptir:
 | ID | Özellik | Durum |
 |----|---------|-------|
 | [SRC-TPC-001](#src-tpc-001-konu-arama-min-2-karakter) | Konu arama (min 2 karakter) | ✅ |
-| [SRC-TPC-002](#src-tpc-002-arama-sonuçlarında-vurgu-highlight) | Arama sonuçlarında highlight | ❌ |
-| [SRC-CAT-001](#src-cat-001-kategori-içi-arama) | Kategori içi arama | ❌ |
+| [SRC-TPC-002](#src-tpc-002-arama-sonuçlarında-vurgu-highlight) | Arama sonuçlarında highlight | ✅ |
+| [SRC-CAT-001](#src-cat-001-kategori-içi-arama) | Kategori içi arama | 🚫 |
 | [SRC-USR-001](#src-usr-001-admin-kullanıcı-arama) | Admin: kullanıcı arama | ✅ |
 
 ### SEC — Güvenlik (8 feature)
@@ -1220,21 +1225,115 @@ veya aggregation:
 
 ### PRM-PKG-001: Paket Listesi
 
-**Durum:** ✅ `GET /payment/packages` — credits_pack (99TL), premium_weekly (199TL), premium_monthly (299TL)
+**Durum:** ✅ `GET /payment/packages` — yapı:
+
+**Tek seferlik:**
+- `topic_pack_weekly`: 99 TL · 7 gün · Haftada 10 konu açma
+- `comment_pack_weekly`: 99 TL · 7 gün · 1 hafta sınırsız yorum
+- `dm_pack_weekly`: 99 TL · 7 gün · 1 hafta 5 DM
+
+**Subscription premium:**
+- `premium_weekly`: 179 TL · 7 gün · Sınırsız konu + Sınırsız yorum + Haftada 20 DM · autoRenew %15 indirim
+- `premium_monthly`: 279 TL · 30 gün · Sınırsız konu + Sınırsız yorum + Haftada 20 DM · autoRenew %15 indirim
+
+**Kredi:** `credits_pack` (99 TL · 50 kredi)
+
+**Legacy:** `bundle_weekly` ve `bundle_monthly` startup migration ile `isActive: false`.
 
 ---
 
 ### PRM-PKG-002: Aktif Paket Banner
 
-**Durum:** ⚠️ HomeScreen'de gösteriliyor ama fiyat hardcoded
+**Durum:** ✅ HomeScreen banner aktif abonelik durumuna göre değişir:
+- Premium aktif → "Premium Aktif 💎 — N gün kaldı" (Premium ekranına git)
+- Premium yok → "Premium'a Geç — {en ucuz plan} {fiyat} TL'den başlayan fiyatlarla"
+
+`PremiumBanner` bileşeni `HomeScreen.tsx` içinde; `useAuth()` ile premium durumunu ve `api.payment.getPackages()` ile fiyatları çeker.
 
 ---
 
 ### PRM-PKG-003: Fiyat API'dan Çekme
 
-**Durum:** ❌ `HomeScreen.tsx:232`'de "250 TL" hardcoded
+**Durum:** ✅ HomeScreen `loadData` içinde `api.payment.getPackages()` çağrılıyor — banner'da en ucuz premium paketin fiyatı dinamik gösteriliyor. Hardcoded "250 TL" string'i kaldırıldı.
 
-**Çözüm:** Mount'ta `GET /payment/packages` çağır, `weekly.priceTL`'yi göster.
+---
+
+### PRM-PKG-004: Tek Seferlik Paketler
+
+**Durum:** ✅ 3 paket — her biri 99 TL, 7 gün TTL'li userFeatures kaydı oluşturur. `isPremium` flag'i değişmez (subscription değil). PremiumScreen'de "Tek Seferlik Paketler" bölümünde listelenir.
+
+| Paket | featureKey | Etki |
+|-------|------------|------|
+| Konu Açma Paketi | `topic_pack_10_weekly` | 7 gün boyunca 10 konu açma hakkı |
+| Yorum Paketi | `unlimited_comments_weekly` | 7 gün boyunca sınırsız yorum |
+| Mesajlaşma Paketi | `dm_5_weekly` | 7 gün boyunca 5 DM |
+
+> Quota enforcement (10 konu limiti, 5 DM limiti) backend tarafında ilgili route'larda `userFeatures.hasFeature()` ile kontrol edilecek — şu an feature key yazılıyor, kullanım sayacı henüz yok (TODO).
+
+---
+
+### PRM-PKG-005: Subscription Premium Paketleri
+
+**Durum:** ✅ İki abonelik — `premium_weekly` (179 TL/hf) ve `premium_monthly` (279 TL/ay). Her ikisi de aynı featureKey'leri verir:
+
+| featureKey | Anlam |
+|------------|-------|
+| `unlimited_topics` | Sınırsız konu açma |
+| `unlimited_comments_weekly` | Sınırsız yorum |
+| `dm_20_weekly` | Haftada 20 DM hakkı |
+
+`isSubscription: true`, `subscriptionDiscountPercent: 15`. Satın alımda `user.isPremium = true` ve `premiumUntil` uzatılır (mevcut süre üzerine eklenir).
+
+**Seed davranışı:** Eski `bundle_weekly`/`bundle_monthly` plan ID'leri startup'ta deaktif edilir; `premium_weekly`/`premium_monthly` ise **forcibly upsert** edilir — yani legacy DB içerikleri (eski 50/250 TL ve eski features array'i) yeni içerikle güncellenir. Admin sonradan elle değiştirirse, sonraki restart'ta tekrar override OLMAZ — `$set` ama planın `createdAt`'i korunur; admin değişiklikleri ancak `premium_weekly` veya `premium_monthly` DEFAULTS satırlarını değiştirirsen üzerine yazılır.
+
+**autoRenew akışı:**
+- Frontend: PremiumScreen'de "Otomatik yenile" toggle (default kapalı)
+- Toggle açıkken: premium planların fiyatı %15 indirimli gösterilir (üstü çizili orijinal fiyat + yeşil indirim chip)
+- Satın alımda `POST /payment/process { productType, autoRenew: true }` gönderilir
+- Backend: plan.isSubscription && autoRenew → `chargedTL = price * (1 - discount/100)`, `user.autoRenew = true` set edilir
+- Response: `chargedTL`, `discountPct`, `autoRenew` döner — frontend confirmation için kullanır
+
+---
+
+### PRM-FST-001: Premium Feature Set (katalog)
+
+**Durum:** ✅ DB-backed premium özellik kataloğu + admin yönetim UI'ı.
+
+**Mimari:**
+- `premiumFeatures` koleksiyonu — `{ key, name, description, isActive }`
+- `IPremiumFeatureRepository` + `MongoPremiumFeatureRepository`
+- Startup'ta `seedDefaults()` — katalog: `topic_pack_10_weekly`, `unlimited_comments_weekly`, `dm_5_weekly`, `unlimited_topics`, `dm_20_weekly`, `comment_access`
+- Legacy migration: `ad_free`, `priority_support`, `unlimited_dm`, `early_access` → `isActive: false` (silinmez, admin yeniden aktive edebilir)
+- `unlimited_topics` → otomatik `isActive: true` (premium plan içeriği için gerekli)
+- Admin route'ları: `GET/POST/PATCH/DELETE /admin/premium/features`
+- Admin UI: `PremiumPage` → "Özellik Seti" sekmesi (CRUD + aktif/pasif toggle)
+- Plan editörü: katalogdan **checkbox listesi**; seçildiğinde hem feature ADI hem KEY plan'a yazılır
+
+**Plan ↔ feature ilişkisi:** `premiumPlans.features` = mobile/admin gösterimi için ad listesi; `premiumPlans.featureKeys` = satın alımda `userFeatures.addFeature()` çağrısı için key listesi. Bu ikili yapı sayesinde admin ad'ı değiştirse bile satın alma akışı kırılmaz.
+
+**Key validation:** `^[a-z0-9_]+$` — stabil identifier; ad değiştirilebilir, key kalır.
+
+**Çıkarılan default'lar:** "Öncelikli destek" ve "Reklamsız deneyim" — hem feature katalogundan deaktif edildi hem `premiumPlans` migration ile tüm planların `features` array'lerinden çıkarıldı (`$pull`).
+
+---
+
+### PRM-FST-002: Ana Paket Kategorileri (katalog)
+
+**Durum:** ✅ DB-backed ana kategori kataloğu + admin yönetim UI'ı.
+
+**Amaç:** `PremiumFeature` instance'larını 3 temel kategoriye gruplamak — Konu Açma, Yorum Erişimi, Mesajlaşma.
+
+**Mimari:**
+- `premiumMainFeatures` koleksiyonu — `{ key, name, description, isActive }`
+- `IPremiumMainFeatureRepository` + `MongoPremiumMainFeatureRepository`
+- Startup'ta `seedDefaults()` — 3 ana kategori: `konu_acma`, `yorum`, `mesajlasma`
+- `PremiumFeature.mainFeatureId` → bu kategoriye referans (opsiyonel; null ise bağımsız feature)
+- Admin route'ları: `GET/POST/PATCH/DELETE /admin/premium/main-features`
+- Admin UI: `PremiumPage` → "Ana Kategoriler" sekmesi (CRUD)
+
+**Key validation:** `^[a-z0-9_]+$` — hem feature hem main feature için aynı kural.
+
+**Plan'a bağlantı:** Plan `featureKeys` listesi, instance `key`'leri içerir. Main feature referansı sadece UI gruplama için; satın alım akışını etkilemez.
 
 ---
 
@@ -1257,6 +1356,19 @@ veya aggregation:
 ### PRM-SUB-003: Aktif Aboneliği Görüntüleme
 
 **Durum:** ✅ PremiumScreen'de "Kalan süre: 5 gün 3 saat" gösteriyor
+
+---
+
+### PRM-SUB-005: AutoRenew İndirim Toggle
+
+**Durum:** ✅ PremiumScreen üstünde "Otomatik yenile" toggle (bildirim aç/kapa stilinde, `<Switch>`). Sadece subscription planları (bundle_weekly / bundle_monthly) etkiler:
+
+- Toggle KAPALI → bundle'lar tam fiyatla (179/279 TL) gösterilir, CTA: "Bir Sefer Satın Al". `POST /payment/process { autoRenew: false }`.
+- Toggle AÇIK → bundle'lar %15 indirimli gösterilir (üstü çizili eski fiyat + yeşil indirim chip), CTA: "Aboneliği Başlat". `POST /payment/process { autoRenew: true }`.
+
+PaymentScreen confirmation ekranında indirim kalemi ayrı satır olarak listelenir (`originalPrice − discount = price`).
+
+**Backend doğrulaması:** `payment.ts /process` plan'ı DB'den okur, `plan.isSubscription && req.body.autoRenew` true ise `subscriptionDiscountPercent` uygulanır; aksi halde indirim 0. `user.autoRenew` alanı da güncellenir (gelecek PRM-SUB-004 iptal akışı için).
 
 ---
 
@@ -1455,13 +1567,13 @@ router.post("/webhook", express.raw({ type: "application/json" }), async (req, r
 
 ### PAY-SPN-001: Kredi Harcama
 
-**Durum:** ✅ `POST /payment/spend-credit { actionType }` — 50 kredi düşer, 30 günlük feature grant eder
+**Durum:** ❌ `POST /payment/spend-credit` endpoint'i kaldırıldı. Yerini `POST /payment/process { productType }` aldı. Forum konu açma artık premium üyelik gerektiriyor, kredi bazlı değil.
 
 ---
 
 ### PAY-SPN-002: "Zaten Sahipsiniz" 409
 
-**Durum:** ✅ `userFeatures.hasFeature()` ile kontrol, varsa 409 dön
+**Durum:** ❌ `userFeatures.hasFeature()` ile 409 kontrolü, `spend-credit` endpoint'i ile birlikte kaldırıldı. Yeni `/process` flow'unda feature key'ler her satın almada üzerine yazılıyor (TTL uzatma).
 
 ---
 
@@ -2165,22 +2277,19 @@ Admin panel: ülke seç → adım listesi → "+ Yeni Adım" → order, question
 
 ### SRC-TPC-001: Konu Arama
 
-**Durum:** ✅ `GET /forum/search?q=&countryId=` — min 2 karakter, NoSQL injection korumalı
+**Durum:** ✅ `ForumTopicsScreen` üstüne arama input eklendi. Min 2 karakter, 300ms debounce. Hâlihazırda yüklü topic'ler arasında `title` üzerinde case-insensitive substring filtresi (client-side; ayrı endpoint çağrısı yok). Girdi boşken normal pinned/popüler/yeni sıralaması korunur. Sonuç yoksa "Konu bulunamadı" empty state.
+
+> Not: SRC-CAT-001 (`GET /forum/categories/:id/topics?q=…`) **kapsam dışı bırakıldı** — gereksinim client-side filter ile karşılandı.
 
 ---
 
 ### SRC-TPC-002: Highlight
 
-**Durum:** ❌ Eksik
+**Durum:** ✅ `mobile/src/utils/highlight.tsx` — yardımcı fonksiyon; ForumTopicsScreen'deki `TopicRow` arama aktifken başlığa uyguluyor (sarı arka plan + amber text).
 
 ```tsx
 function highlight(text: string, query: string) {
-  const parts = text.split(new RegExp(`(${escapeRegex(query)})`, "gi"));
-  return parts.map((p, i) =>
-    p.toLowerCase() === query.toLowerCase()
-      ? <Text key={i} style={{ backgroundColor: "yellow" }}>{p}</Text>
-      : <Text key={i}>{p}</Text>
-  );
+  // q < 2 karakter ise plain string döner; yoksa regex split + Text segments
 }
 ```
 
@@ -2188,7 +2297,7 @@ function highlight(text: string, query: string) {
 
 ### SRC-CAT-001: Kategori İçi Arama
 
-**Durum:** ❌ Eksik — `GET /forum/categories/:id/topics?q=...`
+**Durum:** 🚫 Kapsam dışı (skip). Arama ihtiyacı SRC-TPC-001 client-side filter ile karşılandı.
 
 ---
 
@@ -2535,15 +2644,16 @@ Bu özellikler **henüz hiç düşünülmemiş** ama göç platformları için t
 
 Kullanıcının bildirdiği bug'ları + en kritik eksikleri kapsar:
 
-1. **BUG-001** + **PRM-EXP-003** — AuthContext refresh (2 saat)
-2. **BUG-003** — Notification polling (1 saat)
-3. **NTF-EVT-005** — Admin'e in-app bildirim (3 saat)
-4. **NTF-PSH-001** — Expo push (1 gün)
-5. **AUTH-LOG-005** — 401 interceptor (1 saat)
-6. **PRM-EXP-001** — Lazy expiry check (2 saat)
-7. **FRM-TPC-003** — Konu body TextInput (1 saat)
-8. **SEC-RTL-001** + **SEC-RTL-002** — Rate limit (3 saat)
-9. **AUTH-REG-002** + **AUTH-PWD-005** — Validasyon (3 saat)
-10. **MOD-REP-001** + **MOD-REP-002** — Raporlama akışı (1 gün)
+1. **SRC-TPC-001** — Konu arama UI (1-2 saat) ← backend hazır, sadece UI
+2. **BUG-001** + **PRM-EXP-003** — AuthContext refresh (2 saat)
+3. **BUG-003** — Notification polling (1 saat)
+4. **NTF-EVT-005** — Admin'e in-app bildirim (3 saat)
+5. **NTF-PSH-001** — Expo push (1 gün)
+6. **AUTH-LOG-005** — 401 interceptor (1 saat)
+7. **PRM-EXP-001** — Lazy expiry check (2 saat)
+8. **FRM-TPC-003** — Konu body TextInput (1 saat)
+9. **SEC-RTL-001** + **SEC-RTL-002** — Rate limit (3 saat)
+10. **AUTH-REG-002** + **AUTH-PWD-005** — Validasyon (3 saat)
+11. **MOD-REP-001** + **MOD-REP-002** — Raporlama akışı (1 gün)
 
 **Toplam: ~3 gün geliştirme + 2 gün test + 1 gün QA**

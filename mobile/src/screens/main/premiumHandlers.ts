@@ -18,8 +18,16 @@ export interface PurchaseResult {
 }
 
 export interface PackagesResult {
-  credits: { id: string; name: string; credits: number; priceTL: number }[];
-  premium: { id: string; name: string; days: number; priceTL: number }[];
+  premium: {
+    id: string;
+    name: string;
+    description?: string;
+    days: number;
+    priceTL: number;
+    features?: string[];
+    isSubscription?: boolean;
+    subscriptionDiscountPercent?: number;
+  }[];
 }
 
 /**

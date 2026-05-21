@@ -52,8 +52,8 @@ describe("Premium Integration — Plan Yönetimi", () => {
     renderPremium();
 
     await screen.findByText("Aylık Premium");
-    expect(screen.getByText("Aktif")).toBeInTheDocument();
-    expect(screen.getByText("Pasif")).toBeInTheDocument();
+    expect(screen.getAllByText("Aktif").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Pasif").length).toBeGreaterThan(0);
   });
 
   it("yeni plan oluşturulur ve liste güncellenir", async () => {
@@ -153,7 +153,7 @@ describe("Premium Integration — Plan Yönetimi", () => {
     );
 
     renderPremium();
-    const toggleBtns = await screen.findAllByRole("button", { name: "Pasifleştir" });
+    const toggleBtns = await screen.findAllByRole("button", { name: "Aktif" });
     fireEvent.click(toggleBtns[0]);
 
     await waitFor(() => {
@@ -171,7 +171,7 @@ describe("Premium Integration — Plan Yönetimi", () => {
     );
 
     renderPremium();
-    const toggleBtns = await screen.findAllByRole("button", { name: "Aktifleştir" });
+    const toggleBtns = await screen.findAllByRole("button", { name: "Pasif" });
     fireEvent.click(toggleBtns[0]);
 
     await waitFor(() => {

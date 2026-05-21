@@ -13,13 +13,10 @@ import {
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
-import { CreditGateModal } from "../../components/CreditGateModal";
 import { Toast, ToastVariant } from "../../components/Toast";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 import { hasActivePremium } from "../../utils/premium";
 import { buildPostCreateAction } from "./createTopicHandlers";
-
-const TOPIC_COST = 50;
 
 interface Props {
   categoryId: string;
@@ -30,12 +27,10 @@ interface Props {
 }
 
 export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreated, onNavigatePremium }: Props) {
-  const { token, user, refreshUser } = useAuth();
+  const { token, user } = useAuth();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState(""); // FRM-TPC-003
   const [submitting, setSubmitting] = useState(false);
-  const [userCredits, setUserCredits] = useState(0);
-  const [gateVisible, setGateVisible] = useState(false);
   const [premiumLoading, setPremiumLoading] = useState(true);
   const [toast, setToast] = useState<{ visible: boolean; message: string; variant: ToastVariant }>({
     visible: false,
@@ -48,23 +43,9 @@ export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreate
   const isFree = isStaff || hasPremium;
 
   useEffect(() => {
-    if (!token) {
-      setPremiumLoading(false);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const fresh = await api.users.me(token);
-        if (!cancelled) setUserCredits(fresh.credits);
-      } catch {
-        // sessizce devam — UI yine de render eder
-      } finally {
-        if (!cancelled) setPremiumLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [token]);
+    // Premium durumu user context'ten gelir — ek fetch gerekmez
+    setPremiumLoading(false);
+  }, []);
 
   const validateTitle = (): boolean => {
     if (!title.trim()) {
@@ -80,16 +61,22 @@ export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreate
 
   const handleConfirm = () => {
     if (!validateTitle()) return;
-    if (isFree) {
-      doCreate();
+    if (!isFree) {
+      Alert.alert(
+        "Premium Gerekli",
+        "Yeni konu açmak için premium üyelik gereklidir.",
+        [
+          { text: "İptal", style: "cancel" },
+          { text: "Premium'a Geç", onPress: () => onNavigatePremium?.() },
+        ]
+      );
       return;
     }
-    setGateVisible(true);
+    doCreate();
   };
 
   const doCreate = async () => {
     if (!token) return;
-    setGateVisible(false);
     setSubmitting(true);
     try {
       const created = await api.forum.createTopic(
@@ -105,19 +92,10 @@ export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreate
       }, 1200);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Bilinmeyen hata.";
-      try {
-        await refreshUser();
-        if (token) {
-          const fresh = await api.users.me(token);
-          setUserCredits(fresh.credits);
-        }
-      } catch {
-        // ignore refresh error
-      }
-      if (msg.includes("premium") || msg.includes("kredi")) {
+      if (msg.toLowerCase().includes("premium")) {
         Alert.alert(
-          "Yetersiz Kredi",
-          "Yeni konu açabilmek için yeterli kredin yok. Premium üyeliğe geçerek sınırsız konu açabilirsin.",
+          "Premium Gerekli",
+          "Yeni konu açmak için premium üyelik gereklidir.",
           [
             { text: "İptal", style: "cancel" },
             { text: "Premium'a Geç", onPress: () => onNavigatePremium?.() },
@@ -211,9 +189,9 @@ export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreate
             <View style={styles.infoBox}>
               <MaterialCommunityIcons name="information" size={18} color={Colors.warning} />
               <View style={{ flex: 1, marginLeft: 8 }}>
-                <Text style={styles.infoTitle}>Konu açma ücretlidir</Text>
+                <Text style={styles.infoTitle}>Premium üyelik gerekli</Text>
                 <Text style={styles.infoText}>
-                  Yeni konu açmak <Text style={{ fontWeight: "bold" }}>{TOPIC_COST} kredi</Text> gerektirir. Konu moderatör onayından sonra yayına girer.
+                  Yeni konu açmak için premium üye olmanız gerekir. Konu moderatör onayından sonra yayına girer.
                 </Text>
               </View>
             </View>
@@ -243,19 +221,6 @@ export function CreateTopicScreen({ categoryId, categoryName, onCancel, onCreate
         onClose={() => setToast((t) => ({ ...t, visible: false }))}
       />
 
-      <CreditGateModal
-        visible={gateVisible}
-        actionLabel="Yeni konu açma"
-        cost={TOPIC_COST}
-        userCredits={userCredits}
-        deducting={submitting}
-        onDeduct={doCreate}
-        onBuy={() => {
-          setGateVisible(false);
-          onNavigatePremium?.();
-        }}
-        onClose={() => setGateVisible(false)}
-      />
     </>
   );
 }

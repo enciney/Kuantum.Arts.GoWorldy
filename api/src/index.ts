@@ -43,14 +43,6 @@ app.use("/api", generalRateLimit);
 const repos = createRepositories();
 
 // Stripe signature doğrulaması raw body ister — express.json()'dan önce mount edilmeli
-const CREDITS_GRANT: Record<string, number> = {
-  credits_50: 50,
-  credits_100: 100,
-  credits_250: 250,
-  credits_topic: 50,
-  credits_comment: 50,
-  credits_ad: 50,
-};
 const PREMIUM_DAYS: Record<string, number> = {
   premium_weekly: 7,
   premium_monthly: 30,
@@ -62,16 +54,11 @@ app.post("/api/payment/webhook", express.raw({ type: "application/json" }), asyn
   try {
     const result = await repos.payment.handleWebhook(req.body as Buffer, sig);
     if (result.event === "checkout.session.completed" && result.userId && result.productType) {
-      const credits = CREDITS_GRANT[result.productType];
       const days = PREMIUM_DAYS[result.productType];
-      if (credits !== undefined) {
-        await repos.users.addCredits(result.userId, credits);
-        // Kredi paketi satın alındı — özellik kaydı gerekmez (kredi bakiye)
-      } else if (days !== undefined) {
+      if (days !== undefined) {
         const until = new Date();
         until.setDate(until.getDate() + days);
         await repos.users.update(result.userId, { isPremium: true, premiumUntil: until.toISOString() });
-        // Premium satın alındı — userFeatures'a da kaydet
         await repos.userFeatures.addFeature(result.userId, result.productType, until.toISOString());
       }
     }
@@ -85,6 +72,15 @@ app.use(express.json({ limit: "5mb" }));
 
 seedDatabase();
 repos.premium.seedDefaultPlans().catch(console.error);
+// PRM-FST-002 main features ÖNCE seed edilmeli — PRM-FST-001 features mainFeatureKey lookup için ihtiyacı var
+(async () => {
+  try {
+    await repos.premiumMainFeatures.seedDefaults();
+    await repos.premiumFeatures.seedDefaults();
+  } catch (e) {
+    console.error(e);
+  }
+})();
 
 app.use("/api/auth", authRoutes(repos));
 app.use("/api/forum", forumRoutes(repos));

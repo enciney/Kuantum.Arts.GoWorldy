@@ -151,8 +151,6 @@ export function adminRoutes(repos: Repositories): Router {
       const { systemSettings } = await (await import("../repositories/mongodb/db")).getCollections();
       const doc = await systemSettings.findOne({ _id: "singleton" });
       res.json({
-        forumCreateTopicCost: doc?.forumCreateTopicCost ?? config.forum.createTopicCost,
-        forumCommentAccessCost: doc?.forumCommentAccessCost ?? config.forum.commentAccessCost,
         commentEditWindowMinutes: doc?.commentEditWindowMinutes ?? config.forum.commentEditWindowMinutes,
         commentDeleteWindowMinutes: doc?.commentDeleteWindowMinutes ?? config.forum.commentDeleteWindowMinutes,
         guideEnableNotifications: doc?.guideEnableNotifications ?? config.guide.enableNotifications,
@@ -168,7 +166,6 @@ export function adminRoutes(repos: Repositories): Router {
   router.patch("/settings", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
     try {
       const allowed = [
-        "forumCreateTopicCost", "forumCommentAccessCost",
         "commentEditWindowMinutes", "commentDeleteWindowMinutes",
         "guideEnableNotifications", "guideEnableRecommendations",
         "notificationsEnableEmail", "notificationsEnableInApp",
@@ -187,8 +184,6 @@ export function adminRoutes(repos: Repositories): Router {
         { upsert: true }
       );
       // config nesnesini de güncelle (process restart gerekmeden etkinleşsin)
-      if (update.forumCreateTopicCost !== undefined) config.forum.createTopicCost = update.forumCreateTopicCost as number;
-      if (update.forumCommentAccessCost !== undefined) config.forum.commentAccessCost = update.forumCommentAccessCost as number;
       if (update.commentEditWindowMinutes !== undefined) config.forum.commentEditWindowMinutes = update.commentEditWindowMinutes as number;
       if (update.commentDeleteWindowMinutes !== undefined) config.forum.commentDeleteWindowMinutes = update.commentDeleteWindowMinutes as number;
       if (update.guideEnableNotifications !== undefined) config.guide.enableNotifications = update.guideEnableNotifications as boolean;
@@ -258,9 +253,13 @@ export function adminRoutes(repos: Repositories): Router {
 
   router.post("/premium/plans", authMiddleware, requireRole("admin"), async (req, res) => {
     try {
-      const { name, description, price, durationDays, features, isActive } = req.body;
+      const { name, description, price, durationDays, features, featureKeys, isSubscription, subscriptionDiscountPercent, isActive } = req.body;
       if (!name || price == null || !durationDays) {
         return res.status(400).json({ error: "name, price, durationDays zorunlu" });
+      }
+      const discount = Number(subscriptionDiscountPercent ?? 0);
+      if (discount < 0 || discount > 100) {
+        return res.status(400).json({ error: "subscriptionDiscountPercent 0-100 arası olmalı" });
       }
       const plan = await repos.premium.createPlan({
         name,
@@ -268,6 +267,9 @@ export function adminRoutes(repos: Repositories): Router {
         price: Number(price),
         durationDays: Number(durationDays),
         features: features ?? [],
+        featureKeys: featureKeys ?? [],
+        isSubscription: isSubscription === true,
+        subscriptionDiscountPercent: discount,
         isActive: isActive !== false,
       });
       res.status(201).json(plan);
@@ -278,13 +280,20 @@ export function adminRoutes(repos: Repositories): Router {
 
   router.patch("/premium/plans/:id", authMiddleware, requireRole("admin"), async (req, res) => {
     try {
-      const { name, description, price, durationDays, features, isActive } = req.body;
+      const { name, description, price, durationDays, features, featureKeys, isSubscription, subscriptionDiscountPercent, isActive } = req.body;
       const update: Record<string, unknown> = {};
       if (name !== undefined) update.name = name;
       if (description !== undefined) update.description = description;
       if (price !== undefined) update.price = Number(price);
       if (durationDays !== undefined) update.durationDays = Number(durationDays);
       if (features !== undefined) update.features = features;
+      if (featureKeys !== undefined) update.featureKeys = featureKeys;
+      if (isSubscription !== undefined) update.isSubscription = isSubscription === true;
+      if (subscriptionDiscountPercent !== undefined) {
+        const d = Number(subscriptionDiscountPercent);
+        if (d < 0 || d > 100) return res.status(400).json({ error: "subscriptionDiscountPercent 0-100 arası olmalı" });
+        update.subscriptionDiscountPercent = d;
+      }
       if (isActive !== undefined) update.isActive = isActive;
       await repos.premium.updatePlan(req.params.id as string, update);
       res.json({ ok: true });
@@ -296,6 +305,149 @@ export function adminRoutes(repos: Repositories): Router {
   router.delete("/premium/plans/:id", authMiddleware, requireRole("admin"), async (req, res) => {
     try {
       await repos.premium.deletePlan(req.params.id as string);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── PRM-FST-001: Premium Feature Catalog ────────────────────────────────────
+  router.get("/premium/features", authMiddleware, requireRole("admin"), async (_req, res) => {
+    try {
+      const features = await repos.premiumFeatures.getAll();
+      res.json(features);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.post("/premium/features", authMiddleware, requireRole("admin"), async (req, res) => {
+    try {
+      const { key, name, description, mainFeatureId, durationDays, quota, isActive } = req.body;
+      if (!key || !name) {
+        return res.status(400).json({ error: "key ve name zorunlu" });
+      }
+      if (!/^[a-z0-9_]+$/.test(key)) {
+        return res.status(400).json({ error: "key sadece küçük harf, rakam ve _ içerebilir" });
+      }
+      // mainFeatureId varsa geçerli kategori olduğunu doğrula
+      if (mainFeatureId) {
+        const mf = await repos.premiumMainFeatures.getById(mainFeatureId);
+        if (!mf) return res.status(400).json({ error: "Geçersiz mainFeatureId" });
+      }
+      const feature = await repos.premiumFeatures.create({
+        key,
+        name,
+        description: description ?? "",
+        mainFeatureId: mainFeatureId ?? null,
+        durationDays: durationDays == null || durationDays === "" ? null : Number(durationDays),
+        quota: quota == null || quota === "" ? null : Number(quota),
+        isActive: isActive !== false,
+      });
+      res.status(201).json(feature);
+    } catch (e: any) {
+      if (e.code === 11000) {
+        return res.status(409).json({ error: "Bu key zaten kullanılıyor." });
+      }
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.patch("/premium/features/:id", authMiddleware, requireRole("admin"), async (req, res) => {
+    try {
+      const { key, name, description, mainFeatureId, durationDays, quota, isActive } = req.body;
+      const update: Record<string, unknown> = {};
+      if (key !== undefined) {
+        if (!/^[a-z0-9_]+$/.test(key)) {
+          return res.status(400).json({ error: "key sadece küçük harf, rakam ve _ içerebilir" });
+        }
+        update.key = key;
+      }
+      if (name !== undefined) update.name = name;
+      if (description !== undefined) update.description = description;
+      if (mainFeatureId !== undefined) {
+        if (mainFeatureId) {
+          const mf = await repos.premiumMainFeatures.getById(mainFeatureId);
+          if (!mf) return res.status(400).json({ error: "Geçersiz mainFeatureId" });
+        }
+        update.mainFeatureId = mainFeatureId || null;
+      }
+      if (durationDays !== undefined) update.durationDays = durationDays == null || durationDays === "" ? null : Number(durationDays);
+      if (quota !== undefined) update.quota = quota == null || quota === "" ? null : Number(quota);
+      if (isActive !== undefined) update.isActive = isActive;
+      await repos.premiumFeatures.update(req.params.id as string, update);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.delete("/premium/features/:id", authMiddleware, requireRole("admin"), async (req, res) => {
+    try {
+      await repos.premiumFeatures.delete(req.params.id as string);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── PRM-FST-002: Premium Main Feature Catalog (3 ana paket kategorisi) ─────
+  router.get("/premium/main-features", authMiddleware, requireRole("admin"), async (_req, res) => {
+    try {
+      const items = await repos.premiumMainFeatures.getAll();
+      res.json(items);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.post("/premium/main-features", authMiddleware, requireRole("admin"), async (req, res) => {
+    try {
+      const { key, name, description, isActive } = req.body;
+      if (!key || !name) {
+        return res.status(400).json({ error: "key ve name zorunlu" });
+      }
+      if (!/^[a-z0-9_]+$/.test(key)) {
+        return res.status(400).json({ error: "key sadece küçük harf, rakam ve _ içerebilir" });
+      }
+      const item = await repos.premiumMainFeatures.create({
+        key,
+        name,
+        description: description ?? "",
+        isActive: isActive !== false,
+      });
+      res.status(201).json(item);
+    } catch (e: any) {
+      if (e.code === 11000) {
+        return res.status(409).json({ error: "Bu key zaten kullanılıyor." });
+      }
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.patch("/premium/main-features/:id", authMiddleware, requireRole("admin"), async (req, res) => {
+    try {
+      const { key, name, description, isActive } = req.body;
+      const update: Record<string, unknown> = {};
+      if (key !== undefined) {
+        if (!/^[a-z0-9_]+$/.test(key)) {
+          return res.status(400).json({ error: "key sadece küçük harf, rakam ve _ içerebilir" });
+        }
+        update.key = key;
+      }
+      if (name !== undefined) update.name = name;
+      if (description !== undefined) update.description = description;
+      if (isActive !== undefined) update.isActive = isActive;
+      await repos.premiumMainFeatures.update(req.params.id as string, update);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.delete("/premium/main-features/:id", authMiddleware, requireRole("admin"), async (req, res) => {
+    try {
+      await repos.premiumMainFeatures.delete(req.params.id as string);
       res.json({ ok: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message });

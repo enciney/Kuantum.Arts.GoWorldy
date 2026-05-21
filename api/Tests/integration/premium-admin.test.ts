@@ -56,71 +56,27 @@ afterAll(async () => {
 
 // ── Packages ──────────────────────────────────────────────────────────────────
 describe("GET /api/payment/packages", () => {
-  it("→ 200 { credits: [...], premium: [...] }", async () => {
+  it("→ 200 { premium: [...] } (credits array artık yok)", async () => {
     const res = await request(app).get("/api/payment/packages");
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body.credits)).toBe(true);
     expect(Array.isArray(res.body.premium)).toBe(true);
+    expect(res.body.credits).toBeUndefined();
   });
-});
 
-// ── Mock Topup ────────────────────────────────────────────────────────────────
-describe("POST /api/payment/topup/mock", () => {
-  it("→ 200, user credits +50", async () => {
-    const before = await request(app)
-      .get("/api/users/me")
-      .set("Authorization", `Bearer ${userToken}`);
-    const creditsBefore = before.body.credits;
-
-    const res = await request(app)
-      .post("/api/payment/topup/mock")
-      .set("Authorization", `Bearer ${userToken}`);
+  it("premium paket alanları eksiksiz: description, isSubscription, subscriptionDiscountPercent", async () => {
+    const res = await request(app).get("/api/payment/packages");
     expect(res.status).toBe(200);
-    expect(res.body.credits).toBe(creditsBefore + 50);
-  });
-});
-
-// ── Spend Credits ─────────────────────────────────────────────────────────────
-describe("POST /api/payment/spend-credit", () => {
-  beforeAll(async () => {
-    // Ensure user has enough credits
-    await setCredits(userId, 200);
-  });
-
-  it("with enough credits → 200", async () => {
-    const res = await request(app)
-      .post("/api/payment/spend-credit")
-      .set("Authorization", `Bearer ${userToken}`)
-      .send({ actionType: "credits_topic" });
-    expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-  });
-
-  it("already owned same feature → 409", async () => {
-    const res = await request(app)
-      .post("/api/payment/spend-credit")
-      .set("Authorization", `Bearer ${userToken}`)
-      .send({ actionType: "credits_topic" });
-    expect(res.status).toBe(409);
-    expect(res.body.code).toBe("ALREADY_OWNED");
-  });
-
-  it("insufficient credits → 402", async () => {
-    await setCredits(userId, 0);
-    const res = await request(app)
-      .post("/api/payment/spend-credit")
-      .set("Authorization", `Bearer ${userToken}`)
-      .send({ actionType: "credits_reply" });
-    expect(res.status).toBe(402);
-    expect(res.body.code).toBe("INSUFFICIENT_CREDITS");
-  });
-
-  it("invalid actionType → 400", async () => {
-    const res = await request(app)
-      .post("/api/payment/spend-credit")
-      .set("Authorization", `Bearer ${userToken}`)
-      .send({ actionType: "invalid_action" });
-    expect(res.status).toBe(400);
+    if (res.body.premium.length > 0) {
+      const pkg = res.body.premium[0];
+      expect(pkg).toHaveProperty("id");
+      expect(pkg).toHaveProperty("name");
+      expect(pkg).toHaveProperty("description");
+      expect(pkg).toHaveProperty("days");
+      expect(pkg).toHaveProperty("priceTL");
+      expect(pkg).toHaveProperty("features");
+      expect(pkg).toHaveProperty("isSubscription");
+      expect(pkg).toHaveProperty("subscriptionDiscountPercent");
+    }
   });
 });
 
@@ -132,6 +88,153 @@ describe("GET /api/payment/my-features", () => {
       .set("Authorization", `Bearer ${userToken}`);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it("auth olmadan → 401", async () => {
+    const res = await request(app).get("/api/payment/my-features");
+    expect(res.status).toBe(401);
+  });
+});
+
+// ── Process (mock ödeme) ──────────────────────────────────────────────────────
+describe("POST /api/payment/process", () => {
+  let subPlanId: string;
+  let nonSubPlanId: string;
+
+  beforeAll(async () => {
+    // Subscription plan (haftalık, %15 indirimli)
+    const subRes = await request(app)
+      .post("/api/admin/premium/plans")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        name: "Test Haftalık",
+        description: "Test",
+        price: 199,
+        durationDays: 7,
+        features: ["Forum erişimi"],
+        featureKeys: ["forum_access"],
+        isSubscription: true,
+        subscriptionDiscountPercent: 15,
+        isActive: true,
+      });
+    subPlanId = subRes.body.id;
+
+    // Tek seferlik plan (subscription değil)
+    const nonSubRes = await request(app)
+      .post("/api/admin/premium/plans")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        name: "Test Tek Seferlik",
+        description: "Test",
+        price: 99,
+        durationDays: 30,
+        features: ["Konu açma"],
+        featureKeys: ["topic_create"],
+        isSubscription: false,
+        subscriptionDiscountPercent: 0,
+        isActive: true,
+      });
+    nonSubPlanId = nonSubRes.body.id;
+  });
+
+  it("productType eksik → 400", async () => {
+    const res = await request(app)
+      .post("/api/payment/process")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("geçersiz productType → 400", async () => {
+    const res = await request(app)
+      .post("/api/payment/process")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ productType: "olmayan_plan_id_xyz" });
+    expect(res.status).toBe(400);
+  });
+
+  it("auth olmadan → 401", async () => {
+    const res = await request(app)
+      .post("/api/payment/process")
+      .send({ productType: subPlanId });
+    expect(res.status).toBe(401);
+  });
+
+  it("subscription plan → 200, isPremium=true, autoRenew=false (varsayılan)", async () => {
+    const res = await request(app)
+      .post("/api/payment/process")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ productType: subPlanId });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.isPremium).toBe(true);
+    expect(res.body.premiumUntil).toBeTruthy();
+    expect(res.body.autoRenew).toBe(false);
+    expect(res.body.discountPct).toBe(0);
+    expect(typeof res.body.chargedTL).toBe("number");
+  });
+
+  it("subscription plan + autoRenew=true → indirim uygulanır", async () => {
+    // Yeni kullanıcı aç
+    const newUser = await request(app).post("/api/auth/register").send({
+      email: "process_autorenew@test.com",
+      password: "pass12345",
+      displayName: "AutoRenewUser",
+      userType: "emigrant",
+    });
+    const token = newUser.body.token;
+
+    const res = await request(app)
+      .post("/api/payment/process")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ productType: subPlanId, autoRenew: true });
+    expect(res.status).toBe(200);
+    expect(res.body.autoRenew).toBe(true);
+    expect(res.body.discountPct).toBe(15);
+    expect(res.body.chargedTL).toBeLessThan(199);
+  });
+
+  it("non-subscription plan → 200, isPremium değişmez", async () => {
+    const newUser = await request(app).post("/api/auth/register").send({
+      email: "process_nonsub@test.com",
+      password: "pass12345",
+      displayName: "NonSubUser",
+      userType: "emigrant",
+    });
+    const token = newUser.body.token;
+
+    const res = await request(app)
+      .post("/api/payment/process")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ productType: nonSubPlanId });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    // isPremium false kalmalı (isSubscription=false)
+    expect(res.body.isPremium).toBe(false);
+    expect(res.body.autoRenew).toBe(false);
+    expect(res.body.discountPct).toBe(0);
+  });
+
+  it("featureKeys userFeatures'a yazılır (my-features endpoint doğrular)", async () => {
+    const newUser = await request(app).post("/api/auth/register").send({
+      email: "process_features@test.com",
+      password: "pass12345",
+      displayName: "FeaturesUser",
+      userType: "emigrant",
+    });
+    const token = newUser.body.token;
+
+    await request(app)
+      .post("/api/payment/process")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ productType: nonSubPlanId });
+
+    const featRes = await request(app)
+      .get("/api/payment/my-features")
+      .set("Authorization", `Bearer ${token}`);
+    expect(featRes.status).toBe(200);
+    const keys = (featRes.body as Array<{ featureType: string }>).map((f) => f.featureType);
+    expect(keys).toContain("topic_create");
   });
 });
 

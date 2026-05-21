@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from "react-native";
-import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
@@ -16,38 +16,41 @@ import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 export type PaymentScreenParams = {
   productId: string;
   productName: string;
-  price: number;
+  price: number;             // Ödenecek tutar (indirim uygulanmış)
+  originalPrice?: number;    // İndirimsiz orijinal tutar (varsa)
+  discountPct?: number;      // Uygulanan indirim yüzdesi (varsa)
+  autoRenew?: boolean;       // Subscription auto-renew flag
+  features?: string[];       // Plan'ın gösterilecek feature listesi
   description: string;
-  isPremium: boolean;
 };
 
 type PaymentRouteProps = RouteProp<{ Payment: PaymentScreenParams }, "Payment">;
-
-const PREMIUM_FEATURES = [
-  "Sınırsız konu açma",
-  "Reklamsız deneyim",
-  "Tüm yorumlara erişim",
-  "Öncelikli destek",
-];
 
 export function PaymentScreen() {
   const { token } = useAuth();
   const navigation = useNavigation<any>();
   const route = useRoute<PaymentRouteProps>();
-  const { productId, productName, price, description, isPremium } = route.params;
+  const {
+    productId,
+    productName,
+    price,
+    originalPrice,
+    discountPct,
+    autoRenew,
+    features,
+    description,
+  } = route.params;
 
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [updatedCredits, setUpdatedCredits] = useState<number | null>(null);
 
   const handlePay = async () => {
     if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      const result = await api.payment.process(productId, token);
-      setUpdatedCredits(result.credits);
+      await api.payment.process(productId, token, autoRenew === true);
       setSuccess(true);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Ödeme tamamlanamadı.");
@@ -64,9 +67,7 @@ export function PaymentScreen() {
         </View>
         <Text style={styles.successTitle}>Ödeme Başarılı!</Text>
         <Text style={styles.successDesc}>
-          {isPremium
-            ? `${productName} aktif edildi.`
-            : `${updatedCredits} krediniz yüklendi.`}
+          {productName} aktif edildi.
         </Text>
         <TouchableOpacity
           style={styles.doneBtn}
@@ -95,23 +96,19 @@ export function PaymentScreen() {
       </View>
 
       {/* Product Card */}
-      <View style={[styles.productCard, isPremium && styles.productCardPremium]}>
+      <View style={[styles.productCard, styles.productCardPremium]}>
         <View style={styles.productIconBox}>
-          {isPremium ? (
-            <MaterialCommunityIcons name="crown" size={40} color={Colors.surface} />
-          ) : (
-            <FontAwesome5 name="coins" size={36} color={Colors.warning} />
-          )}
+          <MaterialCommunityIcons name="crown" size={40} color={Colors.surface} />
         </View>
-        <Text style={[styles.productName, isPremium && styles.productNamePremium]}>
+        <Text style={[styles.productName, styles.productNamePremium]}>
           {productName}
         </Text>
-        <Text style={[styles.productDesc, isPremium && styles.productDescPremium]}>
+        <Text style={[styles.productDesc, styles.productDescPremium]}>
           {description}
         </Text>
-        {isPremium && (
+        {features && features.length > 0 && (
           <View style={styles.featureList}>
-            {PREMIUM_FEATURES.map((f) => (
+            {features.map((f) => (
               <View key={f} style={styles.featureRow}>
                 <Ionicons name="checkmark-circle" size={16} color={Colors.surface} />
                 <Text style={styles.featureText}>{f}</Text>
@@ -121,17 +118,47 @@ export function PaymentScreen() {
         )}
       </View>
 
-      {/* Price Summary */}
+      {/* Price Summary — indirim varsa kalemleri ayrı göster */}
       <View style={styles.summaryCard}>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>{productName}</Text>
-          <Text style={styles.summaryValue}>{price} TL</Text>
-        </View>
-        <View style={styles.divider} />
-        <View style={styles.summaryRow}>
-          <Text style={styles.totalLabel}>Toplam</Text>
-          <Text style={styles.totalValue}>{price} TL</Text>
-        </View>
+        {discountPct && discountPct > 0 && originalPrice ? (
+          <>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>{productName}</Text>
+              <Text style={styles.summaryValue}>{originalPrice} TL</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Abonelik indirimi (%{discountPct})</Text>
+              <Text style={[styles.summaryValue, { color: Colors.secondary }]}>
+                −{(originalPrice - price).toFixed(2)} TL
+              </Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.summaryRow}>
+              <Text style={styles.totalLabel}>Toplam</Text>
+              <Text style={styles.totalValue}>{price} TL</Text>
+            </View>
+            {autoRenew && (
+              <Text style={styles.autoRenewNote}>
+                ↻ Bu paket {autoRenew ? "süre sonunda otomatik yenilenir" : ""}
+              </Text>
+            )}
+          </>
+        ) : (
+          <>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>{productName}</Text>
+              <Text style={styles.summaryValue}>{price} TL</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.summaryRow}>
+              <Text style={styles.totalLabel}>Toplam</Text>
+              <Text style={styles.totalValue}>{price} TL</Text>
+            </View>
+            {autoRenew && (
+              <Text style={styles.autoRenewNote}>↻ Bu paket süre sonunda otomatik yenilenir</Text>
+            )}
+          </>
+        )}
       </View>
 
       {/* Error */}
@@ -239,6 +266,12 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: Colors.border, marginVertical: 8 },
   totalLabel: { ...Typography.body, fontWeight: "700", color: Colors.textPrimary },
   totalValue: { fontSize: 20, fontWeight: "bold", color: Colors.primary },
+  autoRenewNote: {
+    ...Typography.small,
+    color: Colors.textMuted,
+    marginTop: 8,
+    fontStyle: "italic",
+  },
 
   errorBanner: {
     flexDirection: "row",
