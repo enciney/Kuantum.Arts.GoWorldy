@@ -38,6 +38,7 @@ export interface AuthUser {
   displayName: string;
   role: "admin" | "moderator" | "user";
   userType?: "emigrant" | "consultant" | "diaspora";
+  credits?: number;
   isPremium?: boolean;
   premiumUntil?: string;
 }
@@ -94,6 +95,7 @@ export const api = {
         bio?: string;
         avatarUrl?: string;
         role: string;
+        credits?: number;
         isPremium: boolean;
         premiumUntil?: string;
         userType?: "emigrant" | "consultant" | "diaspora";

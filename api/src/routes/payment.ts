@@ -67,6 +67,16 @@ export function paymentRoutes(repos: Repositories): Router {
       const discountPct = wantsAutoRenew ? (plan.subscriptionDiscountPercent ?? 0) : 0;
       const chargedTL = Math.round(plan.price * (100 - discountPct)) / 100;
 
+      // PAY-SPN-002: non-subscription planlar için duplicate ownership kontrolü
+      if (!plan.isSubscription && (plan.featureKeys ?? []).length > 0) {
+        const ownershipChecks = await Promise.all(
+          (plan.featureKeys ?? []).map((key) => repos.userFeatures.hasFeature(req.userId!, key))
+        );
+        if (ownershipChecks.every(Boolean)) {
+          return res.status(409).json({ error: "Bu özelliğe zaten sahipsiniz.", code: "ALREADY_OWNED" });
+        }
+      }
+
       // Feature key'lerini userFeatures'a yaz (plan süresine kadar TTL)
       const now = new Date();
       const expiresAt = new Date(now.getTime() + plan.durationDays * 86_400_000).toISOString();

@@ -996,7 +996,7 @@ const styles = StyleSheet.create({
   favBtnActive: { backgroundColor: Colors.warningLight },
   favLabel: { ...Typography.small, fontWeight: "600", color: Colors.textMuted },
   backBtn: { padding: 6, minWidth: MinTapTarget, minHeight: MinTapTarget, justifyContent: "center" },
-  title: { fontSize: 17, fontWeight: "600", color: Colors.textPrimary, flex: 1, paddingTop: 6 },
+  title: { ...Typography.h2, color: Colors.textPrimary, flex: 1, paddingTop: 6 },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 40 },
   list: { padding: Spacing.md, gap: Spacing.sm, paddingBottom: 24 },
   comment: {

@@ -360,6 +360,17 @@ const styles = StyleSheet.create({
   greeting: { fontSize: 22, fontWeight: "bold", color: Colors.textPrimary },
   subtitle: { ...Typography.label, color: Colors.textSecondary, marginTop: 2 },
   iconBtn: { padding: Spacing.sm },
+  creditsChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF3C7",
+    borderRadius: Radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    gap: 5,
+    marginRight: 4,
+  },
+  creditsText: { fontSize: 13, fontWeight: "600", color: "#92400E" },
   bellBadge: {
     position: "absolute",
     top: -4,
@@ -402,8 +413,8 @@ const styles = StyleSheet.create({
   },
   progressFill: { height: 8, backgroundColor: Colors.surface, borderRadius: Radius.full },
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: "600",
+    ...Typography.body,
+    fontWeight: "600" as const,
     color: Colors.textPrimary,
     marginBottom: 12,
     marginTop: 4,

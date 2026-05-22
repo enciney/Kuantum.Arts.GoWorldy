@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
     minHeight: MinTapTarget,
     justifyContent: "center",
   },
-  title: { ...Typography.h1, color: Colors.textPrimary, flex: 1 },
+  title: { ...Typography.h2, color: Colors.textPrimary, flex: 1 },
   list: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.lg },
   row: {
     flexDirection: "row",

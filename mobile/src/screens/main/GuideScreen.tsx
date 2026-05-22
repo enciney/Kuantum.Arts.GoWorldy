@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
+  TextInput,
   ScrollView,
   StyleSheet,
   ActivityIndicator,
@@ -98,6 +99,7 @@ export function GuideScreen() {
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
   const [settingActive, setSettingActive] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>("assessment");
+  const [countrySearch, setCountrySearch] = useState("");
   const scrollRef = useRef<ScrollView>(null);
 
   // ── Ülkeler + kullanıcı profili ──────────────────────────────────────────────
@@ -195,6 +197,14 @@ export function GuideScreen() {
   // Global adım sayısı (bilgi etiketi)
   const globalCount = steps.filter((s) => s.isGlobal).length;
 
+  const filteredCountries = countrySearch.trim()
+    ? countries.filter((c) => {
+        const q = countrySearch.trim().toLowerCase();
+        const name = (COUNTRY_NAME_MAP[c.code] ?? c.name).toLowerCase();
+        return name.includes(q) || c.code.toLowerCase().includes(q);
+      })
+    : countries;
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -209,13 +219,33 @@ export function GuideScreen() {
         )}
       </View>
 
-      {/* Country chips */}
+      {/* Country search + chips */}
+      {countries.length > 4 && (
+        <View style={styles.countrySearchBox}>
+          <Ionicons name="search" size={16} color={Colors.textMuted} />
+          <TextInput
+            style={styles.countrySearchInput}
+            placeholder="Ülke ara..."
+            placeholderTextColor={Colors.textMuted}
+            value={countrySearch}
+            onChangeText={setCountrySearch}
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
+          {countrySearch.length > 0 && (
+            <TouchableOpacity onPress={() => setCountrySearch("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close-circle" size={16} color={Colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={styles.countryScroll}
         contentContainerStyle={styles.countryList}
       >
-        {countries.map((c) => {
+        {filteredCountries.map((c) => {
           const isActive   = c.id === activeCountryId;
           const isViewing  = c.id === viewCountryId;
           return (
@@ -715,11 +745,29 @@ const styles = StyleSheet.create({
   progressPillText: { ...Typography.small, fontWeight: "600", color: Colors.primary },
   progressPillTextMuted: { color: Colors.textMuted },
 
+  // Country search
+  countrySearchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: Spacing.md,
+    marginBottom: 6,
+    gap: Spacing.sm,
+  },
+  countrySearchInput: { flex: 1, fontSize: 14, color: Colors.textPrimary },
+
   // Country chips
+  countryScroll: { flexGrow: 0, flexShrink: 0 },
   countryList: {
     paddingHorizontal: Spacing.md,
-    paddingBottom: 10,
+    paddingVertical: 6,
     gap: Spacing.sm,
+    alignItems: "center",
   },
   countryChip: {
     flexDirection: "row",
@@ -727,11 +775,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.borderStrong,
-    borderRadius: Radius.full,
-    paddingHorizontal: 14,
-    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     gap: 5,
-    minHeight: MinTapTarget,
   },
   countryChipViewing: {
     backgroundColor: Colors.primaryLight,
@@ -742,7 +789,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   pinIcon: { marginRight: 1 },
-  countryFlag: { fontSize: 17 },
+  countryFlag: { fontSize: 15 },
   countryChipText: { ...Typography.label, color: Colors.textSecondary },
   countryChipTextViewing: { color: Colors.primary },
   countryChipTextActive: { color: Colors.surface, fontWeight: "600" },

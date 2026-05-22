@@ -187,7 +187,7 @@ export class MongoNotificationRepository implements INotificationRepository {
       _id: crypto.randomUUID(),
       userId,
       type: "new_comment" as const,
-      title: "Takip ettiğin konuya yeni yorum",
+      title: userId === authorId ? "Konunuza yeni yorum geldi" : "Takip ettiğin konuya yeni yorum",
       message: `${commenterName}: ${topicTitle}`,
       targetType: "forum_topic" as const,
       targetId: topicId,

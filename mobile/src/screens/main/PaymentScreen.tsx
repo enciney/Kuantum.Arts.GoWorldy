@@ -27,7 +27,7 @@ export type PaymentScreenParams = {
 type PaymentRouteProps = RouteProp<{ Payment: PaymentScreenParams }, "Payment">;
 
 export function PaymentScreen() {
-  const { token } = useAuth();
+  const { token, refreshUser } = useAuth();
   const navigation = useNavigation<any>();
   const route = useRoute<PaymentRouteProps>();
   const {
@@ -51,6 +51,8 @@ export function PaymentScreen() {
     setError(null);
     try {
       await api.payment.process(productId, token, autoRenew === true);
+      // AuthContext'i güncelle — isPremium, premiumUntil ve credits taze olsun
+      await refreshUser();
       setSuccess(true);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Ödeme tamamlanamadı.");

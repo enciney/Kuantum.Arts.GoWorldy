@@ -19,7 +19,7 @@ export function authRoutes(repos: Repositories): Router {
       const passwordHash = await bcrypt.hash(password, 10);
       const user = await repos.users.create({ email, passwordHash, displayName, role: config.roles.user, userType: userType || config.userTypes.emigrant, isPremium: false });
       const token = jwt.sign({ id: user.id, role: user.role }, config.jwtSecret, { expiresIn: config.jwtExpiry } as object);
-      res.json({ user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role }, token });
+      res.json({ user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role, userType: user.userType, isPremium: user.isPremium ?? false, premiumUntil: user.premiumUntil ?? null }, token });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -58,7 +58,7 @@ export function authRoutes(repos: Repositories): Router {
       if (!valid) return res.status(401).json({ error: "Invalid email or password" });
 
       const token = jwt.sign({ id: user.id, role: user.role }, config.jwtSecret, { expiresIn: config.jwtExpiry } as object);
-      res.json({ user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role }, token });
+      res.json({ user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role, userType: user.userType, isPremium: user.isPremium ?? false, premiumUntil: user.premiumUntil ?? null }, token });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -135,6 +135,9 @@ export function authRoutes(repos: Repositories): Router {
           email: user.email,
           displayName: user.displayName,
           role: user.role,
+          userType: user.userType,
+          isPremium: user.isPremium ?? false,
+          premiumUntil: user.premiumUntil ?? null,
         },
         token,
       });

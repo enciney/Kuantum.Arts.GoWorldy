@@ -32,6 +32,7 @@ export function RegisterScreen({ onNavigateLogin }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [userType, setUserType] = useState<UserType>("emigrant");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,14 +98,26 @@ export function RegisterScreen({ onNavigateLogin }: Props) {
         />
 
         <Text style={styles.label}>Şifre</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="En az 6 karakter"
-          placeholderTextColor={Colors.textMuted}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+        <View style={styles.passwordRow}>
+          <TextInput
+            style={styles.passwordField}
+            placeholder="En az 6 karakter"
+            placeholderTextColor={Colors.textMuted}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+          />
+          <TouchableOpacity
+            style={styles.showBtn}
+            onPress={() => setShowPassword((v) => !v)}
+          >
+            <Ionicons
+              name={showPassword ? "eye-off-outline" : "eye-outline"}
+              size={22}
+              color={Colors.neutral}
+            />
+          </TouchableOpacity>
+        </View>
 
         <Text style={styles.label}>Profil Türü</Text>
         <View style={styles.typeRow}>
@@ -180,6 +193,19 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     minHeight: MinTapTarget,
   },
+  passwordRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
+    minHeight: MinTapTarget,
+  },
+  passwordField: { flex: 1, paddingVertical: 14, fontSize: 16, color: Colors.textPrimary },
+  showBtn: { padding: 6, minWidth: MinTapTarget, minHeight: MinTapTarget, justifyContent: "center", alignItems: "center" },
   typeRow: { gap: Spacing.sm, marginBottom: Spacing.lg },
   typeCard: {
     backgroundColor: Colors.surface,

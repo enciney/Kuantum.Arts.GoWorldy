@@ -3,7 +3,7 @@
 > **Amaç:** Her özelliğin **kodlu ID**'si, **detaylı akış senaryosu**, **kullanıcı dostu kod örnekleri**, **bildirim akışı**, **edge case'leri** ve **backend gereksinimi** birlikte tanımlanır.
 > Bir özellik üzerinde çalışmak istediğinde: `"FRM-TPC-005'i tamamla"` gibi referans ver.
 >
-> **Son güncelleme:** 2026-05-18
+> **Son güncelleme:** 2026-05-22
 > **Durum sembolleri:** ✅ Tam çalışıyor · ⚠️ Kısmen / bug var · ❌ Eksik · 🔒 Stakeholder bekleniyor · 🆕 Bu sürümle eklenen yeni feature
 
 ---
@@ -76,7 +76,7 @@ Her feature **3 segment**ten oluşan benzersiz bir ID'ye sahiptir:
 | [AUTH-REG-004](#auth-reg-004-kullanıcı-tipi-seçimi) | Kullanıcı tipi seçimi (Göç Adayı/Danışman/Yurt Dışında) | ✅ |
 | [AUTH-LOG-001](#auth-log-001-e-posta--şifre-girişi) | E-posta + şifre girişi | ✅ |
 | [AUTH-LOG-002](#auth-log-002-google-ile-giriş) | Google ile giriş | ✅ |
-| [AUTH-LOG-003](#auth-log-003-şifre-göstergizle-toggle) | Şifre göster/gizle toggle | ❌ |
+| [AUTH-LOG-003](#auth-log-003-şifre-göstergizle-toggle) | Şifre göster/gizle toggle | ✅ |
 | [AUTH-LOG-004](#auth-log-004-oturum-kalıcılığı) | Oturum kalıcılığı (AsyncStorage) | ✅ |
 | [AUTH-LOG-005](#auth-log-005-süresi-dolmuş-jwt-otomatik-logout) | Süresi dolmuş JWT → otomatik logout | ⚠️ |
 | [AUTH-PWD-001](#auth-pwd-001-şifremi-unuttum) | Şifremi unuttum | ✅ |
@@ -161,7 +161,7 @@ Her feature **3 segment**ten oluşan benzersiz bir ID'ye sahiptir:
 | [PAY-CHK-002](#pay-chk-002-mock-ödeme-process) | Mock ödeme (geliştirme için /process) | ✅ |
 | [PAY-WBH-001](#pay-wbh-001-stripe-webhook-işleme) | Stripe webhook işleme | 🔒 |
 | [PAY-SPN-001](#pay-spn-001-kredi-harcama-spend-credit) | ~~Kredi harcama (spend-credit)~~ — kaldırıldı, yerini `/process` aldı | ❌ |
-| [PAY-SPN-002](#pay-spn-002-zaten-sahip-409-koruması) | "Zaten sahipsiniz" 409 koruması | ❌ |
+| [PAY-SPN-002](#pay-spn-002-zaten-sahip-409-koruması) | "Zaten sahipsiniz" 409 koruması | ✅ |
 | [PAY-HST-001](#pay-hst-001-ödeme-geçmişi) | Ödeme geçmişi | ❌ |
 | [PAY-INV-001](#pay-inv-001-fatura-pdf-indirme) | Fatura PDF indirme | ❌ |
 | [PAY-RFD-001](#pay-rfd-001-iade-talebi) | İade talebi | ❌ |
@@ -171,7 +171,7 @@ Her feature **3 segment**ten oluşan benzersiz bir ID'ye sahiptir:
 | ID | Özellik | Durum |
 |----|---------|-------|
 | [CRD-BAL-001](#crd-bal-001-kredi-bakiyesi-sorgu) | Kredi bakiyesi sorgu | ✅ |
-| [CRD-BAL-002](#crd-bal-002-bakiye-mobile-headerda-her-zaman-görünür) | Bakiye mobile header'da her zaman görünür | ❌ |
+| [CRD-BAL-002](#crd-bal-002-bakiye-mobile-headerda-her-zaman-görünür) | Bakiye mobile header'da her zaman görünür | ✅ |
 | [CRD-DED-001](#crd-ded-001-kredi-düşme-atomik) | Kredi düşme (atomik DB transaction) | ⚠️ |
 | [CRD-RFD-001](#crd-rfd-001-başarısız-işlemde-kredi-iadesi) | Başarısız işlemde kredi iadesi | ✅ |
 | [CRD-RWD-001](#crd-rwd-001-haftalık-otomatik-kredi-ödülü) | Haftalık otomatik kredi ödülü (cron) | ❌ |
@@ -191,8 +191,8 @@ Her feature **3 segment**ten oluşan benzersiz bir ID'ye sahiptir:
 | [NTF-EVT-001](#ntf-evt-001-konu-onay-sürecine-alındı) | "Konunuz onay sürecine alındı" bildirimi | ✅ |
 | [NTF-EVT-002](#ntf-evt-002-konu-onaylandı) | "Konunuz onaylandı 🎉" bildirimi | ✅ |
 | [NTF-EVT-003](#ntf-evt-003-konu-reddedildi-sebep) | "Konunuz reddedildi (sebep)" bildirimi | ✅ |
-| [NTF-EVT-004](#ntf-evt-004-yeni-yorum-konu-sahibine) | "Yeni yorum (konu sahibine)" bildirimi | ⚠️ |
-| [NTF-EVT-005](#ntf-evt-005-admine-yeni-pending-konu) | "Admin'e yeni pending konu" bildirimi | ⚠️ |
+| [NTF-EVT-004](#ntf-evt-004-yeni-yorum-konu-sahibine) | "Yeni yorum (konu sahibine)" bildirimi | ✅ |
+| [NTF-EVT-005](#ntf-evt-005-admine-yeni-pending-konu) | "Admin'e yeni pending konu" bildirimi | ✅ |
 
 > **⛔ NTF-EVT-001..005 blocker:** Kod yazıldı + entegre edildi ama uçtan uca test edilemiyor. Sebep: [PRM-EXP-003](#prm-exp-003-mobile-tarafında-premium-state-refresh) bug'ı yüzünden kullanıcı pending topic flow'una giremiyor. Premium state refresh fix'ten sonra hepsi ✅ olacak (kod hazır).
 | [NTF-EVT-006](#ntf-evt-006-premium-süresi-dolmak-üzere) | "Premium süresi dolmak üzere" bildirimi | ❌ |
@@ -455,7 +455,7 @@ router.post("/login", async (req, res) => {
 
 ### AUTH-LOG-002: Google ile Giriş
 
-**Durum:** ✅ Çalışıyor (`google-auth-library`)
+**Durum:** ✅ Çalışıyor — Google button artık env vars eksikken de tıklanabilir; kullanıcıya anlamlı hata mesajı gösterilir.
 
 **Akış:**
 1. Mobile `expo-auth-session/providers/google` ile ID token alır
@@ -490,7 +490,7 @@ router.post("/google", async (req, res) => {
 
 ### AUTH-LOG-003: Şifre Göster/Gizle Toggle
 
-**Durum:** ❌ Eksik
+**Durum:** ✅ Tamamlandı — LoginScreen'de zaten vardı; RegisterScreen'e de eklendi.
 
 **Çözüm:**
 ```tsx
@@ -1573,7 +1573,7 @@ router.post("/webhook", express.raw({ type: "application/json" }), async (req, r
 
 ### PAY-SPN-002: "Zaten Sahipsiniz" 409
 
-**Durum:** ❌ `userFeatures.hasFeature()` ile 409 kontrolü, `spend-credit` endpoint'i ile birlikte kaldırıldı. Yeni `/process` flow'unda feature key'ler her satın almada üzerine yazılıyor (TTL uzatma).
+**Durum:** ✅ Tamamlandı — `/payment/process` endpoint'inde non-subscription planlar için `hasFeature()` kontrolü eklendi; tüm feature key'ler zaten aktifse 409 `ALREADY_OWNED` döner.
 
 ---
 
@@ -1625,7 +1625,7 @@ UI: Ödeme detayında "İade Talebi Oluştur" → Admin'e gider, manuel işlenir
 
 ### CRD-BAL-002: Header'da Bakiye Her Zaman Görünür
 
-**Durum:** ❌ Eksik
+**Durum:** ✅ Tamamlandı — HomeScreen header'ına altın coin ikonu + `N kredi` chip'i eklendi. `AuthUser` interface'ine `credits?: number` eklendi.
 
 **Çözüm:** Tab bar'ın üstüne ince bir bar:
 ```tsx
@@ -1820,7 +1820,7 @@ Message: "\"{title}\" başlıklı ilanınız reddedilmiştir. Sebep: {reason}"
 
 ### NTF-EVT-004: "Yeni Yorum" Bildirimi
 
-**Durum:** ✅ `notifyTopicSubscribers` ile çalışıyor
+**Durum:** ✅ `notifyTopicSubscribers` ile çalışıyor — konu sahibi "Konunuza yeni yorum geldi", takipçiler "Takip ettiğin konuya yeni yorum" başlığı alır.
 
 ```
 Title:   "Yeni yorum"
@@ -1831,7 +1831,7 @@ Message: "{commentAuthorName}, takip ettiğin \"{topicTitle}\" konusuna yorum ya
 
 ### NTF-EVT-005: "Admin'e Yeni Pending Konu" Bildirimi
 
-**Durum:** ⚠️ SSE ile broadcast yapılıyor ama **push notification yok**. Admin uygulamayı açmadığı sürece haber alamıyor.
+**Durum:** ✅ `notifyStaffOfPendingTopic` + `notifyStaff` helper ile tüm admin/moderatörlere in-app bildirim gönderiliyor. Push notification (Expo) henüz eklenmedi ama in-app akış tamamlandı.
 
 **Çözüm:**
 ```ts

@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: Spacing.md,
   },
-  title: { ...Typography.h1, color: Colors.textPrimary },
+  title: { ...Typography.h2, color: Colors.textPrimary },
   closeBtn: { padding: 4 },
   errorBanner: {
     flexDirection: "row",
@@ -315,8 +315,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: "600",
+    ...Typography.body,
+    fontWeight: "600" as const,
     color: Colors.textPrimary,
     marginBottom: 12,
   },

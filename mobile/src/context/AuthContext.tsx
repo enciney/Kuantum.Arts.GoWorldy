@@ -62,7 +62,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           ]);
           setState({ user: null, token: null, isLoading: false });
         } else {
-          setState({ user: JSON.parse(userJson), token, isLoading: false });
+          const restoredUser: AuthUser = JSON.parse(userJson);
+          setState({ user: restoredUser, token, isLoading: false });
+          // Arka planda taze veri çek — isPremium / credits stale olmasın
+          api.users.me(token).then((fresh) => {
+            const merged: AuthUser = {
+              id: fresh.id,
+              email: fresh.email,
+              displayName: fresh.displayName,
+              role: fresh.role as AuthUser["role"],
+              userType: fresh.userType,
+              credits: fresh.credits,
+              isPremium: fresh.isPremium,
+              premiumUntil: fresh.premiumUntil,
+            };
+            AsyncStorage.setItem(USER_KEY, JSON.stringify(merged)).catch(() => {});
+            setState((s) => ({ ...s, user: merged }));
+          }).catch(() => { /* ağ hatası — restore edilen veriyle devam et */ });
         }
       } else {
         setState((s) => ({ ...s, isLoading: false }));
@@ -140,6 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         displayName: fresh.displayName,
         role: fresh.role as AuthUser["role"],
         userType: fresh.userType,
+        credits: fresh.credits,
         isPremium: fresh.isPremium,
         premiumUntil: fresh.premiumUntil,
       };

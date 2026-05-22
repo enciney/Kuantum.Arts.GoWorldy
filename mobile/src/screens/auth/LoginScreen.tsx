@@ -65,6 +65,10 @@ export function LoginScreen({ onNavigateRegister, onNavigateForgot }: Props) {
       setError("EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID environment değişkeni mobile/.env dosyasına eklenmeli.");
       return;
     }
+    if (!request) {
+      setError("Google girişi hazırlanıyor, lütfen tekrar deneyin.");
+      return;
+    }
     promptAsync();
   };
 
@@ -142,9 +146,9 @@ export function LoginScreen({ onNavigateRegister, onNavigateForgot }: Props) {
         </View>
 
         <TouchableOpacity
-          style={[styles.googleBtn, (!request || googleLoading) && { opacity: 0.6 }]}
+          style={[styles.googleBtn, googleLoading && { opacity: 0.6 }]}
           onPress={handleGoogleLogin}
-          disabled={!request || googleLoading}
+          disabled={googleLoading}
         >
           {googleLoading ? (
             <ActivityIndicator color="#EA4335" size="small" />
