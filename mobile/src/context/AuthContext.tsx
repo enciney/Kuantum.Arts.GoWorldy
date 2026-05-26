@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api, ApiError, AuthUser, setOn401Handler } from "../services/api";
 
@@ -18,9 +18,7 @@ interface AuthContextValue extends AuthState {
     userType?: "emigrant" | "consultant" | "diaspora"
   ) => Promise<void>;
   logout: () => Promise<void>;
-  /** Süresi dolmuş / geçersiz JWT nedeniyle otomatik çıkış yapar. */
   logoutOnUnauthorized: () => Promise<void>;
-  /** Backend'den taze user bilgisini çeker (premium durumu stale olmasın diye). */
   refreshUser: () => Promise<AuthUser | null>;
 }
 
@@ -28,6 +26,17 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const TOKEN_KEY = "@goworldy_token";
 const USER_KEY = "@goworldy_user";
+const REFRESH_TOKEN_KEY = "@goworldy_refresh_token";
+
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    if (!payload.exp) return false;
+    return Date.now() / 1000 > payload.exp;
+  } catch {
+    return false;
+  }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
@@ -36,35 +45,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading: true,
   });
 
+  const refreshingRef = useRef(false);
+
+  const clearStorage = async () => {
+    await Promise.all([
+      AsyncStorage.removeItem(TOKEN_KEY),
+      AsyncStorage.removeItem(USER_KEY),
+      AsyncStorage.removeItem(REFRESH_TOKEN_KEY),
+    ]);
+  };
+
   useEffect(() => {
     (async () => {
-      const [token, userJson] = await Promise.all([
+      const [token, userJson, refreshToken] = await Promise.all([
         AsyncStorage.getItem(TOKEN_KEY),
         AsyncStorage.getItem(USER_KEY),
+        AsyncStorage.getItem(REFRESH_TOKEN_KEY),
       ]);
-      if (token && userJson) {
-        // L-09: Token expire kontrolü — restore sırasında JWT payload'dan exp okur
-        const isExpired = (() => {
-          try {
-            const payload = JSON.parse(atob(token.split(".")[1]));
-            if (!payload.exp) return false;
-            return Date.now() / 1000 > payload.exp;
-          } catch {
-            return false; // parse hatası → güvenli tarafta kal, API 401 ile handle eder
-          }
-        })();
 
-        if (isExpired) {
-          // Süresi dolmuş token — temizle, login ekranı göster
-          await Promise.all([
-            AsyncStorage.removeItem(TOKEN_KEY),
-            AsyncStorage.removeItem(USER_KEY),
-          ]);
+      if (token && userJson) {
+        if (isTokenExpired(token)) {
+          if (refreshToken) {
+            try {
+              const result = await api.auth.refresh(refreshToken);
+              await AsyncStorage.setItem(TOKEN_KEY, result.token);
+              await AsyncStorage.setItem(REFRESH_TOKEN_KEY, result.refreshToken);
+              const restoredUser: AuthUser = JSON.parse(userJson);
+              setState({ user: restoredUser, token: result.token, isLoading: false });
+              api.users.me(result.token).then((fresh) => {
+                const merged: AuthUser = {
+                  id: fresh.id,
+                  email: fresh.email,
+                  displayName: fresh.displayName,
+                  role: fresh.role as AuthUser["role"],
+                  userType: fresh.userType,
+                  credits: fresh.credits,
+                  isPremium: fresh.isPremium,
+                  premiumUntil: fresh.premiumUntil,
+                };
+                AsyncStorage.setItem(USER_KEY, JSON.stringify(merged)).catch(() => {});
+                setState((s) => ({ ...s, user: merged }));
+              }).catch(() => {});
+              return;
+            } catch {
+              await clearStorage();
+              setState({ user: null, token: null, isLoading: false });
+              return;
+            }
+          }
+          await clearStorage();
           setState({ user: null, token: null, isLoading: false });
         } else {
           const restoredUser: AuthUser = JSON.parse(userJson);
           setState({ user: restoredUser, token, isLoading: false });
-          // Arka planda taze veri çek — isPremium / credits stale olmasın
           api.users.me(token).then((fresh) => {
             const merged: AuthUser = {
               id: fresh.id,
@@ -78,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             };
             AsyncStorage.setItem(USER_KEY, JSON.stringify(merged)).catch(() => {});
             setState((s) => ({ ...s, user: merged }));
-          }).catch(() => { /* ağ hatası — restore edilen veriyle devam et */ });
+          }).catch(() => {});
         }
       } else {
         setState((s) => ({ ...s, isLoading: false }));
@@ -86,33 +119,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  // SEC-01: Süresi dolmuş JWT → API 401 döndüğünde otomatik logout
   useEffect(() => {
     setOn401Handler(async () => {
-      await Promise.all([
-        AsyncStorage.removeItem(TOKEN_KEY),
-        AsyncStorage.removeItem(USER_KEY),
-      ]);
+      if (refreshingRef.current) return;
+      const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+      if (refreshToken) {
+        refreshingRef.current = true;
+        try {
+          const result = await api.auth.refresh(refreshToken);
+          await AsyncStorage.setItem(TOKEN_KEY, result.token);
+          await AsyncStorage.setItem(REFRESH_TOKEN_KEY, result.refreshToken);
+          setState((s) => ({ ...s, token: result.token }));
+          return;
+        } catch {
+          // refresh başarısız → logout
+        } finally {
+          refreshingRef.current = false;
+        }
+      }
+      await clearStorage();
       setState({ user: null, token: null, isLoading: false });
     });
   }, []);
 
-  const persist = async (user: AuthUser, token: string) => {
-    await Promise.all([
+  const persist = async (user: AuthUser, token: string, refreshToken?: string) => {
+    const ops: Promise<void>[] = [
       AsyncStorage.setItem(TOKEN_KEY, token),
       AsyncStorage.setItem(USER_KEY, JSON.stringify(user)),
-    ]);
+    ];
+    if (refreshToken) ops.push(AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken));
+    await Promise.all(ops);
     setState({ user, token, isLoading: false });
   };
 
   const login = async (email: string, password: string) => {
-    const { user, token } = await api.auth.login({ email, password });
-    await persist(user, token);
+    const { user, token, refreshToken } = await api.auth.login({ email, password });
+    await persist(user, token, refreshToken);
   };
 
   const loginWithGoogle = async (idToken: string) => {
-    const { user, token } = await api.auth.google(idToken);
-    await persist(user, token);
+    const { user, token, refreshToken } = await api.auth.google(idToken);
+    await persist(user, token, refreshToken);
   };
 
   const register = async (
@@ -121,27 +168,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     displayName: string,
     userType?: "emigrant" | "consultant" | "diaspora"
   ) => {
-    const { user, token } = await api.auth.register({ email, password, displayName, userType });
-    await persist(user, token);
+    const { user, token, refreshToken } = await api.auth.register({ email, password, displayName, userType });
+    await persist(user, token, refreshToken);
   };
 
   const logout = async () => {
-    await Promise.all([
-      AsyncStorage.removeItem(TOKEN_KEY),
-      AsyncStorage.removeItem(USER_KEY),
-    ]);
+    await clearStorage();
     setState({ user: null, token: null, isLoading: false });
   };
 
-  /**
-   * SEC-01: Süresi dolmuş veya geçersiz JWT geldiğinde (401) çağrılır.
-   * State'i temizler → navigator LoginScreen'e yönlendirir.
-   */
   const logoutOnUnauthorized = async () => {
-    await Promise.all([
-      AsyncStorage.removeItem(TOKEN_KEY),
-      AsyncStorage.removeItem(USER_KEY),
-    ]);
+    await clearStorage();
     setState({ user: null, token: null, isLoading: false });
   };
 

@@ -3,6 +3,7 @@ import { Repositories } from "../repositories";
 import { authMiddleware, requireRole, optionalAuthMiddleware, AuthRequest } from "../middleware/auth";
 import { config } from "../config";
 import { broadcastPendingTopic } from "./admin";
+import { sanitizeContent, sanitizeTitle } from "../utils/sanitize";
 
 // FRM-TPC-005: Konu sahibi düzenleme süresi (24 saat)
 const TOPIC_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -64,7 +65,9 @@ export function forumRoutes(repos: Repositories): Router {
 
   // ── FRM-TPC-002: Konu açma ───────────────────────────────────────────────────
   router.post("/topics", authMiddleware, async (req: AuthRequest, res) => {
-    const { categoryId, title, content } = req.body;
+    const { categoryId } = req.body;
+    const title = typeof req.body.title === "string" ? sanitizeTitle(req.body.title) : req.body.title;
+    const content = typeof req.body.content === "string" ? sanitizeContent(req.body.content) : req.body.content;
     if (!categoryId || !title) {
       return res.status(400).json({ error: "categoryId ve title zorunlu" });
     }
@@ -133,7 +136,8 @@ export function forumRoutes(repos: Repositories): Router {
   // ── FRM-TPC-005: Staff doğrudan düzenler; sahibi edit-request gönderir ────────
   router.patch("/topics/:id", authMiddleware, async (req: AuthRequest, res) => {
     const topicId = req.params.id as string;
-    const { title, content } = req.body;
+    const title = typeof req.body.title === "string" ? sanitizeTitle(req.body.title) : req.body.title;
+    const content = typeof req.body.content === "string" ? sanitizeContent(req.body.content) : req.body.content;
 
     if (title === undefined && content === undefined) {
       return res.status(400).json({ error: "title veya content gerekli." });
@@ -358,7 +362,8 @@ export function forumRoutes(repos: Repositories): Router {
   // ── FRM-CMT-002 + FRM-CMT-006: Yorum oluşturma (nested parent destekli) ─────
   router.post("/topics/:topicId/comments", authMiddleware, async (req: AuthRequest, res) => {
     const topicId = req.params.topicId as string;
-    const { content, parentCommentId } = req.body;
+    const { parentCommentId } = req.body;
+    const content = typeof req.body.content === "string" ? sanitizeContent(req.body.content) : req.body.content;
 
     if (typeof content !== "string" || !content.trim()) {
       return res.status(400).json({ error: "Yorum içeriği boş olamaz." });
@@ -409,7 +414,7 @@ export function forumRoutes(repos: Repositories): Router {
   // ── FRM-CMT-003: Yorum düzenleme ─────────────────────────────────────────────
   router.patch("/topics/:topicId/comments/:id", authMiddleware, async (req: AuthRequest, res) => {
     const commentId = req.params.id as string;
-    const { content } = req.body;
+    const content = typeof req.body.content === "string" ? sanitizeContent(req.body.content) : req.body.content;
 
     if (typeof content !== "string" || !content.trim()) {
       return res.status(400).json({ error: "Yorum içeriği boş olamaz." });

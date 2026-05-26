@@ -7,6 +7,12 @@ import { Repositories } from "../repositories";
 import { isGoogleConfigured, verifyGoogleIdToken } from "../services/google-auth";
 import { sendResetEmail } from "../services/email";
 
+function signTokenPair(userId: string, role: string) {
+  const token = jwt.sign({ id: userId, role }, config.jwtSecret, { expiresIn: config.jwtExpiry } as object);
+  const refreshToken = jwt.sign({ id: userId, role, type: "refresh" }, config.jwtRefreshSecret, { expiresIn: config.jwtRefreshExpiry } as object);
+  return { token, refreshToken };
+}
+
 export function authRoutes(repos: Repositories): Router {
   const router = Router();
 
@@ -18,8 +24,33 @@ export function authRoutes(repos: Repositories): Router {
 
       const passwordHash = await bcrypt.hash(password, 10);
       const user = await repos.users.create({ email, passwordHash, displayName, role: config.roles.user, userType: userType || config.userTypes.emigrant, isPremium: false });
-      const token = jwt.sign({ id: user.id, role: user.role }, config.jwtSecret, { expiresIn: config.jwtExpiry } as object);
-      res.json({ user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role, userType: user.userType, isPremium: user.isPremium ?? false, premiumUntil: user.premiumUntil ?? null }, token });
+      const { token, refreshToken } = signTokenPair(user.id, user.role);
+      res.json({ user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role, userType: user.userType, isPremium: user.isPremium ?? false, premiumUntil: user.premiumUntil ?? null }, token, refreshToken });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.post("/refresh", async (req, res) => {
+    try {
+      const { refreshToken } = req.body;
+      if (!refreshToken) return res.status(400).json({ error: "refreshToken zorunlu" });
+
+      let decoded: { id: string; role: string; type: string };
+      try {
+        decoded = jwt.verify(refreshToken, config.jwtRefreshSecret) as { id: string; role: string; type: string };
+      } catch {
+        return res.status(401).json({ error: "Geçersiz veya süresi dolmuş refresh token" });
+      }
+      if (decoded.type !== "refresh") {
+        return res.status(401).json({ error: "Geçersiz token tipi" });
+      }
+
+      const user = await repos.users.findById(decoded.id);
+      if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+
+      const { token, refreshToken: newRefreshToken } = signTokenPair(user.id, user.role);
+      res.json({ token, refreshToken: newRefreshToken });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -57,8 +88,8 @@ export function authRoutes(repos: Repositories): Router {
       const valid = await bcrypt.compare(password, user.passwordHash);
       if (!valid) return res.status(401).json({ error: "Invalid email or password" });
 
-      const token = jwt.sign({ id: user.id, role: user.role }, config.jwtSecret, { expiresIn: config.jwtExpiry } as object);
-      res.json({ user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role, userType: user.userType, isPremium: user.isPremium ?? false, premiumUntil: user.premiumUntil ?? null }, token });
+      const { token, refreshToken } = signTokenPair(user.id, user.role);
+      res.json({ user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role, userType: user.userType, isPremium: user.isPremium ?? false, premiumUntil: user.premiumUntil ?? null }, token, refreshToken });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -123,11 +154,7 @@ export function authRoutes(repos: Repositories): Router {
         });
       }
 
-      const token = jwt.sign(
-        { id: user.id, role: user.role },
-        config.jwtSecret,
-        { expiresIn: config.jwtExpiry } as object
-      );
+      const { token, refreshToken } = signTokenPair(user.id, user.role);
 
       res.json({
         user: {
@@ -140,6 +167,7 @@ export function authRoutes(repos: Repositories): Router {
           premiumUntil: user.premiumUntil ?? null,
         },
         token,
+        refreshToken,
       });
     } catch (e: any) {
       res.status(401).json({ error: e.message || "Google doğrulama başarısız" });

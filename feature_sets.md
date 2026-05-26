@@ -66,7 +66,7 @@ Her feature **3 segment**ten oluşan benzersiz bir ID'ye sahiptir:
 
 > Tüm feature'ların özet tablosu — hızlı referans için. Her satıra tıklayarak (anchor) detayına gidebilirsin.
 
-### AUTH — Kimlik Doğrulama (16 feature)
+### AUTH — Kimlik Doğrulama (17 feature)
 
 | ID | Özellik | Durum |
 |----|---------|-------|
@@ -78,13 +78,14 @@ Her feature **3 segment**ten oluşan benzersiz bir ID'ye sahiptir:
 | [AUTH-LOG-002](#auth-log-002-google-ile-giriş) | Google ile giriş | ✅ |
 | [AUTH-LOG-003](#auth-log-003-şifre-göstergizle-toggle) | Şifre göster/gizle toggle | ✅ |
 | [AUTH-LOG-004](#auth-log-004-oturum-kalıcılığı) | Oturum kalıcılığı (AsyncStorage) | ✅ |
-| [AUTH-LOG-005](#auth-log-005-süresi-dolmuş-jwt-otomatik-logout) | Süresi dolmuş JWT → otomatik logout | ⚠️ |
+| [AUTH-LOG-005](#auth-log-005-süresi-dolmuş-jwt-otomatik-logout) | Süresi dolmuş JWT → refresh token / otomatik logout | ✅ |
 | [AUTH-PWD-001](#auth-pwd-001-şifremi-unuttum) | Şifremi unuttum | ✅ |
 | [AUTH-PWD-002](#auth-pwd-002-şifre-sıfırlama) | Token ile şifre sıfırlama | ✅ |
 | [AUTH-PWD-003](#auth-pwd-003-gerçek-e-posta-gönderimi) | Gerçek e-posta gönderimi (SendGrid) | 🔒 |
 | [AUTH-PWD-004](#auth-pwd-004-şifre-değiştirme) | Profil → şifre değiştirme | ❌ |
 | [AUTH-PWD-005](#auth-pwd-005-güçlü-şifre-zorlaması) | Güçlü şifre zorlaması (büyük/küçük/rakam) | ❌ |
 | [AUTH-ACC-001](#auth-acc-001-çıkış-yap) | Çıkış yap | ✅ |
+| [AUTH-REG-005](#auth-reg-005-kvkk-gizlilik-sözleşmesi-onayı) | KVKK / Gizlilik Sözleşmesi onay kutusu (kayıt zorunlu) | ✅ |
 | [AUTH-ACC-002](#auth-acc-002-hesap-silme-kvkkgdpr) | Hesap silme (KVKK/GDPR) | ❌ |
 
 ### USR — Kullanıcı Profili (12 feature)
@@ -121,17 +122,17 @@ Her feature **3 segment**ten oluşan benzersiz bir ID'ye sahiptir:
 | [FRM-TPC-007](#frm-tpc-007-konu-upvote) | Konu upvote (toggle) | ✅ |
 | [FRM-TPC-008](#frm-tpc-008-konu-favori--kaydet) | Konu favori / kaydet | ✅ |
 | [FRM-TPC-009](#frm-tpc-009-konu-takip-subscribe) | Konu takip (subscribe) | ✅ |
-| [FRM-TPC-010](#frm-tpc-010-konu-raporlama) | Konu raporlama | ❌ |
+| [FRM-TPC-010](#frm-tpc-010-konu-raporlama) | Konu raporlama | ✅ |
 | [FRM-TPC-011](#frm-tpc-011-konu-kilitleme-yorum-kapat) | Konu kilitleme (yorum kapat) | ❌ |
 | [FRM-TPC-012](#frm-tpc-012-konu-paylaşma-deep-link) | Konu paylaşma (deep link) | ✅ |
 | [FRM-TPC-013](#frm-tpc-013-popüler-filtre-upvote-dahil) | Popüler filtre (upvote dahil) | ✅ |
 | [FRM-CMT-001](#frm-cmt-001-yorum-listesi) | Yorum listesi | ✅ |
 | [FRM-CMT-002](#frm-cmt-002-yorum-yazma) | Yorum yazma | ✅ |
-| [FRM-CMT-003](#frm-cmt-003-yorum-düzenleme) | Yorum düzenleme | ⚠️ |
-| [FRM-CMT-004](#frm-cmt-004-yorum-silme) | Yorum silme (sahibi veya admin) | ❌ |
+| [FRM-CMT-003](#frm-cmt-003-yorum-düzenleme) | Yorum düzenleme | ✅ |
+| [FRM-CMT-004](#frm-cmt-004-yorum-silme) | Yorum silme (sahibi veya admin) | ✅ |
 | [FRM-CMT-005](#frm-cmt-005-yorum-beğenme) | Yorum beğenme | ✅ |
 | [FRM-CMT-006](#frm-cmt-006-yorum-yanıtlama-nested) | Yorum yanıtlama (nested + collapse) | ✅ |
-| [FRM-CMT-007](#frm-cmt-007-yorum-raporlama) | Yorum raporlama | ⚠️ |
+| [FRM-CMT-007](#frm-cmt-007-yorum-raporlama) | Yorum raporlama | ✅ |
 
 ### PRM — Premium (13 feature)
 
@@ -194,7 +195,6 @@ Her feature **3 segment**ten oluşan benzersiz bir ID'ye sahiptir:
 | [NTF-EVT-004](#ntf-evt-004-yeni-yorum-konu-sahibine) | "Yeni yorum (konu sahibine)" bildirimi | ✅ |
 | [NTF-EVT-005](#ntf-evt-005-admine-yeni-pending-konu) | "Admin'e yeni pending konu" bildirimi | ✅ |
 
-> **⛔ NTF-EVT-001..005 blocker:** Kod yazıldı + entegre edildi ama uçtan uca test edilemiyor. Sebep: [PRM-EXP-003](#prm-exp-003-mobile-tarafında-premium-state-refresh) bug'ı yüzünden kullanıcı pending topic flow'una giremiyor. Premium state refresh fix'ten sonra hepsi ✅ olacak (kod hazır).
 | [NTF-EVT-006](#ntf-evt-006-premium-süresi-dolmak-üzere) | "Premium süresi dolmak üzere" bildirimi | ❌ |
 | [NTF-SUB-001](#ntf-sub-001-ülke-aboneliği) | Ülke aboneliği | ✅ |
 | [NTF-PSH-001](#ntf-psh-001-expo-push-notification) | Expo push notification | ❌ |
@@ -221,8 +221,8 @@ Her feature **3 segment**ten oluşan benzersiz bir ID'ye sahiptir:
 
 | ID | Özellik | Durum |
 |----|---------|-------|
-| [MOD-REP-001](#mod-rep-001-konuyorum-raporlama-akışı) | Konu/yorum raporlama akışı | ❌ |
-| [MOD-REP-002](#mod-rep-002-rapor-kuyruğu-admin-panel) | Rapor kuyruğu (admin panel) | ❌ |
+| [MOD-REP-001](#mod-rep-001-konuyorum-raporlama-akışı) | Konu/yorum raporlama akışı | ✅ |
+| [MOD-REP-002](#mod-rep-002-rapor-kuyruğu-admin-panel) | Rapor kuyruğu (admin panel) | ⚠️ |
 | [MOD-BAN-001](#mod-ban-001-kullanıcı-susturma-mute) | Kullanıcı susturma (mute X gün) | ❌ |
 | [MOD-BAN-002](#mod-ban-002-kullanıcı-kalıcı-ban) | Kullanıcı kalıcı ban | ❌ |
 | [MOD-DEL-001](#mod-del-001-soft-delete-bu-içerik-kaldırıldı) | Soft delete ("bu içerik kaldırıldı") | ❌ |
@@ -259,7 +259,7 @@ Her feature **3 segment**ten oluşan benzersiz bir ID'ye sahiptir:
 | [SEC-RTL-001](#sec-rtl-001-auth-rate-limit) | /auth/* rate limit | ❌ |
 | [SEC-RTL-002](#sec-rtl-002-konu-yorum-rate-limit) | Konu/yorum rate limit (anti-spam) | ❌ |
 | [SEC-COR-001](#sec-cor-001-cors-whitelist) | CORS whitelist | ❌ |
-| [SEC-SAN-001](#sec-san-001-xss-sanitization-yorumkonu) | XSS sanitization (yorum/konu içeriği) | ❌ |
+| [SEC-SAN-001](#sec-san-001-xss-sanitization-yorumkonu) | XSS sanitization (yorum/konu içeriği) | ✅ |
 | [SEC-PWD-001](#sec-pwd-001-bcrypt-hash-cost-12) | Bcrypt hash (cost 12) | ✅ |
 | [SEC-PWD-002](#sec-pwd-002-passwordhash-asla-dönmeme) | passwordHash asla response'a dönmeme | ✅ |
 
@@ -522,26 +522,17 @@ const [showPassword, setShowPassword] = useState(false);
 
 ---
 
-### AUTH-LOG-005: Süresi Dolmuş JWT → Otomatik Logout
+### AUTH-LOG-005: Süresi Dolmuş JWT → Refresh Token / Otomatik Logout
 
-**Durum:** ⚠️ Backend doğru 401 dönüyor ama mobile bunu yakalayıp logout yapmıyor
+**Durum:** ✅ Çalışıyor
 
-**Çözüm — Axios interceptor:**
-```ts
-// mobile/src/services/api.ts
-import { authStore } from "../context/AuthContext";
-
-api.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    if (err.response?.status === 401) {
-      authStore.logout();  // user'ı temizle → AppNavigator otomatik LoginScreen'e döner
-      Alert.alert("Oturum süresi doldu", "Lütfen tekrar giriş yap.");
-    }
-    return Promise.reject(err);
-  }
-);
-```
+**Implementasyon:**
+- Access token süresi: `JWT_EXPIRY` env (varsayılan 15 dakika)
+- Refresh token süresi: `JWT_REFRESH_EXPIRY` env (varsayılan 30 gün)
+- `POST /auth/refresh` endpoint refresh token ile yeni access+refresh çifti döner
+- `AuthContext`: uygulama açılışında token süresi dolmuşsa önce refresh dener, refresh başarısız olursa logout yapar
+- `on401Handler`: API çağrısında 401 alınırsa önce refresh dener, yine 401 gelirse logout yapar
+- `AsyncStorage`'da `@goworldy_refresh_token` olarak saklanır
 
 ---
 
@@ -658,6 +649,23 @@ export function validatePasswordStrength(pw: string): string | null {
 **Durum:** ✅ Çalışıyor
 
 **Akış:** `AuthContext.logout()` → AsyncStorage temizle → user null → AppNavigator LoginScreen'e döner
+
+---
+
+### AUTH-REG-005: KVKK / Gizlilik Sözleşmesi Onayı
+
+**Durum:** ✅ Çalışıyor
+
+**Kullanıcı Hikayesi:**
+> Yeni kullanıcı olarak, kayıt sırasında KVKK Aydınlatma Metni ve Gizlilik Politikası'nı onaylamak istiyorum.
+
+**Akış:**
+1. `RegisterScreen`'de "Kayıt Ol" butonunun üstünde bir checkbox görünür
+2. Checkbox metni: "Gizlilik Politikası ve KVKK Aydınlatma Metni'ni okudum, kabul ediyorum"
+3. Metin tıklanabilir → tam metin Modal olarak açılır
+4. Modal'da "Okudum, Kabul Ediyorum" butonu checkbox'ı otomatik işaretler
+5. Checkbox işaretlenmeden "Kayıt Ol" butonu disabled (gri) kalır
+6. Tıklanırsa validasyon mesajı gösterir
 
 ---
 
@@ -2405,19 +2413,16 @@ app.use(cors({
 
 ### SEC-SAN-001: XSS Sanitization
 
-**Durum:** ❌ Eksik
+**Durum:** ✅ Çalışıyor
 
-Konu/yorum içeriği HTML render edilirse XSS riski var.
+`sanitize-html` paketi kullanılarak `api/src/utils/sanitize.ts` içinde `sanitizeContent()` ve `sanitizeTitle()` fonksiyonları oluşturuldu. Forum topic ve yorum oluşturma/düzenleme endpoint'lerinde tüm user-input içerikler DB'ye yazılmadan önce sanitize edilir (tüm HTML tag'ları sıyrılır, plain-text olarak saklanır).
 
-**Çözüm:**
 ```ts
+// api/src/utils/sanitize.ts
 import sanitizeHtml from "sanitize-html";
-
-const cleanContent = sanitizeHtml(content, {
-  allowedTags: ["b", "i", "em", "strong", "a", "p", "br", "ul", "ol", "li"],
-  allowedAttributes: { "a": ["href", "target"] },
-  allowedSchemes: ["http", "https", "mailto"],
-});
+export function sanitizeContent(input: string): string {
+  return sanitizeHtml(input, { allowedTags: [], allowedAttributes: {} }).trim();
+}
 ```
 
 ---
@@ -2645,15 +2650,78 @@ Bu özellikler **henüz hiç düşünülmemiş** ama göç platformları için t
 Kullanıcının bildirdiği bug'ları + en kritik eksikleri kapsar:
 
 1. **SRC-TPC-001** — Konu arama UI (1-2 saat) ← backend hazır, sadece UI
-2. **BUG-001** + **PRM-EXP-003** — AuthContext refresh (2 saat)
+2. **BUG-001** + **PRM-EXP-003** — Premium state stale kalıyor (2 saat)
 3. **BUG-003** — Notification polling (1 saat)
 4. **NTF-EVT-005** — Admin'e in-app bildirim (3 saat)
 5. **NTF-PSH-001** — Expo push (1 gün)
-6. **AUTH-LOG-005** — 401 interceptor (1 saat)
+6. ~~**AUTH-LOG-005**~~ — ✅ Refresh token + 401 handler tamamlandı
 7. **PRM-EXP-001** — Lazy expiry check (2 saat)
-8. **FRM-TPC-003** — Konu body TextInput (1 saat)
-9. **SEC-RTL-001** + **SEC-RTL-002** — Rate limit (3 saat)
-10. **AUTH-REG-002** + **AUTH-PWD-005** — Validasyon (3 saat)
-11. **MOD-REP-001** + **MOD-REP-002** — Raporlama akışı (1 gün)
+8. **SEC-RTL-001** + **SEC-RTL-002** — Rate limit (3 saat)
+9. **AUTH-REG-002** + **AUTH-PWD-005** — Validasyon (3 saat)
+10. **MOD-REP-002** — Admin rapor kuyruğu UI (3 saat) ← backend hazır
+11. **ADM-CFG-002** — Pricing güncelleme writable (2 saat)
 
 **Toplam: ~3 gün geliştirme + 2 gün test + 1 gün QA**
+
+---
+
+## 📊 PM Analizi — Feature Tarama (2026-05-26)
+
+### Durum Düzeltmeleri (Kod Taramasından)
+
+| ID | Önceki | Yeni | Açıklama |
+|----|--------|------|----------|
+| AUTH-LOG-005 | ⚠️ | ✅ | Refresh token + 401 handler tamamen implement edildi |
+| AUTH-REG-005 | — | ✅ | KVKK/Gizlilik checkbox eklendi (yeni feature) |
+| FRM-CMT-003 | ⚠️ | ✅ | Düzenleme endpoint + mobile UI ve time window çalışıyor |
+| FRM-CMT-004 | ❌ | ✅ | Soft-delete endpoint + mobile delete flow tamam |
+| FRM-CMT-007 | ⚠️ | ✅ | Report modal hem konu hem yorum için çalışıyor |
+| FRM-TPC-010 | ❌ | ✅ | Report modal konu raporlamayı da kapsıyor |
+| MOD-REP-001 | ❌ | ✅ | Backend reports.ts + mobile UI tamamen implement edildi |
+| MOD-REP-002 | ❌ | ⚠️ | Backend GET /admin/reports var, admin panel UI sayfası eksik |
+| SEC-SAN-001 | ❌ | ✅ | sanitize-html ile forum topic/yorum tüm input'lar sanitize ediliyor |
+
+### Eksik Ama Kritik Olanlar (MVP'yi Bloklayan)
+
+| ID | Özellik | Neden Kritik |
+|----|---------|-------------|
+| PRM-EXP-003 | Premium state refresh | Kullanıcı ödeme yaptıktan sonra premium göremez |
+| PRM-EXP-001 | isPremium otomatik sona erme | Süresi geçmiş premium'lar aktif görünüyor |
+| NTF-PSH-001 | Expo push notification | Kullanıcılar uygulama kapalıyken bildirim almıyor |
+| SEC-RTL-001/002 | Rate limiting | Spam ve brute-force koruması yok |
+| AUTH-REG-002 | E-posta format validasyon | Geçersiz e-postalar kayıt olabiliyor |
+| AUTH-PWD-004 | Şifre değiştirme | Kullanıcı şifresini değiştiremiyor |
+| PRM-SUB-004 | Abonelik iptali | Kullanıcı aboneliğini iptal edemiyor |
+| MOD-REP-002 | Admin rapor kuyruğu UI | Raporlar admin panelden görüntülenemiyor |
+
+### Gereksiz / Düşük Öncelikli Özellikler (MVP İçin Ertele)
+
+| ID | Özellik | Neden |
+|----|---------|-------|
+| USR-STA-002 | followingCount takip sistemi | Kullanıcıları takip etme sistemi hiç implement edilmemiş; forum için öncelikli değil |
+| USR-AVT-002 | Avatar kırpma & ön izleme | Expo ImagePicker ile galeri yeterli; crop UX maliyeti yüksek |
+| USR-TPC-002 | MyTopics sayfalama | Mevcut basit liste MVP için yeterli |
+| CRD-HST-001 | Kredi geçmişi tablosu | Kredi sistemi ödeme akışıyla birlikte gelir; ayrıca yapılmalı |
+| CRD-RWD-001 | Haftalık otomatik kredi ödülü | Cron job gerektirir; henüz altyapı hazır değil |
+| CRD-LOW-001 | Düşük bakiye uyarısı | Kredi sistemi tam çalışmadan anlamsız |
+| GDE-CMP-001 | Rehber tamamlama rozeti | Gamification; MVP'nin core değil |
+| GDE-RCM-001 | Akıllı adım önerisi | ML/rule-based; aşırı mühendislik riski |
+| GDE-ADM-001 | Admin rehber adımı ekleme | Admin panel hardcoded step yönetimiyle başlayabilir |
+| NTF-INA-006 | Bildirim gruplama | UX iyileştirme; tekil bildirimler önce çalışsın |
+| PAY-INV-001 | Fatura PDF indirme | Stripe portalından zaten ulaşılabilir |
+| FRM-TPC-011 | Konu kilitleme | Moderasyon önce raporla akışıyla başlayabilir |
+| MOD-BAN-001/002 | Kullanıcı susturma/ban | Basit bir admin "ban" flag'i yeterli; ayrı mute sistemi aşırı |
+| MOD-DEL-001 | Soft delete UI | Backend soft-delete var; UI "Bu içerik kaldırıldı" mesajı eklenebilir |
+| MOD-SPM-001 | Otomatik spam filtresi | Rate limit + raporlama MVP için yeterli |
+| SRC-CAT-001 | Kategori içi arama | 🚫 Kapsam dışı bırakıldı; doğru karar |
+
+### Sonraki Sprint Önerileri (Öncelik Sırası)
+
+1. **PRM-EXP-003 + PRM-EXP-001** — Premium bug'ları (blocker)
+2. **SEC-RTL-001/002** — Rate limiting (güvenlik)
+3. **AUTH-REG-002 + AUTH-PWD-004/005** — Auth validasyon (UX + güvenlik)
+4. **MOD-REP-002** — Admin rapor kuyruğu UI (backend hazır, sadece UI)
+5. **NTF-PSH-001** — Push notification (kullanıcı erişimi)
+6. **PRM-SUB-004** — Abonelik iptal (yasal zorunluluk)
+7. **AUTH-ACC-002** — Hesap silme (KVKK zorunluluğu)
+8. **ADM-CFG-002** — Pricing writable (admin paneli tamamlama)

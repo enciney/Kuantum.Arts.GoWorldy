@@ -10,7 +10,9 @@ dotenv.config({ path: path.resolve(__dirname, "../../../config", envFile) });
 export const config = {
   port: Number(process.env.PORT) || 3000,
   jwtSecret: process.env.JWT_SECRET || "dev-secret",
-  jwtExpiry: process.env.JWT_EXPIRY || "7d",
+  jwtExpiry: process.env.JWT_EXPIRY || "1h",          // access token — mobil offline senaryosu için 1h makul
+  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || "dev-refresh-secret",
+  jwtRefreshExpiry: process.env.JWT_REFRESH_EXPIRY || "30d", // 30 gün açılmazsa → logout
 
   db: {
     connectionString: process.env.DB_CONNECTION_STRING || "",

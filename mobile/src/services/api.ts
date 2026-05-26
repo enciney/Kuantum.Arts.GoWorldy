@@ -46,6 +46,7 @@ export interface AuthUser {
 export interface AuthResponse {
   user: AuthUser;
   token: string;
+  refreshToken?: string;
 }
 
 export const api = {
@@ -71,6 +72,12 @@ export const api = {
       request<AuthResponse>("/auth/google", {
         method: "POST",
         body: JSON.stringify({ idToken }),
+      }),
+
+    refresh: (refreshToken: string) =>
+      request<{ token: string; refreshToken: string }>("/auth/refresh", {
+        method: "POST",
+        body: JSON.stringify({ refreshToken }),
       }),
 
     forgotPassword: (email: string) =>

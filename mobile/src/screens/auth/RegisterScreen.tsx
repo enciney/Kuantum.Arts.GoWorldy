@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Modal,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
@@ -35,6 +36,8 @@ export function RegisterScreen({ onNavigateLogin }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [kvkkAccepted, setKvkkAccepted] = useState(false);
+  const [showKvkk, setShowKvkk] = useState(false);
 
   const handleRegister = async () => {
     if (!displayName || !email || !password) {
@@ -43,6 +46,10 @@ export function RegisterScreen({ onNavigateLogin }: Props) {
     }
     if (password.length < 6) {
       setError("Şifre en az 6 karakter olmalıdır.");
+      return;
+    }
+    if (!kvkkAccepted) {
+      setError("Kayıt olabilmek için Gizlilik Politikası ve KVKK Aydınlatma Metni'ni kabul etmeniz gerekiyor.");
       return;
     }
     setError(null);
@@ -138,9 +145,25 @@ export function RegisterScreen({ onNavigateLogin }: Props) {
         </View>
 
         <TouchableOpacity
-          style={[styles.btn, loading && styles.btnDisabled]}
+          style={styles.kvkkRow}
+          onPress={() => setKvkkAccepted((v) => !v)}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.checkbox, kvkkAccepted && styles.checkboxChecked]}>
+            {kvkkAccepted && <Ionicons name="checkmark" size={14} color="#fff" />}
+          </View>
+          <Text style={styles.kvkkText}>
+            <Text onPress={() => setShowKvkk(true)} style={styles.kvkkLink}>
+              Gizlilik Politikası ve KVKK Aydınlatma Metni
+            </Text>
+            {"'ni okudum, kabul ediyorum."}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.btn, (loading || !kvkkAccepted) && styles.btnDisabled]}
           onPress={handleRegister}
-          disabled={loading}
+          disabled={loading || !kvkkAccepted}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
@@ -148,6 +171,62 @@ export function RegisterScreen({ onNavigateLogin }: Props) {
             <Text style={styles.btnText}>Kayıt Ol</Text>
           )}
         </TouchableOpacity>
+
+        <Modal visible={showKvkk} animationType="slide" presentationStyle="pageSheet">
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Gizlilik Politikası ve KVKK</Text>
+              <TouchableOpacity onPress={() => setShowKvkk(false)} style={styles.modalClose}>
+                <Ionicons name="close" size={24} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent}>
+              <Text style={styles.modalSectionTitle}>1. Veri Sorumlusu</Text>
+              <Text style={styles.modalText}>
+                GoWorldy uygulaması kapsamında kişisel verileriniz, 6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca veri sorumlusu sıfatıyla Kuantum Arts tarafından işlenmektedir.
+              </Text>
+              <Text style={styles.modalSectionTitle}>2. İşlenen Kişisel Veriler</Text>
+              <Text style={styles.modalText}>
+                Ad soyad, e-posta adresi, şifre (hash'lenmiş), kullanıcı tipi, profil bilgileri, forum içerikleri (konu/yorum), ödeme işlem kayıtları ve uygulama kullanım verileri işlenmektedir.
+              </Text>
+              <Text style={styles.modalSectionTitle}>3. İşleme Amaçları</Text>
+              <Text style={styles.modalText}>
+                • Hesap oluşturma ve kimlik doğrulama{"\n"}
+                • Forum hizmetlerinin sunulması{"\n"}
+                • Premium üyelik ve ödeme işlemleri{"\n"}
+                • Uygulama güvenliği ve hile önleme{"\n"}
+                • Yasal yükümlülüklerin yerine getirilmesi
+              </Text>
+              <Text style={styles.modalSectionTitle}>4. Hukuki Dayanak</Text>
+              <Text style={styles.modalText}>
+                Verileriniz; sözleşmenin ifası (KVKK m.5/2-c), meşru menfaat (KVKK m.5/2-f) ve açık rızanız (KVKK m.5/1) hukuki sebeplerine dayalı olarak işlenmektedir.
+              </Text>
+              <Text style={styles.modalSectionTitle}>5. Veri Saklama ve Aktarım</Text>
+              <Text style={styles.modalText}>
+                Kişisel verileriniz, hizmet sunumu için gerekli olan süre boyunca saklanır. Ödeme verileri için Stripe, e-posta bildirimleri için SendGrid, kimlik doğrulama için Google altyapısı kullanılabilir.
+              </Text>
+              <Text style={styles.modalSectionTitle}>6. Haklarınız (KVKK m.11)</Text>
+              <Text style={styles.modalText}>
+                Kişisel verilerinize ilişkin; bilgi talep etme, düzeltme, silme, işlemeye itiraz etme ve taşınabilirlik haklarınız mevcuttur. Taleplerinizi destek@goworldy.com adresine iletebilirsiniz.
+              </Text>
+              <Text style={styles.modalSectionTitle}>7. Çerez ve Analitik</Text>
+              <Text style={styles.modalText}>
+                Uygulama, hizmet kalitesini artırmak amacıyla anonim kullanım istatistikleri toplayabilir. Kişisel tanımlayıcı çerez kullanılmamaktadır.
+              </Text>
+              <Text style={styles.modalSectionTitle}>8. Değişiklikler</Text>
+              <Text style={styles.modalText}>
+                Bu politika zaman zaman güncellenebilir. Önemli değişikliklerde uygulama üzerinden bildirim yapılır.{"\n\n"}
+                Son güncelleme: Mayıs 2026
+              </Text>
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.modalAcceptBtn}
+              onPress={() => { setKvkkAccepted(true); setShowKvkk(false); }}
+            >
+              <Text style={styles.modalAcceptBtnText}>Okudum, Kabul Ediyorum</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
 
         <TouchableOpacity onPress={onNavigateLogin} style={styles.link}>
           <Text style={styles.linkText}>
@@ -231,4 +310,93 @@ const styles = StyleSheet.create({
   link: { alignItems: "center", paddingVertical: Spacing.sm },
   linkText: { color: Colors.textSecondary, fontSize: 14 },
   linkBold: { color: Colors.primary, fontWeight: "600" },
+  kvkkRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+    paddingHorizontal: 2,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: Colors.borderStrong,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 1,
+    flexShrink: 0,
+  },
+  checkboxChecked: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  kvkkText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+  kvkkLink: {
+    color: Colors.primary,
+    fontWeight: "500",
+    textDecorationLine: "underline",
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.md,
+    paddingTop: 56,
+    paddingBottom: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  modalClose: {
+    padding: Spacing.xs,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalScroll: { flex: 1 },
+  modalContent: {
+    padding: Spacing.md,
+    paddingBottom: Spacing.xl,
+  },
+  modalSectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    marginTop: Spacing.md,
+    marginBottom: 6,
+  },
+  modalText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 22,
+  },
+  modalAcceptBtn: {
+    backgroundColor: Colors.primary,
+    margin: Spacing.md,
+    borderRadius: Radius.md,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  modalAcceptBtnText: {
+    color: Colors.surface,
+    fontSize: 16,
+    fontWeight: "600",
+  },
 });
