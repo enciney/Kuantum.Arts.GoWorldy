@@ -48,6 +48,7 @@ export function authRoutes(repos: Repositories): Router {
 
       const user = await repos.users.findById(decoded.id);
       if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+      if (user.isBanned) return res.status(403).json({ error: "Hesabınız askıya alınmıştır." });
 
       const { token, refreshToken: newRefreshToken } = signTokenPair(user.id, user.role);
       res.json({ token, refreshToken: newRefreshToken });
@@ -87,6 +88,8 @@ export function authRoutes(repos: Repositories): Router {
 
       const valid = await bcrypt.compare(password, user.passwordHash);
       if (!valid) return res.status(401).json({ error: "Invalid email or password" });
+
+      if (user.isBanned) return res.status(403).json({ error: "Hesabınız askıya alınmıştır. Destek için iletişime geçin." });
 
       const { token, refreshToken } = signTokenPair(user.id, user.role);
       res.json({ user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role, userType: user.userType, isPremium: user.isPremium ?? false, premiumUntil: user.premiumUntil ?? null }, token, refreshToken });
@@ -141,7 +144,10 @@ export function authRoutes(repos: Repositories): Router {
       const verified = await verifyGoogleIdToken(idToken);
 
       let user = await repos.users.findByEmail(verified.email);
+      if (user?.isBanned) return res.status(403).json({ error: "Hesabınız askıya alınmıştır. Destek için iletişime geçin." });
+      let isNewUser = false;
       if (!user) {
+        isNewUser = true;
         const randomPassword = crypto.randomBytes(24).toString("hex");
         const passwordHash = await bcrypt.hash(randomPassword, 10);
         user = await repos.users.create({
@@ -168,6 +174,7 @@ export function authRoutes(repos: Repositories): Router {
         },
         token,
         refreshToken,
+        isNewUser,
       });
     } catch (e: any) {
       res.status(401).json({ error: e.message || "Google doğrulama başarısız" });

@@ -47,6 +47,7 @@ export interface AuthResponse {
   user: AuthUser;
   token: string;
   refreshToken?: string;
+  isNewUser?: boolean;
 }
 
 export const api = {
@@ -415,6 +416,177 @@ export const api = {
       request<{ count: number }>("/notifications/unread-count", { token }),
   },
 
+  admin: {
+    getDashboard: (token: string) =>
+      request<{ stats: AdminDashboardStats }>("/admin/dashboard", { token }),
+
+    getUsers: (token: string, search?: string) =>
+      request<AdminUser[]>(
+        `/admin/users${search ? `?search=${encodeURIComponent(search)}` : ""}`,
+        { token }
+      ),
+
+    updateUserRole: (id: string, role: string, token: string) =>
+      request<{ ok: boolean }>(`/admin/users/${id}/role`, {
+        method: "PATCH",
+        body: JSON.stringify({ role }),
+        token,
+      }),
+
+    banUser: (id: string, banned: boolean, token: string) =>
+      request<{ ok: boolean }>(`/admin/users/${id}/ban`, {
+        method: "PATCH",
+        body: JSON.stringify({ banned }),
+        token,
+      }),
+
+    deleteUser: (id: string, token: string) =>
+      request<{ ok: boolean }>(`/admin/users/${id}`, {
+        method: "DELETE",
+        token,
+      }),
+
+    getPendingTopics: (token: string) =>
+      request<AdminTopic[]>("/admin/forum/pending", { token }),
+
+    updateTopicStatus: (
+      id: string,
+      status: "approved" | "rejected",
+      token: string,
+      reason?: string
+    ) =>
+      request<{ ok: boolean }>(`/forum/topics/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, reason }),
+        token,
+      }),
+
+    getDeletionRequests: (token: string) =>
+      request<DeletionRequest[]>("/admin/forum/deletion-requests", { token }),
+
+    resolveDeletionRequest: (
+      id: string,
+      status: "approved" | "rejected",
+      token: string,
+      rejectionReason?: string
+    ) =>
+      request<{ ok: boolean }>(`/admin/forum/deletion-requests/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, rejectionReason }),
+        token,
+      }),
+
+    getEditRequests: (token: string) =>
+      request<EditRequest[]>("/admin/forum/edit-requests", { token }),
+
+    resolveEditRequest: (
+      id: string,
+      status: "approved" | "rejected",
+      token: string,
+      rejectionReason?: string
+    ) =>
+      request<{ ok: boolean }>(`/admin/forum/edit-requests/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, rejectionReason }),
+        token,
+      }),
+
+    getPremiumPlans: (token: string) =>
+      request<PremiumPlan[]>("/admin/premium/plans", { token }),
+
+    createPremiumPlan: (
+      data: Omit<PremiumPlan, "id" | "createdAt">,
+      token: string
+    ) =>
+      request<PremiumPlan>("/admin/premium/plans", {
+        method: "POST",
+        body: JSON.stringify(data),
+        token,
+      }),
+
+    updatePremiumPlan: (
+      id: string,
+      data: Partial<PremiumPlan>,
+      token: string
+    ) =>
+      request<{ ok: boolean }>(`/admin/premium/plans/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+        token,
+      }),
+
+    deletePremiumPlan: (id: string, token: string) =>
+      request<{ ok: boolean }>(`/admin/premium/plans/${id}`, {
+        method: "DELETE",
+        token,
+      }),
+
+    getConfig: (token: string) =>
+      request<AdminConfig>("/admin/config", { token }),
+
+    getSettings: (token: string) =>
+      request<SystemSettings>("/admin/settings", { token }),
+
+    updateSettings: (data: Partial<SystemSettings>, token: string) =>
+      request<{ ok: boolean }>("/admin/settings", {
+        method: "PATCH",
+        body: JSON.stringify(data),
+        token,
+      }),
+
+    // Premium features catalog
+    getPremiumFeatures: (token: string) =>
+      request<PremiumFeature[]>("/admin/premium/features", { token }),
+
+    createPremiumFeature: (data: Omit<PremiumFeature, "id" | "createdAt">, token: string) =>
+      request<PremiumFeature>("/admin/premium/features", {
+        method: "POST",
+        body: JSON.stringify(data),
+        token,
+      }),
+
+    updatePremiumFeature: (id: string, data: Partial<Omit<PremiumFeature, "id" | "createdAt">>, token: string) =>
+      request<{ ok: boolean }>(`/admin/premium/features/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+        token,
+      }),
+
+    deletePremiumFeature: (id: string, token: string) =>
+      request<{ ok: boolean }>(`/admin/premium/features/${id}`, {
+        method: "DELETE",
+        token,
+      }),
+
+    // Premium main feature categories
+    getPremiumMainFeatures: (token: string) =>
+      request<PremiumMainFeature[]>("/admin/premium/main-features", { token }),
+
+    updatePremiumMainFeature: (id: string, data: Partial<Omit<PremiumMainFeature, "id" | "createdAt">>, token: string) =>
+      request<{ ok: boolean }>(`/admin/premium/main-features/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+        token,
+      }),
+
+    // Premium users
+    getPremiumUsers: (token: string) =>
+      request<AdminUser[]>("/admin/premium/users", { token }),
+
+    grantPremium: (userId: string, planId: string, token: string) =>
+      request<{ ok: boolean; premiumUntil: string }>(`/admin/premium/users/${userId}/grant`, {
+        method: "POST",
+        body: JSON.stringify({ planId }),
+        token,
+      }),
+
+    revokePremium: (userId: string, token: string) =>
+      request<{ ok: boolean }>(`/admin/premium/users/${userId}/grant`, {
+        method: "DELETE",
+        token,
+      }),
+  },
+
   guide: {
     getSteps: (countryId: string, token: string) =>
       request<{
@@ -450,3 +622,117 @@ export const api = {
       }>("/guide/home-stats", { token }),
   },
 };
+
+// ─── Admin types ─────────────────────────────────────────────────────────────
+
+export interface AdminDashboardStats {
+  totalUsers: number;
+  totalTopics: number;
+  totalComments: number;
+  totalCountries: number;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  displayName: string;
+  role: "admin" | "moderator" | "user";
+  userType?: string;
+  isPremium?: boolean;
+  premiumUntil?: string;
+  isBanned?: boolean;
+  createdAt?: string;
+}
+
+export interface AdminTopic {
+  id: string;
+  title: string;
+  status: string;
+  authorId: string;
+  authorDisplayName?: string;
+  categoryId: string;
+  categoryName?: string;
+  countryName?: string;
+  createdAt: string;
+}
+
+export interface DeletionRequest {
+  id: string;
+  topicId: string;
+  topicTitle: string;
+  requesterId: string;
+  requesterName: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+}
+
+export interface EditRequest {
+  id: string;
+  topicId: string;
+  topicTitle: string;
+  requesterId: string;
+  requesterName: string;
+  newTitle: string;
+  newContent?: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+}
+
+export interface PremiumPlan {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  durationDays: number;
+  features: string[];
+  featureKeys: string[];
+  isSubscription: boolean;
+  subscriptionDiscountPercent: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface AdminConfig {
+  app: { name: string; version: string; url: string };
+  server: { port: number; nodeEnv: string; jwtExpiry: string };
+  admin: { email: string };
+  integrations: {
+    firebaseConfigured: boolean;
+    stripeConfigured: boolean;
+    sendgridConfigured: boolean;
+    googleAuthConfigured: boolean;
+  };
+}
+
+export interface SystemSettings {
+  forumCreateTopicCost: number;
+  forumCommentAccessCost: number;
+  commentEditWindowMinutes: number;
+  commentDeleteWindowMinutes: number;
+  guideEnableNotifications: boolean;
+  guideEnableRecommendations: boolean;
+  notificationsEnableEmail: boolean;
+  notificationsEnableInApp: boolean;
+}
+
+export interface PremiumFeature {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  mainFeatureId?: string | null;
+  durationDays?: number | null;
+  quota?: number | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface PremiumMainFeature {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  isActive: boolean;
+  createdAt: string;
+}

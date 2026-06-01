@@ -81,6 +81,32 @@ export function adminRoutes(repos: Repositories): Router {
     }
   });
 
+  router.patch("/users/:id/ban", authMiddleware, requireRole("admin"), async (req, res) => {
+    try {
+      const { banned } = req.body;
+      if (typeof banned !== "boolean") return res.status(400).json({ error: "banned (boolean) zorunlu" });
+      const target = await repos.users.findById(req.params.id as string);
+      if (!target) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+      if (target.role === "admin") return res.status(403).json({ error: "Admin kullanıcılar banlanamaz" });
+      await repos.users.setBanned(req.params.id as string, banned);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.delete("/users/:id", authMiddleware, requireRole("admin"), async (req, res) => {
+    try {
+      const target = await repos.users.findById(req.params.id as string);
+      if (!target) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+      if (target.role === "admin") return res.status(403).json({ error: "Admin kullanıcılar silinemez" });
+      await repos.users.delete(req.params.id as string);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   router.patch("/topics/:id/pin", authMiddleware, requireRole("admin", "moderator"), async (req, res) => {
     try {
       const { isPinned } = req.body;

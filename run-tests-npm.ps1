@@ -52,10 +52,8 @@ Run-Step "Mobile unit tests"      { npm exec -- jest Tests/unit --forceExit --pa
 Run-Step "Mobile component tests" { npm exec -- jest Tests/component --forceExit --passWithNoTests }
 
 # ── Admin ─────────────────────────────────────────────────────────────────────
-Write-Host "`n=== Admin ===" -ForegroundColor Yellow
-Set-Location "$PSScriptRoot\admin"
-Run-Step "Admin unit tests"        { npm run test:unit -- --reporter=verbose 2>&1 }
-Run-Step "Admin integration tests" { npm run test:integration -- --reporter=verbose 2>&1 }
+# Admin panel mobile uygulamaya entegre edildi.
+# Admin ekran testleri Mobile bölümündeki component testlerinde yer alır.
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 $totalFailed = 0

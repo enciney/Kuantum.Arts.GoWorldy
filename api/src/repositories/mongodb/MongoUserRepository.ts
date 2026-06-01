@@ -28,6 +28,16 @@ export class MongoUserRepository implements IUserRepository {
     await users.updateOne({ _id: id }, { $set: { role } });
   }
 
+  async setBanned(id: string, banned: boolean): Promise<void> {
+    const { users } = await getCollections();
+    await users.updateOne({ _id: id }, { $set: { isBanned: banned } });
+  }
+
+  async delete(id: string): Promise<void> {
+    const { users } = await getCollections();
+    await users.deleteOne({ _id: id });
+  }
+
   async update(id: string, data: Partial<User>): Promise<void> {
     const { users } = await getCollections();
     const { id: _omitId, createdAt: _omitCa, ...fields } = data as any;

@@ -24,6 +24,8 @@ import { FavoritesScreen } from "../screens/main/FavoritesScreen";
 import { NotificationsScreen } from "../screens/main/NotificationsScreen";
 import { PremiumScreen } from "../screens/main/PremiumScreen";
 import { PaymentScreen, PaymentScreenParams } from "../screens/main/PaymentScreen";
+import { AdminNavigator } from "./AdminNavigator";
+import { OnboardingScreen } from "../screens/auth/OnboardingScreen";
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -51,6 +53,7 @@ export type MainTabParamList = {
   Guide: undefined;
   Forum: { openTopicId?: string; openTopicTitle?: string } | undefined;
   Profile: undefined;
+  Admin: undefined;
 };
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
@@ -129,6 +132,7 @@ const TAB_ICONS: Record<keyof MainTabParamList, { active: IconName; inactive: Ic
   Guide: { active: "map", inactive: "map-outline" },
   Forum: { active: "chatbubbles", inactive: "chatbubbles-outline" },
   Profile: { active: "person", inactive: "person-outline" },
+  Admin: { active: "shield", inactive: "shield-outline" },
 };
 
 function BadgeDot({ count }: { count: number }) {
@@ -161,6 +165,8 @@ function MainTabs() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = 52 + insets.bottom;
   const { unreadCount } = useNotificationCount();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin" || user?.role === "moderator";
 
   return (
     <MainTab.Navigator
@@ -195,6 +201,13 @@ function MainTabs() {
       <MainTab.Screen name="Guide" component={GuideScreen} options={{ title: "Rehberim" }} />
       <MainTab.Screen name="Forum" component={ForumScreen} options={{ title: "Forum" }} />
       <MainTab.Screen name="Profile" component={ProfileStackNavigator} options={{ title: "Profil" }} />
+      {isAdmin && (
+        <MainTab.Screen
+          name="Admin"
+          component={AdminNavigator}
+          options={{ title: "Admin", headerShown: false }}
+        />
+      )}
     </MainTab.Navigator>
   );
 }
@@ -231,7 +244,7 @@ const linking = {
 };
 
 export function AppNavigator() {
-  const { user, isLoading, token } = useAuth();
+  const { user, isLoading, token, needsOnboarding } = useAuth();
 
   if (isLoading) {
     return (
@@ -244,7 +257,12 @@ export function AppNavigator() {
   return (
     <NotificationProvider token={token}>
       <NavigationContainer linking={linking}>
-        {user ? <MainTabs /> : <AuthNavigator />}
+        {user
+          ? needsOnboarding
+            ? <OnboardingScreen />
+            : <MainTabs />
+          : <AuthNavigator />
+        }
       </NavigationContainer>
     </NotificationProvider>
   );

@@ -123,17 +123,11 @@ export class MongoNotificationRepository implements INotificationRepository {
     topicTitle: string,
     authorId: string
   ): Promise<void> {
-    const { userCountrySubscriptions, forumCategories, forumTopics } = await getCollections();
+    const { userCountrySubscriptions, forumCategories } = await getCollections();
 
-    // Resolve countryId from topic's category if not provided directly
-    let resolvedCountryId = countryId;
-    if (!resolvedCountryId) {
-      const topic = await forumTopics.findOne({ _id: topicId });
-      if (topic) {
-        const cat = await forumCategories.findOne({ _id: topic.categoryId });
-        resolvedCountryId = cat?.countryId ?? "";
-      }
-    }
+    // Callers pass categoryId; resolve the actual countryId from the category
+    const cat = await forumCategories.findOne({ _id: countryId });
+    const resolvedCountryId = cat?.countryId ?? "";
 
     if (!resolvedCountryId) return;
 

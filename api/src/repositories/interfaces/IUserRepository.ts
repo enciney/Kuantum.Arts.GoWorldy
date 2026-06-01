@@ -15,6 +15,7 @@ export interface User {
   onboardingCompleted?: boolean;
   targetCountryId?: string;
   activeGuideCountryId?: string;
+  isBanned?: boolean;
   createdAt: string;
 }
 
@@ -37,6 +38,8 @@ export interface IUserRepository {
   findByEmail(email: string): Promise<User | null>;
   updateRole(id: string, role: User["role"]): Promise<void>;
   update(id: string, data: Partial<User>): Promise<void>;
+  setBanned(id: string, banned: boolean): Promise<void>;
+  delete(id: string): Promise<void>;
   count(): Promise<number>;
   getUserTypeStats(): Promise<UserTypeStats[]>;
   getRecent(limit: number): Promise<User[]>;

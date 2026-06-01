@@ -9,6 +9,7 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
+  needsOnboarding: boolean;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: (idToken: string) => Promise<void>;
   register: (
@@ -17,6 +18,7 @@ interface AuthContextValue extends AuthState {
     displayName: string,
     userType?: "emigrant" | "consultant" | "diaspora"
   ) => Promise<void>;
+  completeOnboarding: () => void;
   logout: () => Promise<void>;
   logoutOnUnauthorized: () => Promise<void>;
   refreshUser: () => Promise<AuthUser | null>;
@@ -44,6 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     token: null,
     isLoading: true,
   });
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
   const refreshingRef = useRef(false);
 
@@ -158,9 +161,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const loginWithGoogle = async (idToken: string) => {
-    const { user, token, refreshToken } = await api.auth.google(idToken);
+    const { user, token, refreshToken, isNewUser } = await api.auth.google(idToken);
     await persist(user, token, refreshToken);
+    if (isNewUser) setNeedsOnboarding(true);
   };
+
+  const completeOnboarding = () => setNeedsOnboarding(false);
 
   const register = async (
     email: string,
@@ -206,7 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [state.token, state.user]);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, loginWithGoogle, register, logout, logoutOnUnauthorized, refreshUser }}>
+    <AuthContext.Provider value={{ ...state, needsOnboarding, login, loginWithGoogle, register, completeOnboarding, logout, logoutOnUnauthorized, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
