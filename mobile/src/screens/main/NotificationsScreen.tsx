@@ -118,6 +118,13 @@ export function NotificationsScreen() {
     refreshCount();
   };
 
+  // Bildirim tipi → AdminTopics tab eşlemesi
+  const ADMIN_TAB_MAP: Partial<Record<NotifType, "pending" | "editRequests" | "deletionRequests">> = {
+    admin_new_pending: "pending",
+    edit_request: "editRequests",
+    admin_deletion_request: "deletionRequests",
+  };
+
   const handleNotifPress = async (notif: Notif) => {
     if (!token) return;
     if (!notif.read) {
@@ -127,10 +134,19 @@ export function NotificationsScreen() {
       );
       refreshCount();
     }
+
     if (notif.targetType === "forum_topic" && notif.targetId) {
+      // Normal forum konusu → Forum tab
       navigation.getParent()?.navigate("Forum", {
         openTopicId: notif.targetId,
         openTopicTitle: notif.title,
+      });
+    } else if (notif.targetType === "admin_queue") {
+      // Admin onay kuyruğu → Admin tab > AdminTopics (doğru sekmeyle)
+      const initialTab = ADMIN_TAB_MAP[notif.type];
+      navigation.getParent()?.navigate("Admin", {
+        screen: "AdminTopics",
+        params: initialTab ? { initialTab } : undefined,
       });
     }
   };

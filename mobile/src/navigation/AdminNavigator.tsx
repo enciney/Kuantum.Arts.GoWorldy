@@ -7,9 +7,11 @@ import { AdminUsersScreen } from "../screens/admin/AdminUsersScreen";
 import { AdminPremiumScreen } from "../screens/admin/AdminPremiumScreen";
 import { AdminSettingsScreen } from "../screens/admin/AdminSettingsScreen";
 
+export type AdminTopicsTab = "pending" | "editRequests" | "deletionRequests";
+
 export type AdminStackParamList = {
   AdminDashboard: undefined;
-  AdminTopics: undefined;
+  AdminTopics: { initialTab?: AdminTopicsTab } | undefined;
   AdminUsers: undefined;
   AdminPremium: undefined;
   AdminSettings: undefined;

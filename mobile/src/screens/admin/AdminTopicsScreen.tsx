@@ -11,7 +11,8 @@ import {
   ScrollView,
   FlatList,
 } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useRoute, RouteProp } from "@react-navigation/native";
+import { AdminStackParamList, AdminTopicsTab } from "../../navigation/AdminNavigator";
 import { useAuth } from "../../context/AuthContext";
 import { api, AdminTopic, DeletionRequest, EditRequest } from "../../services/api";
 import { Colors } from "../../theme";
@@ -24,11 +25,19 @@ import {
 } from "./adminTopicsHandlers";
 import { AdminLayout } from "./AdminLayout";
 
-type Tab = "pending" | "editRequests" | "deletionRequests";
+type Tab = AdminTopicsTab;
 
 export function AdminTopicsScreen() {
   const { token } = useAuth();
-  const [tab, setTab] = useState<Tab>("pending");
+  const route = useRoute<RouteProp<AdminStackParamList, "AdminTopics">>();
+  const [tab, setTab] = useState<Tab>(route.params?.initialTab ?? "pending");
+
+  // Ekran zaten mount'luyken yeni params gelirse tab'ı güncelle
+  React.useEffect(() => {
+    if (route.params?.initialTab) {
+      setTab(route.params.initialTab);
+    }
+  }, [route.params?.initialTab]);
 
   // Pending topics
   const [topics, setTopics] = useState<AdminTopic[]>([]);
