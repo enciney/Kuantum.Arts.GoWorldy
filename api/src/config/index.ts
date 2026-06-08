@@ -5,7 +5,7 @@ const envFile = process.env.NODE_ENV === "production"
   ? ".env.production"
   : ".env.development";
 
-dotenv.config({ path: path.resolve(__dirname, "../../../config", envFile) });
+dotenv.config({ path: path.resolve(__dirname, "../../config", envFile) });
 
 export const config = {
   port: Number(process.env.PORT) || 3000,
