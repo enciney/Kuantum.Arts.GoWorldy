@@ -7,7 +7,10 @@ const envFile = process.env.NODE_ENV === "production"
 
 dotenv.config({ path: path.resolve(__dirname, "../../config", envFile) });
 // .env.local — en yüksek öncelik, sadece local dev için (commit edilmez)
-dotenv.config({ path: path.resolve(__dirname, "../../config", ".env.local"), override: true });
+// Test ortamında yükleme — globalSetup'ın set ettiği DB_CONNECTION_STRING ezilmesin
+if (process.env.NODE_ENV !== "test") {
+  dotenv.config({ path: path.resolve(__dirname, "../../config", ".env.local"), override: true });
+}
 
 export const config = {
   port: Number(process.env.PORT) || 3000,

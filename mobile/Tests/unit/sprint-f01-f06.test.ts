@@ -255,8 +255,8 @@ describe("F-04: PremiumScreen — formatTimeRemaining()", () => {
     expect(result).toContain("30 dakika");
   });
 
-  it("tam 24 saat → gün formatına girer", () => {
-    const future = new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString(); // 24 saat
+  it("25 saat → gün formatına girer", () => {
+    const future = new Date(Date.now() + 1000 * 60 * 60 * 25).toISOString(); // 25 saat — boundary'den güvenli uzaklıkta
     const result = formatTimeRemaining(future);
     expect(result).toMatch(/\d+ gün \d+ saat kaldı/);
   });
