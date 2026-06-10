@@ -25,6 +25,15 @@ export function userRoutes(repos: Repositories): Router {
     try {
       const user = await repos.users.findById(req.userId!);
       if (!user) return res.status(404).json({ error: "User not found" });
+
+      // Süre dolmuş ama isPremium=true kalan kullanıcıları otomatik düzelt
+      if (user.isPremium && user.premiumUntil && new Date(user.premiumUntil) <= new Date()) {
+        await repos.users.update(user.id, { isPremium: false, premiumUntil: undefined, autoRenew: false });
+        user.isPremium = false;
+        user.premiumUntil = undefined;
+        user.autoRenew = false;
+      }
+
       const { passwordHash, ...safe } = user;
       res.json(safe);
     } catch (e: any) {

@@ -42,7 +42,21 @@ export class MongoUserRepository implements IUserRepository {
     const { users } = await getCollections();
     const { id: _omitId, createdAt: _omitCa, ...fields } = data as any;
     if (!Object.keys(fields).length) return;
-    await users.updateOne({ _id: id }, { $set: fields });
+
+    // undefined değerler $unset ile kaldırılır, geri kalanlar $set ile yazılır
+    const setFields: Record<string, unknown> = {};
+    const unsetFields: Record<string, 1> = {};
+    for (const [k, v] of Object.entries(fields)) {
+      if (v === undefined) unsetFields[k] = 1;
+      else setFields[k] = v;
+    }
+
+    const ops: Record<string, unknown> = {};
+    if (Object.keys(setFields).length) ops["$set"] = setFields;
+    if (Object.keys(unsetFields).length) ops["$unset"] = unsetFields;
+    if (!Object.keys(ops).length) return;
+
+    await users.updateOne({ _id: id }, ops);
   }
 
   async count(): Promise<number> {

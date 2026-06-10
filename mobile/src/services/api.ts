@@ -24,10 +24,16 @@ async function request<T>(
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const res = await fetch(`${BASE_URL}${path}`, { ...fetchOptions, headers });
-  const data = await res.json();
+  let data: any;
+  try {
+    data = await res.json();
+  } catch {
+    // Sunucu HTML veya geçersiz JSON döndü (muhtemelen 404/502)
+    throw new ApiError(`Sunucu yanıtı geçersiz (HTTP ${res.status}). API çalışıyor mu?`, res.status);
+  }
   if (!res.ok) {
     if (res.status === 401 && on401Handler) on401Handler();
-    throw new ApiError(data.error || "Request failed", res.status);
+    throw new ApiError(data?.error || "Request failed", res.status);
   }
   return data as T;
 }
@@ -106,6 +112,8 @@ export const api = {
         credits?: number;
         isPremium: boolean;
         premiumUntil?: string;
+        premiumPlanId?: string;
+        autoRenew?: boolean;
         userType?: "emigrant" | "consultant" | "diaspora";
         phoneNumber?: string;
         sharePhoneNumber?: boolean;
@@ -358,6 +366,12 @@ export const api = {
         "/payment/my-features",
         { token }
       ),
+
+    cancelSubscription: (token: string) =>
+      request<{ ok: boolean }>("/payment/cancel", {
+        method: "POST",
+        token,
+      }),
   },
 
   notifications: {

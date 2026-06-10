@@ -6,6 +6,8 @@ const envFile = process.env.NODE_ENV === "production"
   : ".env.development";
 
 dotenv.config({ path: path.resolve(__dirname, "../../config", envFile) });
+// .env.local — en yüksek öncelik, sadece local dev için (commit edilmez)
+dotenv.config({ path: path.resolve(__dirname, "../../config", ".env.local"), override: true });
 
 export const config = {
   port: Number(process.env.PORT) || 3000,

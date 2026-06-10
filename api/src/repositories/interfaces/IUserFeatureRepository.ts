@@ -11,4 +11,5 @@ export interface IUserFeatureRepository {
   getActiveFeatures(userId: string): Promise<UserFeature[]>;
   hasFeature(userId: string, featureType: string): Promise<boolean>;
   addFeature(userId: string, featureType: string, expiresAt: string | null): Promise<UserFeature>;
+  removeFeature(userId: string, featureType: string): Promise<void>;
 }

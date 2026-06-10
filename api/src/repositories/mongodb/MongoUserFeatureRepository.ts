@@ -46,4 +46,9 @@ export class MongoUserFeatureRepository implements IUserFeatureRepository {
     await userFeatures.insertOne(doc);
     return toDoc<UserFeature>(doc);
   }
+
+  async removeFeature(userId: string, featureType: string): Promise<void> {
+    const { userFeatures } = await getCollections();
+    await userFeatures.deleteMany({ userId, featureType });
+  }
 }

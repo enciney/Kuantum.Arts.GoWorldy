@@ -78,22 +78,23 @@ export function paymentRoutes(repos: Repositories): Router {
       }
 
       // Feature key'lerini userFeatures'a yaz (plan süresine kadar TTL)
+      // Subscription planlar için eski kayıtları sil (upsert davranışı)
       const now = new Date();
       const expiresAt = new Date(now.getTime() + plan.durationDays * 86_400_000).toISOString();
       for (const key of plan.featureKeys ?? []) {
+        if (plan.isSubscription) {
+          await repos.userFeatures.removeFeature(req.userId!, key).catch(() => {});
+        }
         await repos.userFeatures.addFeature(req.userId!, key, expiresAt);
       }
 
-      // Subscription ise isPremium = true + premiumUntil uzat
+      // Subscription ise isPremium = true + premiumUntil override et (stack etme)
       if (plan.isSubscription) {
-        const existing = await repos.users.findById(req.userId!);
-        const base = existing?.premiumUntil && new Date(existing.premiumUntil) > now
-          ? new Date(existing.premiumUntil)
-          : now;
-        const premiumUntil = new Date(base.getTime() + plan.durationDays * 86_400_000).toISOString();
+        const premiumUntil = new Date(now.getTime() + plan.durationDays * 86_400_000).toISOString();
         await repos.users.update(req.userId!, {
           isPremium: true,
           premiumUntil,
+          premiumPlanId: plan.id,
           autoRenew: wantsAutoRenew,
         });
       }
@@ -101,12 +102,37 @@ export function paymentRoutes(repos: Repositories): Router {
       const user = await repos.users.findById(req.userId!);
       res.json({
         ok: true,
-        isPremium:    user?.isPremium     ?? false,
-        premiumUntil: user?.premiumUntil  ?? null,
-        autoRenew:    wantsAutoRenew,
+        isPremium:     user?.isPremium     ?? false,
+        premiumUntil:  user?.premiumUntil  ?? null,
+        premiumPlanId: user?.premiumPlanId ?? null,
+        autoRenew:     wantsAutoRenew,
         chargedTL,
         discountPct,
       });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // POST /cancel — aktif subscription'ı iptal et
+  router.post("/cancel", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const existing = await repos.users.findById(req.userId!);
+      if (!existing?.isPremium) {
+        return res.status(400).json({ error: "Aktif bir aboneliğiniz yok.", code: "NOT_PREMIUM" });
+      }
+      await repos.users.update(req.userId!, {
+        isPremium: false,
+        premiumUntil: undefined,
+        premiumPlanId: undefined,
+        autoRenew: false,
+      });
+      // Aktif subscription feature key'lerini temizle
+      const subFeatureKeys = ["unlimited_topics", "unlimited_comments_weekly", "dm_20_weekly"];
+      for (const key of subFeatureKeys) {
+        await repos.userFeatures.removeFeature(req.userId!, key).catch(() => {});
+      }
+      res.json({ ok: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }

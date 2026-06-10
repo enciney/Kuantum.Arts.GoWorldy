@@ -1,2 +1,2 @@
 npm install
-npm run web
+npx expo start --clear

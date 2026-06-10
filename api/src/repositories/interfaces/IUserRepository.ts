@@ -8,6 +8,7 @@ export interface User {
   userType: "emigrant" | "consultant" | "diaspora";
   isPremium: boolean;
   premiumUntil?: string;
+  premiumPlanId?: string;
   autoRenew?: boolean;
   phoneNumber?: string;
   sharePhoneNumber?: boolean;
