@@ -5,23 +5,33 @@
 ### Rol
 DevOps mühendisi. `git push` ile canlı kullanıcı arasındaki her şeyden sorumlu: CI/CD pipeline'ları, ortam yapılandırması, gizli anahtar yönetimi, deployment, izleme ve rollback.
 
-### Tech Stack & Platform
+### Tech Stack & Platform  (GÜNCEL — 2026-06-12)
 | Katman | Dev | Staging/Prod |
 |--------|-----|-------------|
-| API (Node/Express) | localhost:3000 | Render (free) |
+| API (Node/Express) | localhost:3000 | **Railway** (GitHub'a bagli, push'la otomatik deploy) |
 | Mobile (Expo) | Expo Go | EAS Build → App Store / Play Store |
 | Admin (React) | localhost:5173 | Vercel (free) |
-| DB | SQLite (local) | MongoDB Atlas M0 (free) |
-| CI/CD | — | GitHub Actions |
+| DB | MongoDB Atlas M0 (free) | MongoDB Atlas M0 (free) |
+| CI/CD | — | GitHub Actions + deploy-*.ps1 scriptleri |
 
-**Maliyet (MVP):** $0/month
+> NOT: Onceki plan API icin Render diyordu; gercekte **Railway** kullaniliyor
+> (`gowordly-service-production.up.railway.app/api`). DB de artik sadece MongoDB (SQLite kaldirildi).
+
+**Maliyet (MVP):** $0/month (Railway deneme kredisi tukenirse Render free'ye gecis planlanir)
+
+### Deploy Scriptleri (repo kokunde — elle/disaridan tetikleme)
+| Script | Ne yapar |
+|--------|----------|
+| `deploy-android.ps1` | EAS Android build (preview=APK / production=AAB) |
+| `deploy-ios.ps1` | EAS iOS build (preview=simulator / production=TestFlight) |
+| `deploy-be.ps1` | tsc kontrol → (ops. commit) → git push → Railway deploy → health dogrulama |
 
 ### Pipeline Mimarisi
 ```
-git push → GitHub Actions: CI (tsc + test) → (master'da) CD:
-  API → Render deploy hook
-  Admin → Vercel otomatik
-  Mobile → EAS Update (OTA)
+git push → GitHub Actions (ci.yml): API+Mobile tsc + test
+API     → Railway otomatik deploy (push'ta)  |  elle: deploy-be.ps1
+Admin   → Vercel otomatik
+Mobile  → deploy-android.ps1 / deploy-ios.ps1 (EAS build)  |  ileride: eas update (OTA)
 ```
 
 ### GitHub Secrets
@@ -56,11 +66,20 @@ git push → GitHub Actions: CI (tsc + test) → (master'da) CD:
 - **DB:** MongoDB Atlas M0 (ücretsiz, 512MB) — zaten mevcut
 - **Mobile builds:** Expo EAS free tier (30 build/ay) + OTA updates
 
-## Pipeline State
-- CI workflow (.github/workflows/ci.yml): henüz oluşturulmadı
-- CD workflow (.github/workflows/deploy-api.yml): henüz oluşturulmadı
-- Render service: henüz kurulmadı
-- Vercel project: henüz kurulmadı
+## Pipeline State (2026-06-12)
+- CI workflow (.github/workflows/ci.yml): ✅ oluşturuldu (API+Mobile tsc+test)
+- Build workflow (.github/workflows/build-apk.yml): ✅ oluşturuldu (workflow_dispatch — elle)
+- Deploy scriptleri (deploy-android/ios/be.ps1): ✅ oluşturuldu
+- Railway API service: ✅ çalışıyor (otomatik deploy)
+- Vercel admin: ✅ çalışıyor
+- EAS proje: ✅ bağlı (@enciney/goworldy, projectId app.json'da)
+- OTA (expo-updates): ✅ kuruldu + yapılandırıldı (updates.url + runtimeVersion appVersion policy)
+  - Kanallar: development / preview / production (eas.json)
+  - ota-update.yml: mobile/ push'unda otomatik `eas update --branch preview`
+  - Manuel OTA: `cd mobile && eas update --branch preview --message "..."`
+  - OTA SADECE JS taşır; native değişiklik → yeni APK (deploy-android.ps1)
+- EXPO_TOKEN secret: ⏳ kullanıcı eklemeli (GitHub Actions OTA + build için)
+  - Token: expo.dev/settings/access-tokens → GitHub repo Secrets → EXPO_TOKEN
 
 ## Known Constraints
 - Render free tier: 15 dakika idle sonrası spin-down, cold start ~30 saniye

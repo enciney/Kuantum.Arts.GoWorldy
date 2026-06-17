@@ -1,0 +1,35 @@
+name: Build Android APK
+
+# Elle tetiklenir: GitHub → Actions → "Build Android APK" → Run workflow.
+# Her push'ta build alınmaz — ücretsiz EAS kotası (~30 build/ay) korunur.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "EAS build profili"
+        type: choice
+        default: preview
+        options: [preview, production]
+
+jobs:
+  build:
+    name: EAS cloud build (Android)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      # --no-wait: build EAS bulutunda devam eder, Actions dakikası harcanmaz.
+      # Sonuç linki: https://expo.dev/accounts/enciney/projects/goworldy/builds
+      - run: eas build -p android --profile ${{ github.event.inputs.profile }} --non-interactive --no-wait

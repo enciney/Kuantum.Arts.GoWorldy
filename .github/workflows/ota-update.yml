@@ -1,0 +1,30 @@
+name: OTA Update (mobile)
+
+# mobile/ altinda bir degisiklik push'laninca telefonlara OTA guncelleme gonderir.
+# Sadece JS/kod degisikligini tasir; native degisiklik icin yeni APK gerekir (deploy-android.ps1).
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - "mobile/**"
+
+jobs:
+  update:
+    name: eas update → preview kanali
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - run: eas update --branch preview --message "${{ github.event.head_commit.message }}"
