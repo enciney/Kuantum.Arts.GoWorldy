@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
+import { signInWithGoogle, isGoogleSignInConfigured } from "../../services/google-signin";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 
 type UserType = "emigrant" | "consultant" | "diaspora";
@@ -28,14 +29,33 @@ type Props = {
 };
 
 export function RegisterScreen({ onNavigateLogin }: Props) {
-  const { register } = useAuth();
+  const { register, loginWithGoogle } = useAuth();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [userType, setUserType] = useState<UserType>("emigrant");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleGoogleSignUp = async () => {
+    if (!isGoogleSignInConfigured()) {
+      setError("Google girişi yapılandırılmamış (web client ID eksik).");
+      return;
+    }
+    setError(null);
+    setGoogleLoading(true);
+    try {
+      const idToken = await signInWithGoogle();
+      if (!idToken) return; // kullanıcı iptal etti
+      await loginWithGoogle(idToken);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Google ile kayıt başarısız.");
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
   const [kvkkAccepted, setKvkkAccepted] = useState(false);
   const [showKvkk, setShowKvkk] = useState(false);
 
@@ -170,6 +190,25 @@ export function RegisterScreen({ onNavigateLogin }: Props) {
           ) : (
             <Text style={styles.btnText}>Kayıt Ol</Text>
           )}
+        </TouchableOpacity>
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>veya</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <TouchableOpacity
+          style={[styles.googleBtn, googleLoading && { opacity: 0.6 }]}
+          onPress={handleGoogleSignUp}
+          disabled={googleLoading}
+        >
+          {googleLoading ? (
+            <ActivityIndicator color="#EA4335" size="small" />
+          ) : (
+            <Ionicons name="logo-google" size={20} color="#EA4335" />
+          )}
+          <Text style={styles.googleBtnText}>Google ile Kayıt Ol</Text>
         </TouchableOpacity>
 
         <Modal visible={showKvkk} animationType="slide" presentationStyle="pageSheet">
@@ -307,6 +346,22 @@ const styles = StyleSheet.create({
   },
   btnDisabled: { opacity: 0.6 },
   btnText: { color: Colors.surface, fontSize: 16, fontWeight: "600" },
+  divider: { flexDirection: "row", alignItems: "center", marginVertical: 16 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
+  dividerText: { marginHorizontal: 12, color: Colors.textMuted, ...Typography.caption },
+  googleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.md,
+    paddingVertical: 14,
+    gap: 10,
+    minHeight: MinTapTarget,
+  },
+  googleBtnText: { fontSize: 15, color: Colors.textPrimary, fontWeight: "500" },
   link: { alignItems: "center", paddingVertical: Spacing.sm },
   linkText: { color: Colors.textSecondary, fontSize: 14 },
   linkBold: { color: Colors.primary, fontWeight: "600" },

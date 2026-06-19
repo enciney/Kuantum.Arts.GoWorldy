@@ -24,7 +24,6 @@ import { FavoritesScreen } from "../screens/main/FavoritesScreen";
 import { NotificationsScreen } from "../screens/main/NotificationsScreen";
 import { PremiumScreen } from "../screens/main/PremiumScreen";
 import { PaymentScreen, PaymentScreenParams } from "../screens/main/PaymentScreen";
-import { AdminNavigator } from "./AdminNavigator";
 import { OnboardingScreen } from "../screens/auth/OnboardingScreen";
 
 export type AuthStackParamList = {
@@ -165,8 +164,6 @@ function MainTabs() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = 52 + insets.bottom;
   const { unreadCount } = useNotificationCount();
-  const { user } = useAuth();
-  const isAdmin = user?.role === "admin" || user?.role === "moderator";
 
   return (
     <MainTab.Navigator
@@ -201,13 +198,6 @@ function MainTabs() {
       <MainTab.Screen name="Guide" component={GuideScreen} options={{ title: "Rehberim" }} />
       <MainTab.Screen name="Forum" component={ForumScreen} options={{ title: "Forum" }} />
       <MainTab.Screen name="Profile" component={ProfileStackNavigator} options={{ title: "Profil" }} />
-      {isAdmin && (
-        <MainTab.Screen
-          name="Admin"
-          component={AdminNavigator}
-          options={{ title: "Admin", headerShown: false }}
-        />
-      )}
     </MainTab.Navigator>
   );
 }

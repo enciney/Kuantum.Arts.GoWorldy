@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../AuthContext";
 import { api, Topic, DeletionRequest, EditRequest } from "../api";
 
-const BASE = "http://localhost:3000/api";
+const BASE = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 type Tab = "pending" | "editRequests" | "deletionRequests";
 

@@ -1,4 +1,4 @@
-const BASE = "http://localhost:3000/api";
+const BASE = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 async function req<T>(path: string, opts: RequestInit = {}, token?: string): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };

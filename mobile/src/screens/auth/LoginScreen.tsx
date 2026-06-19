@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
-import { useGoogleAuth, isGoogleSignInConfigured } from "../../services/google-signin";
+import { signInWithGoogle, isGoogleSignInConfigured } from "../../services/google-signin";
 import { Colors, Typography, Spacing, Radius, MinTapTarget } from "../../theme";
 
 type Props = {
@@ -27,22 +27,6 @@ export function LoginScreen({ onNavigateRegister, onNavigateForgot }: Props) {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const { request, response, promptAsync } = useGoogleAuth();
-
-  useEffect(() => {
-    if (response?.type === "success" && response.params.id_token) {
-      const idToken = response.params.id_token;
-      setGoogleLoading(true);
-      loginWithGoogle(idToken)
-        .catch((e: unknown) =>
-          setError(e instanceof Error ? e.message : "Google girişi başarısız.")
-        )
-        .finally(() => setGoogleLoading(false));
-    } else if (response?.type === "error") {
-      setError(response.error?.message || "Google girişi iptal edildi.");
-    }
-  }, [response, loginWithGoogle]);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -60,16 +44,22 @@ export function LoginScreen({ onNavigateRegister, onNavigateForgot }: Props) {
     }
   };
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
     if (!isGoogleSignInConfigured()) {
-      setError("EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID environment değişkeni mobile/.env dosyasına eklenmeli.");
+      setError("Google girişi yapılandırılmamış (web client ID eksik).");
       return;
     }
-    if (!request) {
-      setError("Google girişi hazırlanıyor, lütfen tekrar deneyin.");
-      return;
+    setError(null);
+    setGoogleLoading(true);
+    try {
+      const idToken = await signInWithGoogle();
+      if (!idToken) return; // kullanıcı iptal etti
+      await loginWithGoogle(idToken);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Google girişi başarısız.");
+    } finally {
+      setGoogleLoading(false);
     }
-    promptAsync();
   };
 
   return (

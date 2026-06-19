@@ -14,7 +14,8 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://gowordly-service-production.up.railway.app/api",
         "EXPO_PUBLIC_WEB_URL": "https://kuantum-arts-go-worldy.vercel.app",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "858593226942-8p7pl779p8pcenflpnt84iedf8i8aube.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "858593226942-8p7pl779p8pcenflpnt84iedf8i8aube.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "858593226942-381vdvnhdc1icnc3nu8ab9njgk9ft62l.apps.googleusercontent.com"
       },
       "android": {
         "buildType": "apk"

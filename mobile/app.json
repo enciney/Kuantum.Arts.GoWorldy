@@ -4,7 +4,7 @@
     "slug": "goworldy",
     "scheme": "goworldy",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -47,7 +47,8 @@
     },
     "owner": "enciney",
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      "@react-native-google-signin/google-signin"
     ],
     "runtimeVersion": {
       "policy": "appVersion"
